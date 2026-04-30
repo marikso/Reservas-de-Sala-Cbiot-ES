@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administração - ReservaSala</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="logo">🏫 ReservaSala</h1>
+            <ul class="nav-links">
+                <li><a href="/" class="nav-link">Reservas</a></li>
+                <li><a href="/admin" class="nav-link active">Administração</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container main-content">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
+            <h2>Painel de Administração</h2>
+            <a href="{{ url_for('admin_logout') }}" class="btn btn-secondary">Sair</a>
+        </div>
+        <div class="admin-section">
+            <h3>Gerenciar Salas</h3>
+            <div class="form-section">
+                <h4>Adicionar Nova Sala</h4>
+                <form id="formSala">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nomeSala">Nome da Sala *</label>
+                            <input type="text" id="nomeSala" placeholder="Ex: Sala A" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="descricaoSala">Descrição</label>
+                        <textarea id="descricaoSala" rows="3" placeholder="Detalhes da sala"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Adicionar Sala</button>
+                </form>
+            </div>
+            <h4>Salas Existentes</h4>
+            <div id="salas" class="salas-grid"></div>
+        </div>
+        <div class="admin-section">
+            <h3>Gerenciar Reservas</h3>
+            <div class="form-section">
+                <label for="filtroData">Filtrar por data:</label>
+                <input type="date" id="filtroData">
+                <label for="filtroSala">Filtrar por sala:</label>
+                <select id="filtroSala">
+                    <option value="">Todas as salas</option>
+                </select>
+                <button class="btn btn-secondary" onclick="carregarReservasAdmin()">Filtrar</button>
+            </div>
+            <h4>Todas as Reservas</h4>
+            <div id="reservasAdmin" class="reservas-grid"></div>
+        </div>
+    </div>
+    <div id="alert" class="alert hidden" role="alert"></div>
+    <script src="{{ url_for('static', filename='admin.js') }}"></script>
+</body>
+</html>
