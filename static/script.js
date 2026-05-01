@@ -212,7 +212,7 @@ async function carregarDisponibilidade() {
     if (!salaId || !data) {
         disponibilidadeAtual = [];
         resetHorarios();
-        container.innerHTML = '';
+        container.innerHTML = `<div class="empty-availability">Selecione uma sala e data para consultar disponibilidade</div>`;
         return;
     }
     const resposta = await chamarAPI(`/api/disponibilidade?sala_id=${salaId}&data=${data}`);
@@ -221,12 +221,14 @@ async function carregarDisponibilidade() {
     container.innerHTML = `
         <div style="margin-bottom: 1rem;">
             <h4>${resposta.sala_nome} - ${formatarData(resposta.data)}</h4>
-            <p style="color:#555">${resposta.disponiveis.length} horários disponíveis</p>
+            <p style="color:#555">${resposta.disponiveis.length} horários disponíveis e ${resposta.reservadas.length} horários ocupados</p>
         </div>
         <div class="availability-grid">
-            ${resposta.disponiveis.map(slot => `
-                <div class="time-slot available" onclick="selecionarHorario('${slot[0]}', '${slot[1]}', this)">
-                    ${formatarHora(slot[0])}<br>–<br>${formatarHora(slot[1])}
+            ${resposta.horarios.map(slot => `
+                <div class="time-slot ${slot.ocupado ? 'reserved' : 'available'}" ${slot.ocupado ? '' : `onclick="selecionarHorario('${slot.hora_inicio}', '${slot.hora_fim}', this)"`}>
+                    ${formatarHora(slot.hora_inicio)}<br>
+                    ${slot.ocupado ? `<span class="slot-title">${slot.titulo || 'Reservado'}</span>` : '<span class="slot-status">Livre</span>'}<br>
+                    ${formatarHora(slot.hora_fim)}
                 </div>
             `).join('')}
         </div>
@@ -250,7 +252,7 @@ document.getElementById('data').addEventListener('change', (event) => {
     if (dataSelecionada && !isBusinessDay(dataSelecionada)) {
         mostrarAlerta('Escolha um dia útil: segunda a sexta-feira.', 'error');
         event.target.value = '';
-        document.getElementById('disponibilidade').innerHTML = '';
+        document.getElementById('disponibilidade').innerHTML = '<div class="empty-availability">Selecione uma sala e data para consultar disponibilidade</div>';
         resetHorarios();
         return;
     }
@@ -284,7 +286,7 @@ document.getElementById('formReserva').addEventListener('submit', async (e) => {
     });
     mostrarAlerta('Reserva criada com sucesso!', 'success');
     document.getElementById('formReserva').reset();
-    document.getElementById('disponibilidade').innerHTML = '';
+    document.getElementById('disponibilidade').innerHTML = '<div class="empty-availability">Selecione uma sala e data para consultar disponibilidade</div>';
     carregarReservas();
 });
 
@@ -293,5 +295,6 @@ document.addEventListener('DOMContentLoaded', () => {
     resetHorarios();
     carregarSalas();
     carregarReservas();
+    carregarDisponibilidade();
     setInterval(carregarReservas, 30000);
 });

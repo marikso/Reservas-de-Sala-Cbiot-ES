@@ -164,9 +164,17 @@ class ReservaService:
 
         sala = Sala.query.get_or_404(sala_id)
         reservas = Reserva.query.filter_by(sala_id=sala_id, data=data_filtro).all()
-        bloqueados = [(r.hora_inicio.strftime('%H:%M'), r.hora_fim.strftime('%H:%M')) for r in reservas]
+        bloqueados = []
+        reserva_por_horario = {}
+
+        for r in reservas:
+            h_inicio = r.hora_inicio.strftime('%H:%M')
+            h_fim = r.hora_fim.strftime('%H:%M')
+            bloqueados.append((h_inicio, h_fim))
+            reserva_por_horario[(h_inicio, h_fim)] = r.titulo
 
         disponiveis = []
+        horarios = []
         hora_atual = datetime.strptime('08:00', '%H:%M').time()
         hora_fim_dia = datetime.strptime('19:00', '%H:%M').time()
 
@@ -177,16 +185,25 @@ class ReservaService:
 
             intervalo = (hora_atual.strftime('%H:%M'), hora_proxima.strftime('%H:%M'))
             tem_conflito = False
+            titulo = ''
 
             for h_inicio, h_fim in bloqueados:
                 inicio_time = time.fromisoformat(h_inicio)
                 fim_time = time.fromisoformat(h_fim)
                 if hora_atual < fim_time and hora_proxima > inicio_time:
                     tem_conflito = True
+                    titulo = reserva_por_horario.get((h_inicio, h_fim), '')
                     break
 
             if not tem_conflito:
                 disponiveis.append(intervalo)
+
+            horarios.append({
+                'hora_inicio': intervalo[0],
+                'hora_fim': intervalo[1],
+                'ocupado': tem_conflito,
+                'titulo': titulo
+            })
 
             hora_atual = hora_proxima
 
@@ -194,7 +211,8 @@ class ReservaService:
             'sala_nome': sala.nome,
             'data': data,
             'disponiveis': disponiveis,
-            'reservadas': bloqueados
+            'reservadas': bloqueados,
+            'horarios': horarios
         })
 
 

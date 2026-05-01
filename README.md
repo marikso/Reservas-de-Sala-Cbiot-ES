@@ -12,6 +12,14 @@ Sistema web para gerenciamento de reservas de salas em universidades.
 - Armazenamento em PostgreSQL
 - Interface web local simples e responsiva
 
+## Conformidade com o enunciado
+- Linguagem Python: implementado em Flask com SQLAlchemy.
+- Cadastrar recursos: cadastro de salas via API/painel admin.
+- Pesquisar recursos: listagem de salas, disponibilidade e reservas.
+- Selecionar recurso: escolha de sala e horário para reserva.
+- Transação nos dois sentidos: reserva (ocupar) e cancelamento (liberar).
+- Simplificações: apenas recurso tipo sala, sem pagamento/troca, dias úteis 08:00-19:00.
+
 ## Como usar
 
 1. Configure o PostgreSQL e crie o banco de dados `reserva_salas`.
