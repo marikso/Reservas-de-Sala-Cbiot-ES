@@ -10,6 +10,7 @@ import {
   adminLogout,
 } from './api';
 
+// Componente de login
 function AdminLogin({ onLogin }) {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
@@ -17,50 +18,83 @@ function AdminLogin({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const res = await adminLogin(senha);
-    if (res.erro) setErro(res.erro);
-    else onLogin(true);
+    if (res.erro) {
+      setErro(res.erro);
+    } else {
+      onLogin(true);
+    }
   };
 
   return (
     <div className="admin-login">
-      <h2>Login Administrativo</h2>
+      <img src="/CBiot_logo.jpg" alt="CBiot" className="logo-small" />
+      <h2>Login Painel Administrativo</h2>
       <form onSubmit={handleSubmit}>
-        <input type="password" placeholder="Senha" value={senha} onChange={e => setSenha(e.target.value)} />
+        <input
+          type="password"
+          placeholder="Senha"
+          value={senha}
+          onChange={(e) => setSenha(e.target.value)}
+          required
+        />
         <button type="submit">Entrar</button>
         {erro && <p className="erro">{erro}</p>}
       </form>
+      <Link to="/" className="back-link">← Voltar ao sistema</Link>
     </div>
   );
 }
 
+// Componente do painel (após login)
 function AdminPanel() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [novaSala, setNovaSala] = useState('');
-  const [mensagem, setMensagem] = useState('');
+  const [toast, setToast] = useState(null); // estado do popup
   const navigate = useNavigate();
 
-  const loadSalas = async () => { setSalas(await getSalas()); };
-  const loadReservas = async () => { setReservas(await getReservas()); };
+  const loadSalas = async () => {
+    const data = await getSalas();
+    setSalas(data);
+  };
+  const loadReservas = async () => {
+    const data = await getReservas();
+    setReservas(data);
+  };
 
-  useEffect(() => { loadSalas(); loadReservas(); }, []);
+  useEffect(() => {
+    loadSalas();
+    loadReservas();
+  }, []);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const handleAdicionarSala = async () => {
     if (!novaSala.trim()) return;
     const res = await createSala(novaSala.trim());
-    if (res.erro) setMensagem(res.erro);
-    else { setNovaSala(''); await loadSalas(); setMensagem('✅ Sala criada'); }
+    if (res.erro) {
+      showToast(res.erro, 'error');
+    } else {
+      setNovaSala('');
+      await loadSalas();
+      showToast('Sala criada com sucesso!', 'success');
+    }
   };
 
-  const handleDeletarSala = async (id) => {
+  const handleDeletarSala = async (id, nome) => {
     await deleteSala(id);
     await loadSalas();
     await loadReservas();
+    showToast(`Sala "${nome}" excluída com sucesso!`, 'success');
   };
 
-  const handleDeletarReserva = async (id) => {
+  const handleDeletarReserva = async (id, titulo) => {
     await deleteReserva(id);
     await loadReservas();
+    showToast(`Reserva "${titulo}" cancelada com sucesso!`, 'success');
   };
 
   const handleLogout = async () => {
@@ -70,47 +104,67 @@ function AdminPanel() {
 
   return (
     <div className="admin-container">
-      <header>
-        <h1>Administração</h1>
-        <div>
-          <Link to="/">← Voltar</Link>
-          <button onClick={handleLogout}>Sair</button>
+      {/* Toast notification */}
+      {toast && (
+        <div className={`toast toast-${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
+
+      {/* Cabeçalho sem o link de voltar */}
+      <header className="admin-header">
+        <div className="header-content">
+          <img src="/CBiot_logo.jpg" alt="Logo CBiot" className="logo" />
+          <h1 className="central-title">Administração - Reserva de Salas CBiot</h1>
         </div>
       </header>
 
+      {/* Gerenciar Salas */}
       <section className="box">
-        <h2>➕ Gerenciar Salas</h2>
+        <h2>Gerenciar Salas</h2>
         <div className="admin-row">
-          <input type="text" placeholder="Nome da nova sala" value={novaSala} onChange={e => setNovaSala(e.target.value)} />
+          <input
+            type="text"
+            placeholder="Nome da nova sala"
+            value={novaSala}
+            onChange={(e) => setNovaSala(e.target.value)}
+          />
           <button onClick={handleAdicionarSala}>Adicionar sala</button>
         </div>
-        <ul className="list">
-          {salas.map(sala => (
-            <li key={sala.id}>
-              🪑 {sala.nome}
-              <button onClick={() => handleDeletarSala(sala.id)}>Excluir</button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="box">
-        <h2>❌ Cancelar Reservas</h2>
-        <div className="reservas-grid">
-          {reservas.map(r => (
-            <div className="reserva-card admin-card" key={r.id}>
-              <h3>🏢 {r.sala_nome} · {r.titulo}</h3>
-              <p><strong>📅 Data:</strong> {new Date(r.data).toLocaleDateString('pt-BR')}</p>
-              <p><strong>⏰ Horário:</strong> {r.hora_inicio} – {r.hora_fim}</p>
-              {r.responsavel && <p><strong>👤 Responsável:</strong> {r.responsavel}</p>}
-              {r.email && <p><strong>📧 E-mail:</strong> {r.email}</p>}
-              {r.descricao && <p><strong>📝 Descrição:</strong> {r.descricao}</p>}
-              <button className="cancel-btn" onClick={() => handleDeletarReserva(r.id)}>Cancelar reserva</button>
+        <div className="salas-grid">
+          {salas.map((sala) => (
+            <div className="sala-card" key={sala.id}>
+              <span>{sala.nome}</span>
+              <button onClick={() => handleDeletarSala(sala.id, sala.nome)}>Excluir</button>
             </div>
           ))}
         </div>
       </section>
-      {mensagem && <div className="message">{mensagem}</div>}
+
+      {/* Cancelar Reservas */}
+      <section className="box">
+        <h2>Cancelar Reservas</h2>
+        <div className="reservas-grid">
+          {reservas.map((reserva) => (
+            <div className="reserva-card" key={reserva.id}>
+              <h3>{reserva.sala_nome} · {reserva.titulo}</h3>
+              <p><strong>Data:</strong> {new Date(reserva.data).toLocaleDateString('pt-BR')}</p>
+              <p><strong>Horário:</strong> {reserva.hora_inicio} – {reserva.hora_fim}</p>
+              {reserva.responsavel && <p><strong>Responsável:</strong> {reserva.responsavel}</p>}
+              {reserva.email && <p><strong>E-mail:</strong> {reserva.email}</p>}
+              {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
+              <button className="cancel-btn" onClick={() => handleDeletarReserva(reserva.id, reserva.titulo)}>
+                Cancelar reserva
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Rodapé com botão de voltar */}
+      <footer className="admin-footer">
+        <Link to="/" className="back-button">← Voltar ao público</Link>
+      </footer>
     </div>
   );
 }
