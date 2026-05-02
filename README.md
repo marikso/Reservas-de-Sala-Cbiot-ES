@@ -1,46 +1,72 @@
+# 📘 ReservaSala
+
+Aplicação web para gerenciamento de reservas de salas, com backend em Flask e frontend em React (Vite).
+
+---
+
 # 📌 Pré-requisitos
 
+Antes de começar, certifique-se de ter instalado:
+
 - Python 3.8 ou superior  
-- Node.js 18+ e npm (para o frontend)  
-- PostgreSQL instalado e em execução  
-- Git (opcional, para clonar o repositório)  
+- Node.js 18+ e npm  
+- PostgreSQL em execução  
+- Git (opcional)  
+
+---
+
+# 🚀 Como executar o projeto
+
+## 1. Clone o repositório (opcional)
+
+```bash
+git clone <url-do-repositorio>
+cd ReservaSala
+```
 
 ---
 
 # ⚙️ Backend (Flask)
 
-## 📂 Acesse a pasta do backend
+## 📂 Acesse a pasta
+
 ```bash
 cd backend
 ```
 
-## 🐍 Crie e ative um ambiente virtual
+## 🐍 Ambiente virtual
+
+Crie:
+
 ```bash
 python -m venv venv
 ```
 
-### Linux/Mac
+Ative:
+
+**Linux/Mac**
 ```bash
 source venv/bin/activate
 ```
 
-### Windows
+**Windows**
 ```bash
 venv\Scripts\activate
 ```
 
-## 📦 Instale as dependências
+## 📦 Instalar dependências
+
 ```bash
 pip install -r requirements.txt
 ```
 
-Se não tiver o arquivo:
+Se necessário:
 
 ```bash
 pip install Flask Flask-SQLAlchemy Flask-Cors Flask-Session psycopg2-binary python-dotenv
 ```
 
-## 🔐 Configure as variáveis de ambiente
+## 🔐 Variáveis de ambiente
 
 ```bash
 cp .env.example .env
@@ -51,114 +77,125 @@ Edite o `.env`:
 ```env
 DATABASE_URL=postgresql://usuario:senha@localhost:5432/reservasala
 ADMIN_PASSWORD=admin123
-SECRET_KEY=uma-chave-secreta-qualquer
+SECRET_KEY=uma-chave-secreta
 ```
 
-## 🗄️ Crie o banco de dados
+## 🗄️ Banco de dados
 
 ```sql
 CREATE DATABASE reservasala;
 ```
 
-## ▶️ Execute o backend
+## ▶️ Rodar servidor
+
 ```bash
 python app.py
 ```
 
-🔗 Backend disponível em:  
-http://localhost:5000
+📍 Backend: http://localhost:5000
 
 ---
 
-# 🎨 Frontend (React)
+# 🎨 Frontend (React + Vite)
 
 ## 📂 Acesse a pasta
+
 ```bash
 cd frontend
 ```
 
-## 📦 Instale as dependências
+## 📦 Instalar dependências
+
 ```bash
 npm install
 ```
 
-## 🔗 Configure a API (opcional)
+## 🔗 Configurar API (opcional)
+
+Crie um `.env`:
 
 ```env
 VITE_API_BASE_URL=http://localhost:5000
 ```
 
-## ▶️ Execute o frontend
+## ▶️ Rodar aplicação
+
 ```bash
 npm run dev
 ```
 
-🔗 Frontend disponível em:  
-http://localhost:5173
+📍 Frontend: http://localhost:5173
 
 ---
 
-# 🌐 Acessando a aplicação
+# 🌐 Acesso
 
-- Página pública: http://localhost:5173  
-- Área administrativa: http://localhost:5173/admin  
-  - Senha padrão: `admin123`  
-
----
-
-# ⚡ Comandos essenciais
-
-| Componente        | Comando                          |
-|------------------|----------------------------------|
-| Backend (Flask)  | `cd backend && python app.py`    |
-| Frontend (React) | `cd frontend && npm run dev`     |
+- Página principal: http://localhost:5173  
+- Admin: http://localhost:5173/admin  
+- Senha padrão: `admin123`  
 
 ---
 
-# 📁 Estrutura do Projeto
+# ⚡ Comandos rápidos
+
+```bash
+# Backend
+cd backend && python app.py
+
+# Frontend
+cd frontend && npm run dev
+```
+
+---
+
+# 📁 Estrutura do projeto
 
 ```bash
 ReservaSala/
-├── backend/                     # Servidor Flask (Python)
-│   ├── app.py                  # Aplicação principal
-│   ├── config.py               # Configurações
-│   ├── database.py             # Inicialização do banco
-│   ├── models.py               # Modelos (Sala, Reserva)
-│   ├── requirements.txt        # Dependências Python
-│   ├── .env.example            # Exemplo de variáveis
-│   └── venv/                   # Ambiente virtual (ignorado)
+├── backend/
+│   ├── app.py
+│   ├── config.py
+│   ├── database.py
+│   ├── models.py
+│   ├── requirements.txt
+│   └── .env.example
 │
-├── frontend/                   # Aplicação React (Vite)
+├── frontend/
 │   ├── public/
-│   │   └── CBiot_logo.jpg      # Logo
 │   ├── src/
-│   │   ├── api.js              # Comunicação com API
-│   │   ├── App.jsx             # Página pública
-│   │   ├── Admin.jsx           # Área administrativa
-│   │   ├── main.jsx            # Entry point
-│   │   └── styles.css          # Estilos
 │   ├── index.html
 │   ├── package.json
 │   └── vite.config.js
 │
-├── README.md                   # Documentação principal
-├── INSTALACAO.md               # Guia detalhado
-└── .gitignore                  # Arquivos ignorados
+├── README.md
+├── INSTALACAO.md
+└── .gitignore
 ```
 
 ---
 
 # 📝 Observações
 
-- Certifique-se de que o PostgreSQL está rodando antes de iniciar o backend  
+- O PostgreSQL deve estar rodando antes do backend  
 - As tabelas são criadas automaticamente na primeira execução  
 
-## 🚀 Produção
+---
 
-- Altere todas as senhas  
-- Utilize um servidor WSGI (ex: Gunicorn)  
+# 🚀 Produção
+
+Para ambiente de produção:
+
+- Altere todas as credenciais sensíveis  
+- Use um servidor WSGI (ex: Gunicorn)  
 - Gere o build do frontend:
 
 ```bash
 npm run build
 ```
+
+---
+
+# 💡 Dicas
+
+- Use `.env` para manter segredos fora do código  
+- Nunca suba o `venv/` ou `.env` para o repositório  
