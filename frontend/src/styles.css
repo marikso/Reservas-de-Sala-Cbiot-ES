@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 * {
   margin: 0;
@@ -255,6 +255,33 @@ button.secondary:hover {
   transform: translateY(-2px);
 }
 
+/* Toast notification */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 24px;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  z-index: 1000;
+  animation: slideIn 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.toast-success {
+  background-color: #10b981;
+}
+
+.toast-error {
+  background-color: #ef4444;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 /* ===== RESPONSIVIDADE ===== */
 @media (max-width: 900px) {
   .form-grid {
@@ -265,6 +292,19 @@ button.secondary:hover {
   }
   .grid-list {
     grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .logo {
+    height: 45px;
+  }
+  .central-title {
+    font-size: 1.2rem;
+    text-align: center;
+  }
+  .header-content {
+    gap: 0.8rem;
   }
 }
 
@@ -298,101 +338,4 @@ button.secondary:hover {
   .reservas-grid {
     grid-template-columns: 1fr;
   }
-}
-
-/* Toast notification */
-.toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 12px 24px;
-  border-radius: 8px;
-  color: white;
-  font-weight: 500;
-  z-index: 1000;
-  animation: slideIn 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.toast-success {
-  background-color: #10b981; /* verde claro */
-}
-
-.toast-error {
-  background-color: #ef4444;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-/* Header com logo ajustado */
-.header-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.logo {
-  height: 70px;
-  width: auto;
-  object-fit: contain;
-  border-radius: 12px;
-}
-
-.central-title {
-  margin: 0;
-  font-size: 1.8rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, #1e2a3a, #2c3e50);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-/* Responsividade do header */
-@media (max-width: 640px) {
-  .logo {
-    height: 45px;
-  }
-  .central-title {
-    font-size: 1.2rem;
-    text-align: center;
-  }
-  .header-content {
-    gap: 0.8rem;
-  }
-}
-
-/* Rodapé com botão admin */
-.admin-footer {
-  text-align: center;
-  margin-top: 2rem;
-  padding: 1.5rem;
-  border-top: 1px solid #e2e8f0;
-}
-
-.admin-link {
-  background: #1e2a3a;
-  color: white;
-  padding: 0.6rem 1.8rem;
-  border-radius: 40px;
-  text-decoration: none;
-  font-weight: 500;
-  transition: all 0.2s;
-  display: inline-block;
-}
-
-.admin-link:hover {
-  background: #2c3e50;
-  transform: translateY(-2px);
 }
