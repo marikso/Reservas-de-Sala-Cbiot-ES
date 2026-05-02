@@ -4,10 +4,10 @@ from datetime import datetime
 class Sala(db.Model):
     __tablename__ = 'salas'
     id = db.Column(db.Integer, primary_key=True)
-    nome = db.Column(db.String(100), nullable=False, unique=True)
+    nome = db.Column(db.String(100), nullable=False, unique=True)   # Nome da sala (único)
 
     def to_dict(self):
-        return {'id': self.id, 'nome': self.nome}
+        return {'id': self.id, 'nome': self.nome}                   # Serialização simples
 
 class Reserva(db.Model):
     __tablename__ = 'reservas'
@@ -20,8 +20,9 @@ class Reserva(db.Model):
     responsavel = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100))
     descricao = db.Column(db.Text)
-    criada_em = db.Column(db.DateTime, default=datetime.utcnow)
+    criada_em = db.Column(db.DateTime, default=datetime.utcnow)     # Timestamp UTC
 
+    # Relacionamento: exclusão em cascata (ao deletar sala, deleta reservas)
     sala = db.relationship('Sala', backref=db.backref('reservas', cascade='all, delete-orphan'))
 
     def to_dict(self):
@@ -30,7 +31,7 @@ class Reserva(db.Model):
             'sala_id': self.sala_id,
             'sala_nome': self.sala.nome,
             'titulo': self.titulo,
-            'data': self.data.isoformat(),
+            'data': self.data.isoformat(),                          # Formato YYYY-MM-DD
             'hora_inicio': self.hora_inicio.strftime('%H:%M'),
             'hora_fim': self.hora_fim.strftime('%H:%M'),
             'responsavel': self.responsavel,

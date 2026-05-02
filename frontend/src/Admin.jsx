@@ -10,7 +10,7 @@ import {
   adminLogout,
 } from './api';
 
-// Componente de login
+// ========== COMPONENTE DE LOGIN ==========
 function AdminLogin({ onLogin }) {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
@@ -45,13 +45,21 @@ function AdminLogin({ onLogin }) {
   );
 }
 
-// Componente do painel (após login)
+// ========== PAINEL ADMIN (APÓS LOGIN) ==========
 function AdminPanel() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [novaSala, setNovaSala] = useState('');
-  const [toast, setToast] = useState(null); // estado do popup
+  const [toast, setToast] = useState(null);
   const navigate = useNavigate();
+
+  // Função para formatar data sem usar new Date() (evita erro de fuso)
+  const formatarData = (dataISO) => {
+    if (!dataISO) return '';
+    const partes = dataISO.split('-');
+    if (partes.length !== 3) return dataISO;
+    return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  };
 
   const loadSalas = async () => {
     const data = await getSalas();
@@ -97,11 +105,6 @@ function AdminPanel() {
     showToast(`Reserva "${titulo}" cancelada com sucesso!`, 'success');
   };
 
-  const handleLogout = async () => {
-    await adminLogout();
-    navigate('/admin');
-  };
-
   return (
     <div className="admin-container">
       {/* Toast notification */}
@@ -111,7 +114,7 @@ function AdminPanel() {
         </div>
       )}
 
-      {/* Cabeçalho sem o link de voltar */}
+      {/* Cabeçalho */}
       <header className="admin-header">
         <div className="header-content">
           <img src="/CBiot_logo.jpg" alt="Logo CBiot" className="logo" />
@@ -148,7 +151,7 @@ function AdminPanel() {
           {reservas.map((reserva) => (
             <div className="reserva-card" key={reserva.id}>
               <h3>{reserva.sala_nome} · {reserva.titulo}</h3>
-              <p><strong>Data:</strong> {new Date(reserva.data).toLocaleDateString('pt-BR')}</p>
+              <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
               <p><strong>Horário:</strong> {reserva.hora_inicio} – {reserva.hora_fim}</p>
               {reserva.responsavel && <p><strong>Responsável:</strong> {reserva.responsavel}</p>}
               {reserva.email && <p><strong>E-mail:</strong> {reserva.email}</p>}

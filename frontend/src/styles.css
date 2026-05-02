@@ -19,7 +19,9 @@ body {
   margin: 0 auto;
 }
 
-/* ===== HEADER PÁGINA PÚBLICA ===== */
+/* ========== PÁGINA PÚBLICA ========== */
+
+/* Cabeçalho com logo e título */
 .header-content {
   display: flex;
   align-items: center;
@@ -52,7 +54,7 @@ body {
   letter-spacing: -0.3px;
 }
 
-/* ===== CARDS DE SEÇÃO ===== */
+/* Cards de seção */
 .box {
   background: white;
   border-radius: 28px;
@@ -71,7 +73,7 @@ body {
   color: #0f172a;
 }
 
-/* ===== FORMULÁRIO EM GRID 2x4 ===== */
+/* Formulário em grid 2x4 */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -116,6 +118,7 @@ textarea {
   margin-top: 0.5rem;
 }
 
+/* Botões padrão e secundário */
 button {
   font-family: 'Inter', sans-serif;
   font-weight: 600;
@@ -145,7 +148,7 @@ button.secondary:hover {
   background: #cbd5e1;
 }
 
-/* ===== LISTA DE HORÁRIOS (DISPO) ===== */
+/* Grade de horários (disponibilidade) */
 .grid-list {
   list-style: none;
   display: grid;
@@ -174,7 +177,7 @@ button.secondary:hover {
   border-left: 3px solid #22c55e;
 }
 
-/* ===== CARTÕES DE RESERVAS (PÚBLICO E ADMIN) ===== */
+/* Cartões de reservas (público e admin) */
 .reservas-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -217,7 +220,7 @@ button.secondary:hover {
   color: #0f172a;
 }
 
-/* Botão cancelar reserva (apenas no admin) - vermelho consistente */
+/* Botão cancelar reserva (apenas admin) */
 .cancel-btn {
   background: #dc2626;
   width: 100%;
@@ -227,7 +230,30 @@ button.secondary:hover {
   background: #b91c1c;
 }
 
-/* ===== ADMIN LOGIN ===== */
+/* Rodapé da página pública (link para admin) */
+.admin-footer {
+  text-align: center;
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.admin-link {
+  background: #1e2a3a;
+  color: white;
+  padding: 0.6rem 1.8rem;
+  border-radius: 40px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: inline-block;
+}
+.admin-link:hover {
+  background: #2c3e50;
+  transform: translateY(-2px);
+}
+
+/* ========== LOGIN DO ADMIN ========== */
 .admin-login {
   max-width: 400px;
   margin: 80px auto;
@@ -237,29 +263,35 @@ button.secondary:hover {
   box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.15);
   text-align: center;
 }
+
 .admin-login .logo-small {
   height: 60px;
   margin-bottom: 1rem;
 }
+
 .admin-login h2 {
   font-size: 1.8rem;
   margin-bottom: 1.5rem;
   color: #1e2a3a;
 }
+
 .admin-login form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
+
 .admin-login input {
   width: 100%;
   padding: 0.8rem 1rem;
   border-radius: 40px;
 }
+
 .admin-login button {
   width: 100%;
   margin-top: 0.5rem;
 }
+
 .admin-login .back-link {
   display: inline-block;
   margin-top: 1.5rem;
@@ -272,19 +304,20 @@ button.secondary:hover {
   color: #1e2a3a;
   text-decoration: underline;
 }
+
 .admin-login .erro {
   color: #dc2626;
   margin-top: 0.5rem;
   font-size: 0.85rem;
 }
 
-/* ===== ADMIN PANEL (painel autenticado) ===== */
+/* ========== PAINEL ADMIN (AUTENTICADO) ========== */
 .admin-container {
   max-width: 1400px;
   margin: 0 auto;
 }
 
-/* Cabeçalho administrativo - estilo igual ao main, com link texto à direita */
+/* Cabeçalho do painel (mesmo estilo do público) */
 .admin-header {
   display: flex;
   justify-content: space-between;
@@ -307,11 +340,11 @@ button.secondary:hover {
 }
 
 .admin-header .logo {
-  height: 70px; /* mesmo tamanho do main */
+  height: 70px;
 }
 
 .admin-header .central-title {
-  font-size: 1.8rem; /* mesmo tamanho do main */
+  font-size: 1.8rem;
   margin: 0;
   background: linear-gradient(135deg, #1e2a3a, #2c3e50);
   background-clip: text;
@@ -319,21 +352,12 @@ button.secondary:hover {
   color: transparent;
 }
 
-/* Link "Voltar" como texto simples, igual ao login */
+/* Link "Voltar"  */
 .admin-header .back-link {
-  color: #2c3e50;
-  text-decoration: none;
-  font-size: 1rem;
-  transition: color 0.2s;
-  white-space: nowrap;
-  padding: 0 0.5rem;
-}
-.admin-header .back-link:hover {
-  color: #1e2a3a;
-  text-decoration: underline;
+  display: none;
 }
 
-/* Ajuste do botão Adicionar sala: mais espaçamento à esquerda */
+/* Linha de adicionar sala */
 .admin-row {
   display: flex;
   gap: 1rem;
@@ -341,10 +365,12 @@ button.secondary:hover {
   flex-wrap: wrap;
   margin-bottom: 1.5rem;
 }
+
 .admin-row input {
   flex: 1;
   min-width: 200px;
 }
+
 .admin-row button {
   margin-left: 1rem;
 }
@@ -367,149 +393,23 @@ button.secondary:hover {
   transition: all 0.2s;
   border: 1px solid #e2e8f0;
 }
-.sala-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
+
 .sala-card span {
   font-weight: 500;
   color: #1e2a3a;
 }
+
 .sala-card button {
   background: #dc2626;
   padding: 0.4rem 1rem;
   font-size: 0.8rem;
 }
+
 .sala-card button:hover {
   background: #b91c1c;
 }
 
-/* Mensagem de erro/sucesso */
-.message {
-  background: #fef9e3;
-  border-left: 5px solid #f59e0b;
-  padding: 1rem;
-  border-radius: 20px;
-  margin: 1rem 0;
-  color: #b45309;
-  font-weight: 500;
-}
-
-/* TOAST */
-.toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 12px 24px;
-  border-radius: 8px;
-  color: white;
-  font-weight: 500;
-  z-index: 1000;
-  animation: slideIn 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-.toast-success { background-color: #10b981; }
-.toast-error { background-color: #ef4444; }
-@keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-/* Rodapé (link admin na página pública) */
-.admin-footer {
-  text-align: center;
-  margin-top: 2rem;
-  padding: 1.5rem;
-  border-top: 1px solid #e2e8f0;
-}
-.admin-link {
-  background: #1e2a3a;
-  color: white;
-  padding: 0.6rem 1.8rem;
-  border-radius: 40px;
-  text-decoration: none;
-  font-weight: 500;
-  transition: all 0.2s;
-  display: inline-block;
-}
-.admin-link:hover {
-  background: #2c3e50;
-  transform: translateY(-2px);
-}
-
-/* ===== RESPONSIVIDADE ===== */
-@media (max-width: 900px) {
-  .form-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .actions {
-    grid-column: span 2;
-  }
-  .grid-list {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-@media (max-width: 768px) {
-  .salas-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .admin-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .admin-header .back-link {
-    text-align: center;
-    margin-top: 0.5rem;
-  }
-  .admin-row button {
-    margin-left: 0;
-  }
-}
-@media (max-width: 640px) {
-  .logo {
-    height: 45px;
-  }
-  .central-title {
-    font-size: 1.2rem;
-    text-align: center;
-  }
-  .header-content {
-    gap: 0.8rem;
-  }
-  .admin-header .central-title {
-    font-size: 1rem;
-  }
-}
-@media (max-width: 600px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-  .actions {
-    grid-column: span 1;
-  }
-  .grid-list {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 480px) {
-  .grid-list {
-    grid-template-columns: 1fr;
-  }
-  .reservas-grid {
-    grid-template-columns: 1fr;
-  }
-  .salas-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Rodapé administrativo - botão voltar no final da página */
-.admin-footer {
-  text-align: center;
-  margin-top: 2rem;
-  padding: 1rem;
-}
-
+/* Botão de voltar no rodapé do painel admin */
 .back-button {
   background: #e2e8f0;
   color: #1e2a3a;
@@ -527,11 +427,18 @@ button.secondary:hover {
   transform: translateY(-2px);
 }
 
-/* Remove o estilo do antigo link dentro do header (caso ainda exista) */
-.admin-header .back-link {
-  display: none;
+/* Mensagem de erro/sucesso (estilo antigo) */
+.message {
+  background: #fef9e3;
+  border-left: 5px solid #f59e0b;
+  padding: 1rem;
+  border-radius: 20px;
+  margin: 1rem 0;
+  color: #b45309;
+  font-weight: 500;
 }
 
+/* ========== TOAST (NOTIFICAÇÕES FLUTUANTES) ========== */
 .toast {
   position: fixed;
   top: 20px;
@@ -544,9 +451,88 @@ button.secondary:hover {
   animation: slideIn 0.3s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
-.toast-success { background-color: #10b981; }
-.toast-error { background-color: #ef4444; }
+
+.toast-success {
+  background-color: #10b981;
+}
+
+.toast-error {
+  background-color: #ef4444;
+}
+
 @keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ========== RESPONSIVIDADE ========== */
+@media (max-width: 900px) {
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .actions {
+    grid-column: span 2;
+  }
+  .grid-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .salas-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .admin-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-row button {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .logo {
+    height: 45px;
+  }
+  .central-title {
+    font-size: 1.2rem;
+    text-align: center;
+  }
+  .header-content {
+    gap: 0.8rem;
+  }
+  .admin-header .central-title {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .actions {
+    grid-column: span 1;
+  }
+  .grid-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .grid-list {
+    grid-template-columns: 1fr;
+  }
+  .reservas-grid {
+    grid-template-columns: 1fr;
+  }
+  .salas-grid {
+    grid-template-columns: 1fr;
+  }
 }

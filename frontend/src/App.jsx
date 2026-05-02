@@ -8,6 +8,7 @@ import {
 } from './api';
 
 function App() {
+  // Estados principais
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [disponibilidade, setDisponibilidade] = useState(null);
@@ -25,24 +26,23 @@ function App() {
   const [toast, setToast] = useState(null);
   const [reservasDoDia, setReservasDoDia] = useState([]);
 
-  const dataSelecionada = !!form.data;
+  const dataSelecionada = !!form.data;   // habilita campos apenas após data escolhida
 
+  // Carrega salas e reservas
   const loadSalas = async () => {
     const data = await getSalas();
     setSalas(data);
   };
-
   const loadReservas = async () => {
     const data = await getReservas();
     setReservas(data);
   };
-
   useEffect(() => {
     loadSalas();
     loadReservas();
   }, []);
 
-  // Função para formatar data sem usar new Date (evita problema de fuso)
+  // Formata data manualmente (evita fuso horário)
   const formatarData = (dataISO) => {
     if (!dataISO) return '';
     const partes = dataISO.split('-');
@@ -50,6 +50,7 @@ function App() {
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
+  // Renderização dos horários de disponibilidade
   const disponibilidadeTexto = useMemo(() => {
     if (!disponibilidade) return null;
     return disponibilidade.horarios.map((item) => (
@@ -59,13 +60,11 @@ function App() {
     ));
   }, [disponibilidade]);
 
-  const TODAS_HORAS_INICIO = Array.from({ length: 11 }, (_, i) =>
-    `${String(i + 8).padStart(2, '0')}:00`
-  );
-  const TODAS_HORAS_FIM = Array.from({ length: 11 }, (_, i) =>
-    `${String(i + 9).padStart(2, '0')}:00`
-  );
+  // Geração de opções de horário (08:00..18:00)
+  const TODAS_HORAS_INICIO = Array.from({ length: 11 }, (_, i) => `${String(i + 8).padStart(2, '0')}:00`);
+  const TODAS_HORAS_FIM = Array.from({ length: 11 }, (_, i) => `${String(i + 9).padStart(2, '0')}:00`);
 
+  // Verifica se um horário já está ocupado (baseado nas reservas do dia)
   const horarioConflita = (hora, tipo) => {
     return reservasDoDia.some(({ hora_inicio, hora_fim }) => {
       const h = parseInt(hora);
@@ -76,11 +75,13 @@ function App() {
     });
   };
 
+  // Horários de início disponíveis (apenas se data selecionada)
   const horasInicioDisponiveis = useMemo(() => {
     if (!dataSelecionada) return [];
     return TODAS_HORAS_INICIO.filter((h) => !horarioConflita(h, 'inicio'));
   }, [reservasDoDia, dataSelecionada]);
 
+  // Horários de fim disponíveis (baseado no início escolhido e reservas)
   const horasFimDisponiveis = useMemo(() => {
     if (!dataSelecionada || !form.hora_inicio) return [];
     const inicioH = parseInt(form.hora_inicio);
@@ -95,22 +96,26 @@ function App() {
     });
   }, [form.hora_inicio, reservasDoDia, dataSelecionada]);
 
+  // Ajusta o fim automaticamente se o valor atual for inválido
   useEffect(() => {
     if (horasFimDisponiveis.length > 0 && !horasFimDisponiveis.includes(form.hora_fim)) {
       setForm((current) => ({ ...current, hora_fim: horasFimDisponiveis[0] }));
     }
   }, [horasFimDisponiveis]);
 
+  // Atualiza campos do formulário
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
   };
 
+  // Exibe toast por 3 segundos
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
+  // Submissão da reserva
   const handleSubmitReserva = async (event) => {
     event.preventDefault();
     setErro('');
@@ -127,11 +132,13 @@ function App() {
       showToast(response.erro, 'error');
       return;
     }
+    // Limpa campos de texto após sucesso
     setForm((current) => ({ ...current, titulo: '', responsavel: '', email: '', descricao: '' }));
     await loadReservas();
     showToast('Reserva criada com sucesso!', 'success');
   };
 
+  // Consulta disponibilidade
   const handleDisponibilidade = async () => {
     if (!form.sala_id || !form.data) {
       showToast('Escolha sala e data para ver disponibilidade', 'error');
@@ -145,6 +152,7 @@ function App() {
     setDisponibilidade(response);
   };
 
+  // Atualiza reservas do dia quando sala/data mudam
   useEffect(() => {
     if (!form.sala_id || !form.data) {
       setReservasDoDia([]);
@@ -158,24 +166,24 @@ function App() {
     });
   }, [form.sala_id, form.data]);
 
+  // Reforça a atualização dos horários de fim
   useEffect(() => {
     if (horasFimDisponiveis.length > 0 && !horasFimDisponiveis.includes(form.hora_fim)) {
       setForm((current) => ({ ...current, hora_fim: horasFimDisponiveis[0] }));
     }
   }, [horasFimDisponiveis]);
 
+  // Desabilita campos até que a data seja escolhida
   const selectInicioDisabled = !dataSelecionada;
   const selectFimDisabled = !dataSelecionada;
   const camposTextDisabled = !dataSelecionada;
 
   return (
     <div className="app-container">
-      {toast && (
-        <div className={`toast toast-${toast.type}`}>
-          {toast.message}
-        </div>
-      )}
+      {/* Toast flutuante */}
+      {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
 
+      {/* Cabeçalho com logo e título */}
       <header>
         <div className="header-content">
           <img src="/CBiot_logo.jpg" alt="Logo CBiot" className="logo" />
@@ -183,6 +191,7 @@ function App() {
         </div>
       </header>
 
+      {/* Formulário de reserva */}
       <section className="box">
         <h2>Fazer reserva</h2>
         <form onSubmit={handleSubmitReserva} className="form-grid">
@@ -217,9 +226,7 @@ function App() {
               required
               disabled={selectInicioDisabled}
             >
-              {horasInicioDisponiveis.map((h) => (
-                <option key={h} value={h}>{h}</option>
-              ))}
+              {horasInicioDisponiveis.map((h) => <option key={h}>{h}</option>)}
             </select>
           </label>
 
@@ -232,68 +239,38 @@ function App() {
               required
               disabled={selectFimDisabled}
             >
-              {horasFimDisponiveis.map((h) => (
-                <option key={h} value={h}>{h}</option>
-              ))}
+              {horasFimDisponiveis.map((h) => <option key={h}>{h}</option>)}
             </select>
           </label>
 
           <label>
             Título *
-            <input
-              type="text"
-              name="titulo"
-              value={form.titulo}
-              onChange={handleChange}
-              required
-              disabled={camposTextDisabled}
-            />
+            <input type="text" name="titulo" value={form.titulo} onChange={handleChange} required disabled={camposTextDisabled} />
           </label>
 
           <label>
             Responsável *
-            <input
-              type="text"
-              name="responsavel"
-              value={form.responsavel}
-              onChange={handleChange}
-              required
-              disabled={camposTextDisabled}
-            />
+            <input type="text" name="responsavel" value={form.responsavel} onChange={handleChange} required disabled={camposTextDisabled} />
           </label>
 
           <label>
             E-mail *
-            <input
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              required
-              disabled={camposTextDisabled}
-            />
+            <input type="email" name="email" value={form.email} onChange={handleChange} required disabled={camposTextDisabled} />
           </label>
 
           <label>
             Descrição
-            <textarea
-              name="descricao"
-              value={form.descricao}
-              onChange={handleChange}
-              rows="3"
-              disabled={camposTextDisabled}
-            />
+            <textarea name="descricao" value={form.descricao} onChange={handleChange} rows="3" disabled={camposTextDisabled} />
           </label>
 
           <div className="actions">
             <button type="submit" disabled={!dataSelecionada}>Reservar</button>
-            <button type="button" onClick={handleDisponibilidade} className="secondary">
-              Ver disponibilidade
-            </button>
+            <button type="button" onClick={handleDisponibilidade} className="secondary">Ver disponibilidade</button>
           </div>
         </form>
       </section>
 
+      {/* Seção de disponibilidade (aparece após consulta) */}
       {disponibilidade && (
         <section className="box">
           <h2>Disponibilidade</h2>
@@ -302,6 +279,7 @@ function App() {
         </section>
       )}
 
+      {/* Lista de reservas confirmadas */}
       <section className="box">
         <h2>Reservas Confirmadas</h2>
         <div className="reservas-grid">
@@ -318,6 +296,7 @@ function App() {
         </div>
       </section>
 
+      {/* Rodapé com link para área administrativa */}
       <footer className="admin-footer">
         <Link to="/admin" className="admin-link">Área Administrativa</Link>
       </footer>

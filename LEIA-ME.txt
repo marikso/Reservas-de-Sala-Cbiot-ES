@@ -1,113 +1,112 @@
-🏫 RESERVASALA - SISTEMA DE RESERVA DE SALAS - UNIVERSIDADE
+🏫 RESERVASALA - SISTEMA DE RESERVA DE SALAS CBIOT
 =====================================================
 
-✅ PROJETO CRIADO COM SUCESSO!
-
-Você agora tem um sistema completo de reserva de salas com:
-✓ Backend em Python (Flask)
+Este é um sistema completo de reserva de salas com:
+✓ Backend em Python (Flask + SQLAlchemy)
 ✓ Banco de dados PostgreSQL
-✓ Interface web responsiva
-✓ API REST completa
-✓ Painel administrativo
+✓ Frontend em React (Vite) com interface responsiva
+✓ API REST com documentação implícita
+✓ Painel administrativo protegido por senha
 
 📂 ARQUIVOS CRIADOS:
 
-Backend:
-  • app.py             - Aplicação principal (Flask)
-  • models.py          - Modelos de dados (SQLAlchemy)
-  • database.py        - Configuração do banco de dados
-  • config.py          - Configurações
+Backend (Flask):
+  • app.py               – Rotas e lógica principal
+  • models.py            – Modelos Sala e Reserva (SQLAlchemy)
+  • database.py          – Configuração do banco
+  • config.py            – Configurações (carregadas de .env)
+  • requirements.txt     – Dependências Python
+  • .env.example         – Exemplo de variáveis de ambiente
 
-Frontend:
-  • templates/index.html       - Página principal
-  • templates/admin.html       - Painel admin
-  • static/style.css           - Estilos
-  • static/script.js           - JavaScript página principal
-  • static/admin.js            - JavaScript painel admin
-
-Configuração:
-  • requirements.txt           - Dependências Python
-  • .env.example               - Exemplo de variáveis
-  • run.bat                    - Script Windows
-  • run.sh                     - Script Linux/Mac
+Frontend (React + Vite):
+  • frontend/src/App.jsx        – Página pública (reservas, disponibilidade)
+  • frontend/src/Admin.jsx      – Página administrativa (login + painel)
+  • frontend/src/api.js         – Funções de comunicação com a API
+  • frontend/src/main.jsx       – Configuração de rotas (React Router)
+  • frontend/src/styles.css     – Estilos globais (layout responsivo)
+  • frontend/public/CBiot_logo.jpg – Logo exibida no cabeçalho
+  • frontend/package.json       – Dependências Node.js
+  • frontend/vite.config.js     – Configuração do Vite
 
 Documentação:
-  • README.md                  - Guia completo
-  • INSTALACAO.md              - Guia de instalação
-  • ESTRUTURA.md               - Estrutura do projeto
+  • README.md            – Visão geral do projeto e características
+  • INSTALACAO.md        – Guia passo a passo para instalação e execução
+  • ESTRUTURA.md         – Estrutura de diretórios e arquivos
 
 🚀 PRÓXIMOS PASSOS:
 
-1. INSTALE POSTGRESQL
+1. INSTALE O POSTGRESQL (se ainda não tiver)
    - Windows: https://www.postgresql.org/download/windows/
    - Mac: brew install postgresql
    - Linux: sudo apt install postgresql
 
 2. CRIE O BANCO DE DADOS
-   Abra SQL Shell ou pgAdmin e execute:
-   
-   CREATE DATABASE reserva_salas;
-   CREATE USER usuario WITH PASSWORD 'senha';
-   GRANT ALL PRIVILEGES ON DATABASE reserva_salas TO usuario;
+   Abra o terminal do PostgreSQL (psql ou pgAdmin) e execute:
+   CREATE DATABASE reservasala;
 
-3. CONFIGURE O .env
-   - Copie .env.example para .env
-   - Edite com suas credenciais PostgreSQL
+3. CONFIGURE O BACKEND
+   - Copie backend/.env.example para backend/.env
+   - Edite o .env com as credenciais do seu PostgreSQL:
+     DATABASE_URL=postgresql://usuario:senha@localhost:5432/reservasala
+     ADMIN_PASSWORD=admin123   # senha do painel admin
+     SECRET_KEY=uma-chave-secreta-qualquer
 
-4. INICIE A APLICAÇÃO
-   
-   Windows:  run.bat
-   Linux:    ./run.sh
-   Mac:      ./run.sh
-
-   Ou manual:
+4. INICIE O BACKEND (Flask)
+   cd backend
    python -m venv venv
-   (ativar ambiente virtual)
+   source venv/bin/activate   # (Linux/Mac) ou .\venv\Scripts\activate (Windows)
    pip install -r requirements.txt
    python app.py
+   O servidor Flask estará rodando em http://localhost:5000.
 
-5. ACESSE NO NAVEGADOR
-   
-   Página Principal:    http://localhost:5000
-   Painel Admin:        http://localhost:5000/admin
+5. INICIE O FRONTEND (React)
+   Abra outro terminal:
+   cd frontend
+   npm install
+   npm run dev
+   O frontend estará disponível em http://localhost:5173.
 
-💡 RECURSOS:
+6. ACESSE NO NAVEGADOR
+   - Página pública (reservas): http://localhost:5173
+   - Área administrativa: http://localhost:5173/admin (senha definida no .env, padrão admin123)
 
-✓ Fazer reservas com seleção de horário
-✓ Visualizar disponibilidade em tempo real
-✓ Gerenciar salas (CRUD completo)
-✓ Gerenciar reservas (CRUD completo)
-✓ Filtrar reservas por data e sala
-✓ API REST para integração
-✓ Interface responsiva (mobile-friendly)
+💡 RECURSOS DA APLICAÇÃO
 
-📊 BANCO DE DADOS:
+✓ Fazer reservas com seleção de sala, data e horário (08:00–19:00, horários cheios)
+✓ Consultar disponibilidade em tempo real (blocos de 1 hora coloridos)
+✓ Todas as reservas aparecem na lista de "Reservas Confirmadas"
+✓ Login administrativo com sessão protegida
+✓ Gerenciar salas (criar, excluir) – apenas admin
+✓ Cancelar qualquer reserva – apenas admin
+✓ Notificações (toast) ao criar reserva, excluir sala ou cancelar reserva
+✓ Interface totalmente responsiva (mobile-friendly)
 
-As salas são cadastradas no banco de dados e podem ser gerenciadas pelo painel administrativo.
+📊 BANCO DE DADOS
 
-Você pode adicionar novas salas no painel admin ou diretamente no banco de dados.
+As tabelas salas e reservas são criadas automaticamente na primeira execução do backend (db.create_all()).
+Você pode gerenciar salas pelo próprio painel administrativo ou adicionar registros diretamente no banco.
 
-🔌 API REST:
+🔌 API REST (endpoints disponíveis)
 
-GET    /api/salas                    - Listar salas
-POST   /api/salas                    - Criar sala
-DELETE /api/salas/{id}               - Deletar sala
+Método | Endpoint                               | Descrição
+GET    | /api/salas                             | Lista todas as salas
+POST   | /api/salas (admin)                     | Cria uma nova sala
+DELETE | /api/salas/<id> (admin)                | Remove uma sala
+GET    | /api/reservas                          | Lista reservas (com filtros opcionais)
+POST   | /api/reservas                          | Cria uma nova reserva
+DELETE | /api/reservas/<id> (admin)             | Cancela uma reserva
+GET    | /api/disponibilidade?sala_id=...&data=... | Retorna blocos de horários livres/ocupados
 
-GET    /api/reservas                 - Listar reservas
-POST   /api/reservas                 - Criar reserva
-DELETE /api/reservas/{id}            - Cancelar reserva
+📁 ESTRUTURA DO PROJETO (resumida)
 
-GET    /api/disponibilidade          - Horários livres
+ReservaSala/
+├── backend/           # Flask (Python)
+├── frontend/          # React + Vite
+├── README.md
+├── INSTALACAO.md
+└── ESTRUTURA.md
 
-Para mais detalhes, veja README.md ou INSTALACAO.md
+Para detalhes completos, consulte README.md e INSTALACAO.md.
 
 📞 DÚVIDAS?
-
-Consulte:
-  1. README.md         - Documentação geral
-  2. INSTALACAO.md     - Dificuldades de instalação
-  3. ESTRUTURA.md      - Entender a estrutura do projeto
-
-Boa sorte com seu sistema! 🎉
-
-=====================================================
+Consulte os arquivos de documentação ou entre em contato com o desenvolvedor.
