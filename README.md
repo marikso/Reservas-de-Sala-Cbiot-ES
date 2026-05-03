@@ -8,10 +8,11 @@ Aplicação web para gerenciamento de reservas de salas, com backend em Flask e 
 
 Antes de começar, certifique-se de ter instalado:
 
-- Python 3.8 ou superior  
-- Node.js 18+ e npm  
-- PostgreSQL em execução  
-- Git (opcional)  
+- **Python 3.8** ou superior  
+- **Node.js 18+** e npm (para o frontend)  
+- **MySQL Server** em execução
+- **Git** (opcional)
+
 
 ---
 
@@ -75,7 +76,7 @@ cp .env.example .env
 Edite o `.env`:
 
 ```env
-DATABASE_URL=postgresql://usuario:senha@localhost:5432/reservasala
+DATABASE_URL=mysql+pymysql://usuario:senha@localhost:3306/reservasala
 ADMIN_PASSWORD=admin123
 SECRET_KEY=uma-chave-secreta
 ```
@@ -176,7 +177,7 @@ ReservaSala/
 
 # 📝 Observações
 
-- O PostgreSQL deve estar rodando antes do backend  
+- O MySQL Server deve estar rodando antes do backend  
 - As tabelas são criadas automaticamente na primeira execução  
 
 ---

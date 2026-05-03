@@ -1,9 +1,9 @@
 # Pré-requisitos
 
-- Python 3.8 ou superior  
-- Node.js 18+ e npm (para o frontend)  
-- PostgreSQL instalado e em execução  
-- Git (opcional, para clonar o repositório)  
+- **Python 3.8** ou superior  
+- **Node.js 18+** e npm (para o frontend)  
+- **MySQL Server** 8.x instalado e em execução
+- **Git** (opcional, para clonar o repositório)  
 
 ---
 
@@ -48,20 +48,20 @@ Copie o arquivo de exemplo e edite:
 cp .env.example .env
 ```
 
-Edite o `.env` com os dados do seu banco PostgreSQL:
+Edite o `.env` com os dados do seu banco MySQL:
 
 ```env
-DATABASE_URL=postgresql://usuario:senha@localhost:5432/reservasala
+DATABASE_URL=mysql+pymysql://usuario:senha@localhost:3306/reservasala
 ADMIN_PASSWORD=admin123
 SECRET_KEY=uma-chave-secreta-qualquer
 ```
 
 ## Crie o banco de dados (se ainda não existir)
 
-Acesse o PostgreSQL (ex.: `psql -U postgres`) e execute:
+Acesse o MySQL (ex.: `mysql -u root -p`) e execute:
 
 ```sql
-CREATE DATABASE reservasala;
+CREATE DATABASE IF NOT EXISTS reservasala;
 ```
 
 ## Execute o backend
@@ -124,7 +124,7 @@ O frontend estará disponível em:
 
 # Observações
 
-- Certifique-se de que o PostgreSQL esteja rodando antes de iniciar o backend.  
+- Certifique-se de que o MySQL esteja rodando antes de iniciar o backend.  
 - As tabelas são criadas automaticamente na primeira execução.  
 - Para produção:
   - Altere as senhas  

@@ -3,7 +3,7 @@
 
 Este é um sistema completo de reserva de salas com:
 ✓ Backend em Python (Flask + SQLAlchemy)
-✓ Banco de dados PostgreSQL
+✓ Banco de dados MySQL
 ✓ Frontend em React (Vite) com interface responsiva
 ✓ API REST com documentação implícita
 ✓ Painel administrativo protegido por senha
@@ -35,19 +35,19 @@ Documentação:
 
 🚀 PRÓXIMOS PASSOS:
 
-1. INSTALE O POSTGRESQL (se ainda não tiver)
-   - Windows: https://www.postgresql.org/download/windows/
-   - Mac: brew install postgresql
-   - Linux: sudo apt install postgresql
+1. INSTALE O MYSQL SERVER (se ainda não tiver)
+   - Windows: https://dev.mysql.com/downloads/installer/ (escolha o MySQL Installer)
+   - Mac: brew install mysql
+   - Linux: sudo apt install mysql-server (Ubuntu/Debian) ou sudo dnf install mysql-server (Fedora)
 
 2. CRIE O BANCO DE DADOS
-   Abra o terminal do PostgreSQL (psql ou pgAdmin) e execute:
-   CREATE DATABASE reservasala;
+   Acesse o MySQL (ex.: mysql -u root -p) e execute:
+   CREATE DATABASE IF NOT EXISTS reservasala;
 
 3. CONFIGURE O BACKEND
    - Copie backend/.env.example para backend/.env
-   - Edite o .env com as credenciais do seu PostgreSQL:
-     DATABASE_URL=postgresql://usuario:senha@localhost:5432/reservasala
+   - Edite o .env com as credenciais do seu MySQL:
+     DATABASE_URL=mysql+pymysql://usuario:senha@localhost:3306/reservasala
      ADMIN_PASSWORD=admin123   # senha do painel admin
      SECRET_KEY=uma-chave-secreta-qualquer
 
