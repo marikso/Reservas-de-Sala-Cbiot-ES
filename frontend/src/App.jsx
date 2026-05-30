@@ -4,10 +4,11 @@ import {
   getSalas,
   getReservas,
   createReserva,
+  createReservaRecorrente,
   getDisponibilidade,
 } from './api';
 
-// ========== FUNÇÕES AUXILIARES DE HORÁRIO ==========
+// ========== FUNÇÕES AUXILIARES DE HORÁRIO (30 minutos) ==========
 const timeToMinutes = (timeStr) => {
   const [h, m] = timeStr.split(':').map(Number);
   return h * 60 + m;
@@ -20,14 +21,12 @@ const minutesToTime = (minutes) => {
 };
 
 const add30min = (timeStr) => {
-  let mins = timeToMinutes(timeStr);
-  mins += 30;
-  return minutesToTime(mins);
+  return minutesToTime(timeToMinutes(timeStr) + 30);
 };
 
 const generateAllStartTimes = () => {
   const times = [];
-  let mins = 8 * 60;
+  let mins = 8 * 60; // 08:00
   while (mins < 19 * 60) {
     times.push(minutesToTime(mins));
     mins += 30;
@@ -37,7 +36,7 @@ const generateAllStartTimes = () => {
 
 const generateAllEndTimes = () => {
   const times = [];
-  let mins = 8 * 60 + 30;
+  let mins = 8 * 60 + 30; // 08:30
   while (mins <= 19 * 60) {
     times.push(minutesToTime(mins));
     mins += 30;
@@ -62,13 +61,17 @@ function App() {
   const [toast, setToast] = useState(null);
   const [reservasDoDia, setReservasDoDia] = useState([]);
 
+  // Estados para reserva recorrente
+  const [recorrente, setRecorrente] = useState(false);
+  const [diasSelecionados, setDiasSelecionados] = useState([]); // lista de inteiros (0=segunda...6=domingo)
+  const [dataFim, setDataFim] = useState('');
+
   const dataSelecionada = !!form.data;
 
   const loadSalas = async () => {
     const data = await getSalas();
     setSalas(data);
   };
-
   const loadReservas = async () => {
     const data = await getReservas();
     setReservas(data);
@@ -85,14 +88,12 @@ function App() {
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
-  const reservasIntervalos = useMemo(
-    () =>
-      reservasDoDia.map((r) => ({
-        inicio: timeToMinutes(r.hora_inicio),
-        fim: timeToMinutes(r.hora_fim),
-      })),
-    [reservasDoDia]
-  );
+  const reservasIntervalos = useMemo(() => {
+    return reservasDoDia.map((r) => ({
+      inicio: timeToMinutes(r.hora_inicio),
+      fim: timeToMinutes(r.hora_fim),
+    }));
+  }, [reservasDoDia]);
 
   const conflita = (inicio, fim) => {
     return reservasIntervalos.some((r) => inicio < r.fim && fim > r.inicio);
@@ -102,16 +103,25 @@ function App() {
   const todosFins = useMemo(() => generateAllEndTimes(), []);
 
   const horasInicioDisponiveis = useMemo(() => {
-    if (!dataSelecionada) return [];
+    if (!dataSelecionada && !recorrente) return [];
+    // Se for recorrente, não depende da data inicial para exibir horários
+    if (recorrente) return todosInicios;
     return todosInicios.filter((inicio) => {
       const fim = add30min(inicio);
       return !conflita(timeToMinutes(inicio), timeToMinutes(fim));
     });
-  }, [todosInicios, dataSelecionada, reservasIntervalos]);
+  }, [todosInicios, dataSelecionada, recorrente, reservasIntervalos]);
 
   const horasFimDisponiveis = useMemo(() => {
-    if (!dataSelecionada || !form.hora_inicio) return [];
+    if (!form.hora_inicio) return [];
     const inicioMin = timeToMinutes(form.hora_inicio);
+    if (recorrente) {
+      // Para recorrente, mostra todos os fins maiores que o início
+      return todosFins.filter((fimStr) => {
+        const fimMin = timeToMinutes(fimStr);
+        return fimMin > inicioMin;
+      });
+    }
     const proximosInicios = reservasIntervalos
       .map((r) => r.inicio)
       .filter((min) => min > inicioMin)
@@ -121,7 +131,7 @@ function App() {
       const fimMin = timeToMinutes(fimStr);
       return fimMin > inicioMin && fimMin <= limite;
     });
-  }, [form.hora_inicio, todosFins, dataSelecionada, reservasIntervalos]);
+  }, [form.hora_inicio, todosFins, recorrente, reservasIntervalos]);
 
   useEffect(() => {
     if (horasFimDisponiveis.length && !horasFimDisponiveis.includes(form.hora_fim)) {
@@ -131,6 +141,17 @@ function App() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+  
+    // VALIDAÇÃO DE FIM DE SEMANA (adicione estas linhas)
+    if (name === 'data') {
+      const selectedDate = new Date(value);
+      const dayOfWeek = selectedDate.getDay(); // 0=domingo, 6=sábado
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        showToast('Reservas não são permitidas aos sábados e domingos', 'error');
+        return; // Impede a atualização do estado
+      }
+    }
+  
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -145,18 +166,47 @@ function App() {
       showToast('Escolha uma sala antes de reservar', 'error');
       return;
     }
-    if (!dataSelecionada) {
-      showToast('Selecione uma data antes de reservar', 'error');
+    if (!recorrente && !form.data) {
+      showToast('Selecione uma data', 'error');
       return;
     }
-    const response = await createReserva(form);
+    if (recorrente && (!dataFim || diasSelecionados.length === 0)) {
+      showToast('Informe a data final e pelo menos um dia da semana para a recorrência', 'error');
+      return;
+    }
+
+    let response;
+    if (recorrente) {
+      const payload = {
+        sala_id: form.sala_id,
+        titulo: form.titulo,
+        hora_inicio: form.hora_inicio,
+        hora_fim: form.hora_fim,
+        dias_semana: diasSelecionados,
+        data_inicio: form.data,
+        data_fim: dataFim,
+        responsavel: form.responsavel,
+        email: form.email,
+        descricao: form.descricao,
+      };
+      response = await createReservaRecorrente(payload);
+    } else {
+      response = await createReserva(form);
+    }
+
     if (response.erro) {
       showToast(response.erro, 'error');
-      return;
+    } else if (response.mensagem) {
+      showToast(response.mensagem, 'success');
+      if (response.conflitos && response.conflitos.length) {
+        showToast(`Conflitos nas datas: ${response.conflitos.join(', ')}`, 'error');
+      }
+      await loadReservas();
+    } else {
+      setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
+      await loadReservas();
+      showToast('Reserva criada com sucesso!', 'success');
     }
-    setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
-    await loadReservas();
-    showToast('Reserva criada com sucesso!', 'success');
   };
 
   const handleDisponibilidade = async () => {
@@ -172,6 +222,7 @@ function App() {
     setDisponibilidade(response);
   };
 
+
   useEffect(() => {
     if (!form.sala_id || !form.data) {
       setReservasDoDia([]);
@@ -179,14 +230,23 @@ function App() {
     }
     getDisponibilidade(form.sala_id, form.data).then((response) => {
       if (response?.horarios) {
-        const ocupados = response.horarios.filter((h) => h.ocupado);
-        setReservasDoDia(ocupados);
+        setReservasDoDia(response.horarios.filter((h) => h.ocupado));
       }
     });
   }, [form.sala_id, form.data]);
 
-  const selectsDisabled = !dataSelecionada;
-  const camposTextDisabled = !dataSelecionada;
+  const selectsDisabled = !dataSelecionada && !recorrente;
+  const camposTextDisabled = !dataSelecionada && !recorrente;
+
+  const diasOptions = [
+    { label: 'Segunda', value: 0 },
+    { label: 'Terça', value: 1 },
+    { label: 'Quarta', value: 2 },
+    { label: 'Quinta', value: 3 },
+    { label: 'Sexta', value: 4 },
+    { label: 'Sábado', value: 5 },
+    { label: 'Domingo', value: 6 },
+  ];
 
   return (
     <div className="app-container">
@@ -211,10 +271,12 @@ function App() {
               ))}
             </select>
           </label>
+
           <label>
             Data *
-            <input type="date" name="data" value={form.data} onChange={handleChange} required />
+            <input type="date" name="data" value={form.data} onChange={handleChange} required={!recorrente} disabled={recorrente} />
           </label>
+
           <label>
             Início *
             <select name="hora_inicio" value={form.hora_inicio} onChange={handleChange} required disabled={selectsDisabled}>
@@ -223,6 +285,7 @@ function App() {
               ))}
             </select>
           </label>
+
           <label>
             Fim *
             <select name="hora_fim" value={form.hora_fim} onChange={handleChange} required disabled={selectsDisabled}>
@@ -231,25 +294,72 @@ function App() {
               ))}
             </select>
           </label>
+
           <label>
             Título *
             <input type="text" name="titulo" value={form.titulo} onChange={handleChange} required disabled={camposTextDisabled} />
           </label>
+
           <label>
             Responsável *
             <input type="text" name="responsavel" value={form.responsavel} onChange={handleChange} required disabled={camposTextDisabled} />
           </label>
+
           <label>
             E-mail *
             <input type="email" name="email" value={form.email} onChange={handleChange} required disabled={camposTextDisabled} />
           </label>
+
           <label>
             Descrição
             <textarea name="descricao" value={form.descricao} onChange={handleChange} rows="3" disabled={camposTextDisabled} />
           </label>
+
+          {/* Opções de recorrência */}
+          <div className="full-width">
+            <label style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
+              <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
+              Reserva recorrente (mesmo horário todas as semanas)
+            </label>
+          </div>
+
+          {recorrente && (
+            <>
+              <label className="full-width">
+                Dias da semana:
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                  {diasOptions.map(day => (
+                    <label key={day.value} style={{ flexDirection: 'row', alignItems: 'center', gap: '0.3rem' }}>
+                      <input
+                        type="checkbox"
+                        value={day.value}
+                        checked={diasSelecionados.includes(day.value)}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (e.target.checked) {
+                            setDiasSelecionados([...diasSelecionados, val]);
+                          } else {
+                            setDiasSelecionados(diasSelecionados.filter(d => d !== val));
+                          }
+                        }}
+                      />
+                      {day.label}
+                    </label>
+                  ))}
+                </div>
+              </label>
+              <label>
+                Data final (repetir até):
+                <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} required />
+              </label>
+            </>
+          )}
+
           <div className="actions">
-            <button type="submit" disabled={!dataSelecionada}>Reservar</button>
-            <button type="button" onClick={handleDisponibilidade} className="secondary">Ver disponibilidade</button>
+            <button type="submit" disabled={!dataSelecionada && !recorrente}>Reservar</button>
+            <button type="button" onClick={handleDisponibilidade} className="secondary" disabled={!form.sala_id || !form.data}>
+              Ver disponibilidade
+            </button>
           </div>
         </form>
       </section>
