@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   getSalas,
   createSala,
+  updateSala,
   deleteSala,
   getReservas,
   deleteReserva,
@@ -11,7 +12,6 @@ import {
   adminLogout,
 } from './api';
 
-// Componente de login
 function AdminLogin({ onLogin }) {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
@@ -19,11 +19,8 @@ function AdminLogin({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const res = await adminLogin(senha);
-    if (res.erro) {
-      setErro(res.erro);
-    } else {
-      onLogin(true);
-    }
+    if (res.erro) setErro(res.erro);
+    else onLogin(true);
   };
 
   return (
@@ -31,13 +28,7 @@ function AdminLogin({ onLogin }) {
       <img src="/CBiot_logo.jpg" alt="CBiot" className="logo-small" />
       <h2>Login Painel Administrativo</h2>
       <form onSubmit={handleSubmit}>
-        <input
-          type="password"
-          placeholder="Senha"
-          value={senha}
-          onChange={(e) => setSenha(e.target.value)}
-          required
-        />
+        <input type="password" placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} required />
         <button type="submit">Entrar</button>
         {erro && <p className="erro">{erro}</p>}
       </form>
@@ -46,7 +37,6 @@ function AdminLogin({ onLogin }) {
   );
 }
 
-// Componente do painel (após login)
 function AdminPanel() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
@@ -57,6 +47,7 @@ function AdminPanel() {
     capacidade: '',
     equipamentos: '',
   });
+  const [editandoSala, setEditandoSala] = useState(null);
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
 
@@ -68,10 +59,7 @@ function AdminPanel() {
 
   const loadSalas = async () => {
     const data = await getSalas();
-    // Ordenar salas numericamente/alfabeticamente
-    const sorted = [...data].sort((a, b) =>
-      a.nome.localeCompare(b.nome, undefined, { numeric: true })
-    );
+    const sorted = [...data].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
     setSalas(sorted);
   };
   const loadReservas = async () => {
@@ -109,6 +97,38 @@ function AdminPanel() {
     }
   };
 
+  const handleEditarSala = (sala) => {
+    setEditandoSala(sala);
+    setNovaSala({
+      nome: sala.nome,
+      bloco: sala.bloco || '',
+      andar: sala.andar || '',
+      capacidade: sala.capacidade || '',
+      equipamentos: sala.equipamentos || '',
+    });
+  };
+
+  const handleCancelarEdicao = () => {
+    setEditandoSala(null);
+    setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
+  };
+
+  const handleUpdateSala = async () => {
+    if (!novaSala.nome.trim()) {
+      showToast('Informe o nome da sala', 'error');
+      return;
+    }
+    const res = await updateSala(editandoSala.id, novaSala);
+    if (res.erro) {
+      showToast(res.erro, 'error');
+    } else {
+      showToast(`Sala "${novaSala.nome}" atualizada!`, 'success');
+      setEditandoSala(null);
+      setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
+      await loadSalas();
+    }
+  };
+
   const handleDeletarSala = async (id, nome) => {
     if (window.confirm(`Excluir a sala "${nome}"? Todas as reservas associadas também serão removidas.`)) {
       await deleteSala(id);
@@ -127,18 +147,12 @@ function AdminPanel() {
   const handleDeletarGrupo = async (grupoId) => {
     if (window.confirm('Cancelar TODAS as reservas deste grupo recorrente?')) {
       const res = await deleteReservasByGrupo(grupoId);
-      if (res.erro) {
-        showToast(res.erro, 'error');
-      } else {
+      if (res.erro) showToast(res.erro, 'error');
+      else {
         await loadReservas();
         showToast(res.mensagem, 'success');
       }
     }
-  };
-
-  const handleLogout = async () => {
-    await adminLogout();
-    navigate('/admin');
   };
 
   return (
@@ -155,68 +169,37 @@ function AdminPanel() {
       <section className="box">
         <h2>Gerenciar Salas</h2>
         <div className="admin-sala-form">
-          <input
-            name="nome"
-            placeholder="Nome da sala (obrigatório)"
-            value={novaSala.nome}
-            onChange={handleChangeSala}
-          />
-          <input
-            name="bloco"
-            placeholder="Bloco (ex: 43431)"
-            value={novaSala.bloco}
-            onChange={handleChangeSala}
-          />
-          <input
-            name="andar"
-            placeholder="Andar (ex: 2° andar)"
-            value={novaSala.andar}
-            onChange={handleChangeSala}
-          />
-          <input
-            name="capacidade"
-            placeholder="Capacidade (pessoas)"
-            type="number"
-            value={novaSala.capacidade}
-            onChange={handleChangeSala}
-          />
-          <textarea
-            name="equipamentos"
-            placeholder="Equipamentos (separados por vírgula)"
-            value={novaSala.equipamentos}
-            onChange={handleChangeSala}
-            rows="2"
-          />
-          <button onClick={handleAdicionarSala}>Adicionar sala</button>
+          <input name="nome" placeholder="Nome da sala (obrigatório)" value={novaSala.nome} onChange={handleChangeSala} />
+          <input name="bloco" placeholder="Bloco (ex: 43431)" value={novaSala.bloco} onChange={handleChangeSala} />
+          <input name="andar" placeholder="Andar (ex: 2° andar)" value={novaSala.andar} onChange={handleChangeSala} />
+          <input name="capacidade" placeholder="Capacidade (pessoas)" type="number" value={novaSala.capacidade} onChange={handleChangeSala} />
+          <textarea name="equipamentos" placeholder="Equipamentos (separados por vírgula)" value={novaSala.equipamentos} onChange={handleChangeSala} rows="2" />
+          {editandoSala ? (
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button onClick={handleUpdateSala}>Salvar alterações</button>
+              <button onClick={handleCancelarEdicao} className="secondary">Cancelar</button>
+            </div>
+          ) : (
+            <button onClick={handleAdicionarSala}>Adicionar sala</button>
+          )}
         </div>
 
-        {/* Mapa de salas no admin (mesmo estilo do público) */}
         <div className="salas-grid-mapa">
           {salas.map((sala) => (
             <div key={sala.id} className="sala-card-mapa">
               <div className="sala-nome">{sala.nome}</div>
-              <div className="sala-localizacao">
-                📍 Bloco {sala.bloco || '?'} | Andar {sala.andar || '?'}
-              </div>
-              <div className="sala-info">
-                <span>👥 Capacidade: {sala.capacidade || '?'} pessoas</span>
-              </div>
+              <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | Andar {sala.andar || '?'}</div>
+              <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'} pessoas</div>
               {sala.equipamentos && (
                 <div className="sala-equipamentos">
                   <strong>📋 Equipamentos:</strong>
-                  <ul>
-                    {sala.equipamentos.split(',').map((item, idx) => (
-                      <li key={idx}>{item.trim()}</li>
-                    ))}
-                  </ul>
+                  <ul>{sala.equipamentos.split(',').map((item, idx) => <li key={idx}>{item.trim()}</li>)}</ul>
                 </div>
               )}
-              <button
-                className="delete-sala-btn"
-                onClick={() => handleDeletarSala(sala.id, sala.nome)}
-              >
-                Excluir sala
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button className="edit-sala-btn" onClick={() => handleEditarSala(sala)}>Editar</button>
+                <button className="delete-sala-btn" onClick={() => handleDeletarSala(sala.id, sala.nome)}>Excluir</button>
+              </div>
             </div>
           ))}
         </div>
@@ -231,12 +214,7 @@ function AdminPanel() {
               {r.grupo_id && (
                 <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.5rem' }}>
                   Grupo: {r.grupo_id.substring(0, 8)}...
-                  <button
-                    className="cancel-group-btn"
-                    onClick={() => handleDeletarGrupo(r.grupo_id)}
-                  >
-                    Cancelar todas
-                  </button>
+                  <button className="cancel-group-btn" onClick={() => handleDeletarGrupo(r.grupo_id)}>Cancelar todas</button>
                 </p>
               )}
               <p><strong>Data:</strong> {formatarData(r.data)}</p>
@@ -244,9 +222,7 @@ function AdminPanel() {
               {r.responsavel && <p><strong>Responsável:</strong> {r.responsavel}</p>}
               {r.email && <p><strong>E-mail:</strong> {r.email}</p>}
               {r.descricao && <p><strong>Descrição:</strong> {r.descricao}</p>}
-              <button className="cancel-btn" onClick={() => handleDeletarReserva(r.id, r.titulo)}>
-                Cancelar reserva
-              </button>
+              <button className="cancel-btn" onClick={() => handleDeletarReserva(r.id, r.titulo)}>Cancelar reserva</button>
             </div>
           ))}
         </div>
