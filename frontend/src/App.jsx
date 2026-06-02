@@ -4,11 +4,45 @@ import {
   getSalas,
   getReservas,
   createReserva,
+  createReservaRecorrente,
   getDisponibilidade,
 } from './api';
 
+// ========== FUNÇÕES AUXILIARES DE HORÁRIO (30 minutos) ==========
+const timeToMinutes = (timeStr) => {
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+};
+
+const minutesToTime = (minutes) => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+const add30min = (timeStr) => minutesToTime(timeToMinutes(timeStr) + 30);
+
+const generateAllStartTimes = () => {
+  const times = [];
+  let mins = 8 * 60;
+  while (mins < 19 * 60) {
+    times.push(minutesToTime(mins));
+    mins += 30;
+  }
+  return times;
+};
+
+const generateAllEndTimes = () => {
+  const times = [];
+  let mins = 8 * 60 + 30;
+  while (mins <= 19 * 60) {
+    times.push(minutesToTime(mins));
+    mins += 30;
+  }
+  return times;
+};
+
 function App() {
-  // Estados principais
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [disponibilidade, setDisponibilidade] = useState(null);
@@ -17,18 +51,21 @@ function App() {
     titulo: '',
     data: '',
     hora_inicio: '08:00',
-    hora_fim: '09:00',
+    hora_fim: '08:30',
     responsavel: '',
     email: '',
     descricao: '',
   });
-  const [erro, setErro] = useState('');
   const [toast, setToast] = useState(null);
   const [reservasDoDia, setReservasDoDia] = useState([]);
 
-  const dataSelecionada = !!form.data;   // habilita campos apenas após data escolhida
+  // Estados para reserva recorrente
+  const [recorrente, setRecorrente] = useState(false);
+  const [diasSelecionados, setDiasSelecionados] = useState([]);
+  const [dataFim, setDataFim] = useState('');
 
-  // Carrega salas e reservas
+  const dataSelecionada = !!form.data;
+
   const loadSalas = async () => {
     const data = await getSalas();
     setSalas(data);
@@ -37,108 +74,154 @@ function App() {
     const data = await getReservas();
     setReservas(data);
   };
+
   useEffect(() => {
     loadSalas();
     loadReservas();
   }, []);
 
-  // Formata data manualmente (evita fuso horário)
   const formatarData = (dataISO) => {
     if (!dataISO) return '';
     const partes = dataISO.split('-');
-    if (partes.length !== 3) return dataISO;
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
-  // Renderização dos horários de disponibilidade
-  const disponibilidadeTexto = useMemo(() => {
-    if (!disponibilidade) return null;
-    return disponibilidade.horarios.map((item) => (
-      <li key={`${item.hora_inicio}-${item.hora_fim}`} className={item.ocupado ? 'ocupado' : 'livre'}>
-        <strong>{item.hora_inicio}</strong> - {item.hora_fim} <strong>{item.ocupado ? 'Ocupado' : 'Livre'}</strong>
-      </li>
-    ));
-  }, [disponibilidade]);
+  const reservasIntervalos = useMemo(
+    () => reservasDoDia.map((r) => ({
+      inicio: timeToMinutes(r.hora_inicio),
+      fim: timeToMinutes(r.hora_fim),
+    })),
+    [reservasDoDia]
+  );
 
-  // Geração de opções de horário (08:00..18:00)
-  const TODAS_HORAS_INICIO = Array.from({ length: 11 }, (_, i) => `${String(i + 8).padStart(2, '0')}:00`);
-  const TODAS_HORAS_FIM = Array.from({ length: 11 }, (_, i) => `${String(i + 9).padStart(2, '0')}:00`);
-
-  // Verifica se um horário já está ocupado (baseado nas reservas do dia)
-  const horarioConflita = (hora, tipo) => {
-    return reservasDoDia.some(({ hora_inicio, hora_fim }) => {
-      const h = parseInt(hora);
-      const ini = parseInt(hora_inicio);
-      const fim = parseInt(hora_fim);
-      if (tipo === 'inicio') return h >= ini && h < fim;
-      return h > ini && h <= fim;
-    });
+  const conflita = (inicio, fim) => {
+    return reservasIntervalos.some((r) => inicio < r.fim && fim > r.inicio);
   };
 
-  // Horários de início disponíveis (apenas se data selecionada)
+  const todosInicios = useMemo(() => generateAllStartTimes(), []);
+  const todosFins = useMemo(() => generateAllEndTimes(), []);
+
   const horasInicioDisponiveis = useMemo(() => {
-    if (!dataSelecionada) return [];
-    return TODAS_HORAS_INICIO.filter((h) => !horarioConflita(h, 'inicio'));
-  }, [reservasDoDia, dataSelecionada]);
-
-  // Horários de fim disponíveis (baseado no início escolhido e reservas)
-  const horasFimDisponiveis = useMemo(() => {
-    if (!dataSelecionada || !form.hora_inicio) return [];
-    const inicioH = parseInt(form.hora_inicio);
-    const proximaReserva = reservasDoDia
-      .map((r) => parseInt(r.hora_inicio))
-      .filter((h) => h > inicioH)
-      .sort((a, b) => a - b)[0];
-    const limite = proximaReserva !== undefined ? proximaReserva : 19;
-    return TODAS_HORAS_FIM.filter((h) => {
-      const hNum = parseInt(h);
-      return hNum > inicioH && hNum <= limite;
+    if (!dataSelecionada && !recorrente) return [];
+    if (recorrente) return todosInicios;
+    return todosInicios.filter((inicio) => {
+      const fim = add30min(inicio);
+      return !conflita(timeToMinutes(inicio), timeToMinutes(fim));
     });
-  }, [form.hora_inicio, reservasDoDia, dataSelecionada]);
+  }, [todosInicios, dataSelecionada, recorrente, reservasIntervalos]);
 
-  // Ajusta o fim automaticamente se o valor atual for inválido
-  useEffect(() => {
-    if (horasFimDisponiveis.length > 0 && !horasFimDisponiveis.includes(form.hora_fim)) {
-      setForm((current) => ({ ...current, hora_fim: horasFimDisponiveis[0] }));
+  const horasFimDisponiveis = useMemo(() => {
+    if (!form.hora_inicio) return [];
+    const inicioMin = timeToMinutes(form.hora_inicio);
+    if (recorrente) {
+      return todosFins.filter((fimStr) => timeToMinutes(fimStr) > inicioMin);
     }
-  }, [horasFimDisponiveis]);
+    const proximosInicios = reservasIntervalos
+      .map((r) => r.inicio)
+      .filter((min) => min > inicioMin)
+      .sort((a, b) => a - b);
+    const limite = proximosInicios.length ? proximosInicios[0] : 19 * 60;
+    return todosFins.filter((fimStr) => {
+      const fimMin = timeToMinutes(fimStr);
+      return fimMin > inicioMin && fimMin <= limite;
+    });
+  }, [form.hora_inicio, todosFins, recorrente, reservasIntervalos]);
 
-  // Atualiza campos do formulário
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+  useEffect(() => {
+    if (horasFimDisponiveis.length && !horasFimDisponiveis.includes(form.hora_fim)) {
+      setForm((prev) => ({ ...prev, hora_fim: horasFimDisponiveis[0] }));
+    }
+  }, [horasFimDisponiveis, form.hora_fim]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Exibe toast por 3 segundos
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Submissão da reserva
-  const handleSubmitReserva = async (event) => {
-    event.preventDefault();
-    setErro('');
-    if (!form.sala_id) {
-      showToast('Escolha uma sala antes de reservar', 'error');
-      return;
+  const handleSubmitReserva = async (e) => {
+  e.preventDefault();
+  if (!form.sala_id) {
+    showToast('Escolha uma sala antes de reservar', 'error');
+    return;
+  }
+  if (!recorrente && !form.data) {
+    showToast('Selecione uma data', 'error');
+    return;
+  }
+  if (recorrente && (!dataFim || diasSelecionados.length === 0)) {
+    showToast('Informe a data final e pelo menos um dia da semana', 'error');
+    return;
+  }
+
+  let response;
+  if (recorrente) {
+    const payload = {
+      sala_id: form.sala_id,
+      titulo: form.titulo,
+      hora_inicio: form.hora_inicio,
+      hora_fim: form.hora_fim,
+      dias_semana: diasSelecionados,
+      data_inicio: form.data,
+      data_fim: dataFim,
+      responsavel: form.responsavel,
+      email: form.email,
+      descricao: form.descricao,
+    };
+    response = await createReservaRecorrente(payload);
+  } else {
+    response = await createReserva(form);
+  }
+
+  if (response.erro) {
+    showToast(response.erro, 'error');
+    return;
+  }
+
+  if (recorrente) {
+    // Caso recorrente: verificar conflitos
+    if (response.conflitos && response.conflitos.length > 0) {
+      const conflitosStr = response.conflitos.join(', ');
+      const userConfirmed = window.confirm(
+        `Existem conflitos nas seguintes datas: ${conflitosStr}\n\nDeseja criar as reservas apenas para as datas disponíveis? (As reservas com conflito serão ignoradas.)`
+      );
+      if (!userConfirmed) {
+        // Cancelar operação: deletar o grupo recém-criado
+        if (response.grupo_id) {
+          await deleteReservasByGrupo(response.grupo_id);
+          showToast('Operação cancelada. Nenhuma reserva foi criada.', 'info');
+        } else {
+          showToast('Nenhuma reserva foi criada devido a conflitos.', 'error');
+        }
+        await loadReservas(); // recarregar para garantir consistência
+        return;
+      } else {
+        showToast(
+          `${response.reservas_criadas.length} reservas criadas. Conflitos ignorados: ${response.conflitos.length}`,
+          'success'
+        );
+      }
+    } else {
+      showToast(response.mensagem, 'success');
     }
-    if (!dataSelecionada) {
-      showToast('Selecione uma data antes de reservar', 'error');
-      return;
-    }
-    const response = await createReserva(form);
-    if (response.erro) {
-      showToast(response.erro, 'error');
-      return;
-    }
-    // Limpa campos de texto após sucesso
-    setForm((current) => ({ ...current, titulo: '', responsavel: '', email: '', descricao: '' }));
     await loadReservas();
-    showToast('Reserva criada com sucesso!', 'success');
+    // Limpar formulário? Opcional
+    setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
+      setDataFim('');
+      setDiasSelecionados([]);
+      setRecorrente(false);
+    } else {
+      // Reserva pontual
+      showToast('Reserva criada com sucesso!', 'success');
+      setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
+      await loadReservas();
+    }
   };
 
-  // Consulta disponibilidade
   const handleDisponibilidade = async () => {
     if (!form.sala_id || !form.data) {
       showToast('Escolha sala e data para ver disponibilidade', 'error');
@@ -152,7 +235,6 @@ function App() {
     setDisponibilidade(response);
   };
 
-  // Atualiza reservas do dia quando sala/data mudam
   useEffect(() => {
     if (!form.sala_id || !form.data) {
       setReservasDoDia([]);
@@ -160,30 +242,26 @@ function App() {
     }
     getDisponibilidade(form.sala_id, form.data).then((response) => {
       if (response?.horarios) {
-        const ocupados = response.horarios.filter((h) => h.ocupado);
-        setReservasDoDia(ocupados);
+        setReservasDoDia(response.horarios.filter((h) => h.ocupado));
       }
     });
   }, [form.sala_id, form.data]);
 
-  // Reforça a atualização dos horários de fim
-  useEffect(() => {
-    if (horasFimDisponiveis.length > 0 && !horasFimDisponiveis.includes(form.hora_fim)) {
-      setForm((current) => ({ ...current, hora_fim: horasFimDisponiveis[0] }));
-    }
-  }, [horasFimDisponiveis]);
+  const selectsDisabled = !dataSelecionada && !recorrente;
+  const camposTextDisabled = !dataSelecionada && !recorrente;
 
-  // Desabilita campos até que a data seja escolhida
-  const selectInicioDisabled = !dataSelecionada;
-  const selectFimDisabled = !dataSelecionada;
-  const camposTextDisabled = !dataSelecionada;
+  const diasOptions = [
+    { label: 'Segunda', value: 0 },
+    { label: 'Terça', value: 1 },
+    { label: 'Quarta', value: 2 },
+    { label: 'Quinta', value: 3 },
+    { label: 'Sexta', value: 4 },
+  ];
 
   return (
     <div className="app-container">
-      {/* Toast flutuante */}
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
 
-      {/* Cabeçalho com logo e título */}
       <header>
         <div className="header-content">
           <img src="/CBiot_logo.jpg" alt="Logo CBiot" className="logo" />
@@ -191,7 +269,6 @@ function App() {
         </div>
       </header>
 
-      {/* Formulário de reserva */}
       <section className="box">
         <h2>Fazer reserva</h2>
         <form onSubmit={handleSubmitReserva} className="form-grid">
@@ -207,39 +284,24 @@ function App() {
 
           <label>
             Data *
-            <input
-              type="date"
-              name="data"
-              value={form.data}
-              onChange={handleChange}
-              placeholder="Selecione uma data"
-              required
-            />
+            <input type="date" name="data" value={form.data} onChange={handleChange} required={!recorrente} disabled={recorrente} />
           </label>
 
           <label>
             Início *
-            <select
-              name="hora_inicio"
-              value={form.hora_inicio}
-              onChange={handleChange}
-              required
-              disabled={selectInicioDisabled}
-            >
-              {horasInicioDisponiveis.map((h) => <option key={h}>{h}</option>)}
+            <select name="hora_inicio" value={form.hora_inicio} onChange={handleChange} required disabled={selectsDisabled}>
+              {horasInicioDisponiveis.map((h) => (
+                <option key={h} value={h}>{h}</option>
+              ))}
             </select>
           </label>
 
           <label>
             Fim *
-            <select
-              name="hora_fim"
-              value={form.hora_fim}
-              onChange={handleChange}
-              required
-              disabled={selectFimDisabled}
-            >
-              {horasFimDisponiveis.map((h) => <option key={h}>{h}</option>)}
+            <select name="hora_fim" value={form.hora_fim} onChange={handleChange} required disabled={selectsDisabled}>
+              {horasFimDisponiveis.map((h) => (
+                <option key={h} value={h}>{h}</option>
+              ))}
             </select>
           </label>
 
@@ -263,29 +325,77 @@ function App() {
             <textarea name="descricao" value={form.descricao} onChange={handleChange} rows="3" disabled={camposTextDisabled} />
           </label>
 
+          <div className="full-width">
+            <label style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
+              <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
+              Reserva recorrente (mesmo horário todas as semanas)
+            </label>
+          </div>
+
+          {recorrente && (
+            <>
+              <label className="full-width">
+                Dias da semana (segunda a sexta):
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                  {diasOptions.map(day => (
+                    <label key={day.value} style={{ flexDirection: 'row', alignItems: 'center', gap: '0.3rem' }}>
+                      <input
+                        type="checkbox"
+                        value={day.value}
+                        checked={diasSelecionados.includes(day.value)}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (e.target.checked) {
+                            setDiasSelecionados([...diasSelecionados, val]);
+                          } else {
+                            setDiasSelecionados(diasSelecionados.filter(d => d !== val));
+                          }
+                        }}
+                      />
+                      {day.label}
+                    </label>
+                  ))}
+                </div>
+              </label>
+              <label>
+                Data final (repetir até):
+                <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} required />
+              </label>
+            </>
+          )}
+
           <div className="actions">
-            <button type="submit" disabled={!dataSelecionada}>Reservar</button>
-            <button type="button" onClick={handleDisponibilidade} className="secondary">Ver disponibilidade</button>
+            <button type="submit" disabled={!dataSelecionada && !recorrente}>Reservar</button>
+            <button type="button" onClick={handleDisponibilidade} className="secondary" disabled={!form.sala_id || !form.data}>
+              Ver disponibilidade
+            </button>
           </div>
         </form>
       </section>
 
-      {/* Seção de disponibilidade (aparece após consulta) */}
       {disponibilidade && (
         <section className="box">
           <h2>Disponibilidade</h2>
           <p>Sala <strong>{disponibilidade.sala_nome}</strong> em <strong>{formatarData(disponibilidade.data)}</strong></p>
-          <ul className="grid-list">{disponibilidadeTexto}</ul>
+          <ul className="grid-list">
+            {disponibilidade.horarios.map((item) => (
+              <li key={`${item.hora_inicio}-${item.hora_fim}`} className={item.ocupado ? 'ocupado' : 'livre'}>
+                <strong>{item.hora_inicio}</strong> - {item.hora_fim} <strong>{item.ocupado ? 'Ocupado' : 'Livre'}</strong>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
-      {/* Lista de reservas confirmadas */}
       <section className="box">
         <h2>Reservas Confirmadas</h2>
         <div className="reservas-grid">
           {reservas.map((reserva) => (
             <div className="reserva-card" key={reserva.id}>
               <h3>{reserva.sala_nome} - {reserva.titulo}</h3>
+              {reserva.grupo_id && (
+                <p><strong>Grupo:</strong> {reserva.grupo_id.substring(0, 8)}...</p>
+              )}
               <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
               <p><strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}</p>
               {reserva.responsavel && <p><strong>Responsável:</strong> {reserva.responsavel}</p>}
@@ -296,7 +406,6 @@ function App() {
         </div>
       </section>
 
-      {/* Rodapé com link para área administrativa */}
       <footer className="admin-footer">
         <Link to="/admin" className="admin-link">Área Administrativa</Link>
       </footer>

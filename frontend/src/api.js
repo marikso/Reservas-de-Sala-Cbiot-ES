@@ -66,3 +66,19 @@ export function adminLogout() {
     method: 'POST',
   });
 }
+
+// Nova função para reservas recorrentes
+export function createReservaRecorrente(payload) {
+  return request('/api/reservas/recorrente', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getReservasByGrupo(grupoId) {
+  return request(`/api/reservas/grupo/${grupoId}`);
+}
+
+export function deleteReservasByGrupo(grupoId) {
+  return request(`/api/reservas/grupo/${grupoId}`, { method: 'DELETE' });
+}
