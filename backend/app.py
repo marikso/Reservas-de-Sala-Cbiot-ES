@@ -298,7 +298,15 @@ def create_sala():
         return jsonify({'erro': 'Nome obrigatório'}), 400
     if Sala.query.filter_by(nome=dados['nome']).first():
         return jsonify({'erro': 'Sala já existe'}), 400
-    sala = Sala(nome=dados['nome'])
+
+    sala = Sala(
+        nome=dados['nome'],
+        bloco=dados.get('bloco'),
+        andar=dados.get('andar'),
+        capacidade=dados.get('capacidade'),
+        equipamentos=dados.get('equipamentos'),
+        avisos=dados.get('avisos')
+    )
     db.session.add(sala)
     db.session.commit()
     return jsonify(sala.to_dict()), 201

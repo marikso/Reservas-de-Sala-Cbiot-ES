@@ -5,9 +5,22 @@ class Sala(db.Model):
     __tablename__ = 'salas'
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(100), nullable=False, unique=True)
+    bloco = db.Column(db.String(20))
+    andar = db.Column(db.String(10))
+    capacidade = db.Column(db.Integer)
+    equipamentos = db.Column(db.Text)
+    avisos = db.Column(db.Text)          # opcional
 
     def to_dict(self):
-        return {'id': self.id, 'nome': self.nome}
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'bloco': self.bloco,
+            'andar': self.andar,
+            'capacidade': self.capacidade,
+            'equipamentos': self.equipamentos,
+            'avisos': self.avisos,
+        }
 
 class Reserva(db.Model):
     __tablename__ = 'reservas'

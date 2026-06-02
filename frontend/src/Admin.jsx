@@ -50,7 +50,13 @@ function AdminLogin({ onLogin }) {
 function AdminPanel() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
-  const [novaSala, setNovaSala] = useState('');
+  const [novaSala, setNovaSala] = useState({
+    nome: '',
+    bloco: '',
+    andar: '',
+    capacidade: '',
+    equipamentos: '',
+  });
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
 
@@ -62,7 +68,11 @@ function AdminPanel() {
 
   const loadSalas = async () => {
     const data = await getSalas();
-    setSalas(data);
+    // Ordenar salas numericamente/alfabeticamente
+    const sorted = [...data].sort((a, b) =>
+      a.nome.localeCompare(b.nome, undefined, { numeric: true })
+    );
+    setSalas(sorted);
   };
   const loadReservas = async () => {
     const data = await getReservas();
@@ -79,29 +89,39 @@ function AdminPanel() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const handleChangeSala = (e) => {
+    const { name, value } = e.target;
+    setNovaSala((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleAdicionarSala = async () => {
-    if (!novaSala.trim()) return;
-    const res = await createSala(novaSala.trim());
+    if (!novaSala.nome.trim()) {
+      showToast('Informe o nome da sala', 'error');
+      return;
+    }
+    const res = await createSala(novaSala);
     if (res.erro) {
       showToast(res.erro, 'error');
     } else {
-      setNovaSala('');
+      setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
       await loadSalas();
       showToast('Sala criada com sucesso!');
     }
   };
 
   const handleDeletarSala = async (id, nome) => {
-    await deleteSala(id);
-    await loadSalas();
-    await loadReservas();
-    showToast(`Sala "${nome}" excluída com sucesso!`);
+    if (window.confirm(`Excluir a sala "${nome}"? Todas as reservas associadas também serão removidas.`)) {
+      await deleteSala(id);
+      await loadSalas();
+      await loadReservas();
+      showToast(`Sala "${nome}" excluída!`);
+    }
   };
 
   const handleDeletarReserva = async (id, titulo) => {
     await deleteReserva(id);
     await loadReservas();
-    showToast(`Reserva "${titulo}" cancelada com sucesso!`);
+    showToast(`Reserva "${titulo}" cancelada!`);
   };
 
   const handleDeletarGrupo = async (grupoId) => {
@@ -123,11 +143,7 @@ function AdminPanel() {
 
   return (
     <div className="admin-container">
-      {toast && (
-        <div className={`toast toast-${toast.type}`}>
-          {toast.message}
-        </div>
-      )}
+      {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
 
       <header className="admin-header">
         <div className="header-content">
@@ -138,20 +154,69 @@ function AdminPanel() {
 
       <section className="box">
         <h2>Gerenciar Salas</h2>
-        <div className="admin-row">
+        <div className="admin-sala-form">
           <input
-            type="text"
-            placeholder="Nome da nova sala"
-            value={novaSala}
-            onChange={(e) => setNovaSala(e.target.value)}
+            name="nome"
+            placeholder="Nome da sala (obrigatório)"
+            value={novaSala.nome}
+            onChange={handleChangeSala}
+          />
+          <input
+            name="bloco"
+            placeholder="Bloco (ex: 43431)"
+            value={novaSala.bloco}
+            onChange={handleChangeSala}
+          />
+          <input
+            name="andar"
+            placeholder="Andar (ex: 2° andar)"
+            value={novaSala.andar}
+            onChange={handleChangeSala}
+          />
+          <input
+            name="capacidade"
+            placeholder="Capacidade (pessoas)"
+            type="number"
+            value={novaSala.capacidade}
+            onChange={handleChangeSala}
+          />
+          <textarea
+            name="equipamentos"
+            placeholder="Equipamentos (separados por vírgula)"
+            value={novaSala.equipamentos}
+            onChange={handleChangeSala}
+            rows="2"
           />
           <button onClick={handleAdicionarSala}>Adicionar sala</button>
         </div>
-        <div className="salas-grid">
+
+        {/* Mapa de salas no admin (mesmo estilo do público) */}
+        <div className="salas-grid-mapa">
           {salas.map((sala) => (
-            <div className="sala-card" key={sala.id}>
-              <span>{sala.nome}</span>
-              <button onClick={() => handleDeletarSala(sala.id, sala.nome)}>Excluir</button>
+            <div key={sala.id} className="sala-card-mapa">
+              <div className="sala-nome">{sala.nome}</div>
+              <div className="sala-localizacao">
+                📍 Bloco {sala.bloco || '?'} | Andar {sala.andar || '?'}
+              </div>
+              <div className="sala-info">
+                <span>👥 Capacidade: {sala.capacidade || '?'} pessoas</span>
+              </div>
+              {sala.equipamentos && (
+                <div className="sala-equipamentos">
+                  <strong>📋 Equipamentos:</strong>
+                  <ul>
+                    {sala.equipamentos.split(',').map((item, idx) => (
+                      <li key={idx}>{item.trim()}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <button
+                className="delete-sala-btn"
+                onClick={() => handleDeletarSala(sala.id, sala.nome)}
+              >
+                Excluir sala
+              </button>
             </div>
           ))}
         </div>
@@ -169,13 +234,6 @@ function AdminPanel() {
                   <button
                     className="cancel-group-btn"
                     onClick={() => handleDeletarGrupo(r.grupo_id)}
-                    style={{
-                      marginLeft: '0.5rem',
-                      background: '#e67e22',
-                      padding: '0.2rem 0.5rem',
-                      fontSize: '0.7rem',
-                      borderRadius: '20px'
-                    }}
                   >
                     Cancelar todas
                   </button>
