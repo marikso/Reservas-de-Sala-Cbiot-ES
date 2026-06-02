@@ -590,13 +590,22 @@ button.secondary:hover {
   }
 }
 
-.delete-sala-btn {
-  background: #dc2626;
-  margin-top: 0.75rem;
-  width: 100%;
+.edit-sala-btn {
+  background: #3b82f6;
   padding: 0.4rem;
   font-size: 0.8rem;
   border-radius: 30px;
+  flex: 1;
+}
+.edit-sala-btn:hover {
+  background: #2563eb;
+}
+.delete-sala-btn {
+  background: #dc2626;
+  padding: 0.4rem;
+  font-size: 0.8rem;
+  border-radius: 30px;
+  flex: 1;
 }
 .delete-sala-btn:hover {
   background: #b91c1c;

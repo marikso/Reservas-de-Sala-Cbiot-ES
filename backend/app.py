@@ -31,7 +31,6 @@ def parse_time(time_str):
     return datetime.strptime(time_str, '%H:%M').time()
 
 def validate_business_hours(data, hora_inicio, hora_fim):
-    """Valida data e horário para reservas pontuais (bloqueia fins de semana)."""
     hoje = date.today()
     if data < hoje:
         return 'Não é possível reservar para datas já passadas'
@@ -50,7 +49,6 @@ def validate_business_hours(data, hora_inicio, hora_fim):
     return None
 
 def validate_time_only(hora_inicio, hora_fim):
-    """Valida apenas o intervalo de horário (para reservas recorrentes)."""
     if hora_inicio.minute not in (0, 30) or hora_fim.minute not in (0, 30):
         return 'Reservas devem começar e terminar na hora cheia ou meia hora'
     if hora_inicio >= hora_fim:
@@ -97,7 +95,6 @@ def get_reservas():
 
 @app.route('/api/reservas', methods=['POST'])
 def create_reserva():
-    """Cria uma reserva pontual."""
     dados = request.get_json()
     obrigatorios = ['sala_id', 'titulo', 'data', 'hora_inicio', 'hora_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
@@ -133,14 +130,14 @@ def create_reserva():
         responsavel=dados['responsavel'],
         email=dados.get('email', ''),
         descricao=dados.get('descricao', ''),
-        grupo_id=None   # reserva pontual não possui grupo
+        grupo_id=None
     )
     db.session.add(nova)
     db.session.commit()
     return jsonify(formatReserva(nova)), 201
 
 @app.route('/api/reservas/recorrente', methods=['POST'])
-@admin_required   # altere se desejar que usuários comuns também possam criar
+@admin_required
 def create_reservas_recorrentes():
     dados = request.get_json()
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
@@ -212,7 +209,6 @@ def create_reservas_recorrentes():
         'conflitos': conflitos
     }), 201
 
-# Rota para listar todas as reservas de um grupo (pública)
 @app.route('/api/reservas/grupo/<grupo_id>', methods=['GET'])
 def get_reservas_by_grupo(grupo_id):
     reservas = Reserva.query.filter_by(grupo_id=grupo_id).order_by(Reserva.data).all()
@@ -220,7 +216,6 @@ def get_reservas_by_grupo(grupo_id):
         return jsonify({'erro': 'Grupo não encontrado'}), 404
     return jsonify([formatReserva(r) for r in reservas])
 
-# Rota para cancelar todas as reservas de um grupo (admin)
 @app.route('/api/reservas/grupo/<grupo_id>', methods=['DELETE'])
 @admin_required
 def delete_reservas_by_grupo(grupo_id):
@@ -234,7 +229,6 @@ def delete_reservas_by_grupo(grupo_id):
 
 @app.route('/api/disponibilidade', methods=['GET'])
 def disponibilidade():
-    """Retorna blocos de 30 minutos entre 08:00 e 19:00, com status ocupado/livre."""
     sala_id = request.args.get('sala_id', type=int)
     data_str = request.args.get('data')
     if not sala_id or not data_str:
@@ -298,18 +292,35 @@ def create_sala():
         return jsonify({'erro': 'Nome obrigatório'}), 400
     if Sala.query.filter_by(nome=dados['nome']).first():
         return jsonify({'erro': 'Sala já existe'}), 400
-
     sala = Sala(
         nome=dados['nome'],
         bloco=dados.get('bloco'),
         andar=dados.get('andar'),
         capacidade=dados.get('capacidade'),
-        equipamentos=dados.get('equipamentos'),
-        avisos=dados.get('avisos')
+        equipamentos=dados.get('equipamentos')
     )
     db.session.add(sala)
     db.session.commit()
     return jsonify(sala.to_dict()), 201
+
+@app.route('/api/salas/<int:sala_id>', methods=['PUT'])
+@admin_required
+def update_sala(sala_id):
+    sala = Sala.query.get_or_404(sala_id)
+    dados = request.get_json()
+
+    if 'nome' in dados:
+        outro = Sala.query.filter(Sala.nome == dados['nome'], Sala.id != sala_id).first()
+        if outro:
+            return jsonify({'erro': 'Já existe uma sala com este nome'}), 400
+        sala.nome = dados['nome']
+    sala.bloco = dados.get('bloco', sala.bloco)
+    sala.andar = dados.get('andar', sala.andar)
+    sala.capacidade = dados.get('capacidade', sala.capacidade)
+    sala.equipamentos = dados.get('equipamentos', sala.equipamentos)
+
+    db.session.commit()
+    return jsonify(sala.to_dict()), 200
 
 @app.route('/api/salas/<int:sala_id>', methods=['DELETE'])
 @admin_required
