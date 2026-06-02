@@ -39,10 +39,10 @@ export function getDisponibilidade(salaId, data) {
 }
 
 // Rotas administrativas (protegidas no backend)
-export function createSala(nome) {
+export function createSala(salaData) {
   return request('/api/salas', {
     method: 'POST',
-    body: JSON.stringify({ nome }),
+    body: JSON.stringify(salaData),
   });
 }
 
@@ -67,7 +67,7 @@ export function adminLogout() {
   });
 }
 
-// Nova função para reservas recorrentes
+// Reservas recorrentes e grupo
 export function createReservaRecorrente(payload) {
   return request('/api/reservas/recorrente', {
     method: 'POST',

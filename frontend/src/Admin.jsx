@@ -50,7 +50,13 @@ function AdminLogin({ onLogin }) {
 function AdminPanel() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
-  const [novaSala, setNovaSala] = useState('');
+  const [novaSala, setNovaSala] = useState({
+    nome: '',
+    bloco: '',
+    andar: '',
+    capacidade: '',
+    equipamentos: '',
+  });
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
 
@@ -79,13 +85,21 @@ function AdminPanel() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const handleChangeSala = (e) => {
+    const { name, value } = e.target;
+    setNovaSala((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleAdicionarSala = async () => {
-    if (!novaSala.trim()) return;
-    const res = await createSala(novaSala.trim());
+    if (!novaSala.nome.trim()) {
+      showToast('Informe o nome da sala', 'error');
+      return;
+    }
+    const res = await createSala(novaSala);
     if (res.erro) {
       showToast(res.erro, 'error');
     } else {
-      setNovaSala('');
+      setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
       await loadSalas();
       showToast('Sala criada com sucesso!');
     }
@@ -123,11 +137,7 @@ function AdminPanel() {
 
   return (
     <div className="admin-container">
-      {toast && (
-        <div className={`toast toast-${toast.type}`}>
-          {toast.message}
-        </div>
-      )}
+      {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
 
       <header className="admin-header">
         <div className="header-content">
@@ -138,19 +148,55 @@ function AdminPanel() {
 
       <section className="box">
         <h2>Gerenciar Salas</h2>
-        <div className="admin-row">
+        <div className="admin-sala-form">
           <input
-            type="text"
-            placeholder="Nome da nova sala"
-            value={novaSala}
-            onChange={(e) => setNovaSala(e.target.value)}
+            name="nome"
+            placeholder="Nome da sala (obrigatório)"
+            value={novaSala.nome}
+            onChange={handleChangeSala}
+          />
+          <input
+            name="bloco"
+            placeholder="Bloco (ex: 43431)"
+            value={novaSala.bloco}
+            onChange={handleChangeSala}
+          />
+          <input
+            name="andar"
+            placeholder="Andar (ex: 2° andar)"
+            value={novaSala.andar}
+            onChange={handleChangeSala}
+          />
+          <input
+            name="capacidade"
+            placeholder="Capacidade (pessoas)"
+            type="number"
+            value={novaSala.capacidade}
+            onChange={handleChangeSala}
+          />
+          <textarea
+            name="equipamentos"
+            placeholder="Equipamentos (separados por vírgula)"
+            value={novaSala.equipamentos}
+            onChange={handleChangeSala}
+            rows="2"
           />
           <button onClick={handleAdicionarSala}>Adicionar sala</button>
         </div>
         <div className="salas-grid">
           {salas.map((sala) => (
             <div className="sala-card" key={sala.id}>
-              <span>{sala.nome}</span>
+              <div>
+                <strong>{sala.nome}</strong>
+                <br />
+                <small>
+                  Bloco: {sala.bloco || '—'} | Andar: {sala.andar || '—'}
+                  <br />
+                  Capacidade: {sala.capacidade || '—'} pessoas
+                  <br />
+                  Equipamentos: {sala.equipamentos || '—'}
+                </small>
+              </div>
               <button onClick={() => handleDeletarSala(sala.id, sala.nome)}>Excluir</button>
             </div>
           ))}
@@ -174,7 +220,7 @@ function AdminPanel() {
                       background: '#e67e22',
                       padding: '0.2rem 0.5rem',
                       fontSize: '0.7rem',
-                      borderRadius: '20px'
+                      borderRadius: '20px',
                     }}
                   >
                     Cancelar todas
