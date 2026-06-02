@@ -68,7 +68,11 @@ function AdminPanel() {
 
   const loadSalas = async () => {
     const data = await getSalas();
-    setSalas(data);
+    // Ordenar salas numericamente/alfabeticamente
+    const sorted = [...data].sort((a, b) =>
+      a.nome.localeCompare(b.nome, undefined, { numeric: true })
+    );
+    setSalas(sorted);
   };
   const loadReservas = async () => {
     const data = await getReservas();
@@ -106,16 +110,18 @@ function AdminPanel() {
   };
 
   const handleDeletarSala = async (id, nome) => {
-    await deleteSala(id);
-    await loadSalas();
-    await loadReservas();
-    showToast(`Sala "${nome}" excluída com sucesso!`);
+    if (window.confirm(`Excluir a sala "${nome}"? Todas as reservas associadas também serão removidas.`)) {
+      await deleteSala(id);
+      await loadSalas();
+      await loadReservas();
+      showToast(`Sala "${nome}" excluída!`);
+    }
   };
 
   const handleDeletarReserva = async (id, titulo) => {
     await deleteReserva(id);
     await loadReservas();
-    showToast(`Reserva "${titulo}" cancelada com sucesso!`);
+    showToast(`Reserva "${titulo}" cancelada!`);
   };
 
   const handleDeletarGrupo = async (grupoId) => {
@@ -183,21 +189,34 @@ function AdminPanel() {
           />
           <button onClick={handleAdicionarSala}>Adicionar sala</button>
         </div>
-        <div className="salas-grid">
+
+        {/* Mapa de salas no admin (mesmo estilo do público) */}
+        <div className="salas-grid-mapa">
           {salas.map((sala) => (
-            <div className="sala-card" key={sala.id}>
-              <div>
-                <strong>{sala.nome}</strong>
-                <br />
-                <small>
-                  Bloco: {sala.bloco || '—'} | Andar: {sala.andar || '—'}
-                  <br />
-                  Capacidade: {sala.capacidade || '—'} pessoas
-                  <br />
-                  Equipamentos: {sala.equipamentos || '—'}
-                </small>
+            <div key={sala.id} className="sala-card-mapa">
+              <div className="sala-nome">{sala.nome}</div>
+              <div className="sala-localizacao">
+                📍 Bloco {sala.bloco || '?'} | Andar {sala.andar || '?'}
               </div>
-              <button onClick={() => handleDeletarSala(sala.id, sala.nome)}>Excluir</button>
+              <div className="sala-info">
+                <span>👥 Capacidade: {sala.capacidade || '?'} pessoas</span>
+              </div>
+              {sala.equipamentos && (
+                <div className="sala-equipamentos">
+                  <strong>📋 Equipamentos:</strong>
+                  <ul>
+                    {sala.equipamentos.split(',').map((item, idx) => (
+                      <li key={idx}>{item.trim()}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <button
+                className="delete-sala-btn"
+                onClick={() => handleDeletarSala(sala.id, sala.nome)}
+              >
+                Excluir sala
+              </button>
             </div>
           ))}
         </div>
@@ -215,13 +234,6 @@ function AdminPanel() {
                   <button
                     className="cancel-group-btn"
                     onClick={() => handleDeletarGrupo(r.grupo_id)}
-                    style={{
-                      marginLeft: '0.5rem',
-                      background: '#e67e22',
-                      padding: '0.2rem 0.5rem',
-                      fontSize: '0.7rem',
-                      borderRadius: '20px',
-                    }}
                   >
                     Cancelar todas
                   </button>

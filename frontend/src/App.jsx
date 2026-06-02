@@ -6,6 +6,7 @@ import {
   createReserva,
   createReservaRecorrente,
   getDisponibilidade,
+  deleteReservasByGrupo,
 } from './api';
 
 // ========== FUNÇÕES AUXILIARES DE HORÁRIO (30 minutos) ==========
@@ -144,78 +145,74 @@ function App() {
   };
 
   const handleSubmitReserva = async (e) => {
-  e.preventDefault();
-  if (!form.sala_id) {
-    showToast('Escolha uma sala antes de reservar', 'error');
-    return;
-  }
-  if (!recorrente && !form.data) {
-    showToast('Selecione uma data', 'error');
-    return;
-  }
-  if (recorrente && (!dataFim || diasSelecionados.length === 0)) {
-    showToast('Informe a data final e pelo menos um dia da semana', 'error');
-    return;
-  }
-
-  let response;
-  if (recorrente) {
-    const payload = {
-      sala_id: form.sala_id,
-      titulo: form.titulo,
-      hora_inicio: form.hora_inicio,
-      hora_fim: form.hora_fim,
-      dias_semana: diasSelecionados,
-      data_inicio: form.data,
-      data_fim: dataFim,
-      responsavel: form.responsavel,
-      email: form.email,
-      descricao: form.descricao,
-    };
-    response = await createReservaRecorrente(payload);
-  } else {
-    response = await createReserva(form);
-  }
-
-  if (response.erro) {
-    showToast(response.erro, 'error');
-    return;
-  }
-
-  if (recorrente) {
-    // Caso recorrente: verificar conflitos
-    if (response.conflitos && response.conflitos.length > 0) {
-      const conflitosStr = response.conflitos.join(', ');
-      const userConfirmed = window.confirm(
-        `Existem conflitos nas seguintes datas: ${conflitosStr}\n\nDeseja criar as reservas apenas para as datas disponíveis? (As reservas com conflito serão ignoradas.)`
-      );
-      if (!userConfirmed) {
-        // Cancelar operação: deletar o grupo recém-criado
-        if (response.grupo_id) {
-          await deleteReservasByGrupo(response.grupo_id);
-          showToast('Operação cancelada. Nenhuma reserva foi criada.', 'info');
-        } else {
-          showToast('Nenhuma reserva foi criada devido a conflitos.', 'error');
-        }
-        await loadReservas(); // recarregar para garantir consistência
-        return;
-      } else {
-        showToast(
-          `${response.reservas_criadas.length} reservas criadas. Conflitos ignorados: ${response.conflitos.length}`,
-          'success'
-        );
-      }
-    } else {
-      showToast(response.mensagem, 'success');
+    e.preventDefault();
+    if (!form.sala_id) {
+      showToast('Escolha uma sala antes de reservar', 'error');
+      return;
     }
-    await loadReservas();
-    // Limpar formulário? Opcional
-    setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
+    if (!recorrente && !form.data) {
+      showToast('Selecione uma data', 'error');
+      return;
+    }
+    if (recorrente && (!dataFim || diasSelecionados.length === 0)) {
+      showToast('Informe a data final e pelo menos um dia da semana', 'error');
+      return;
+    }
+
+    let response;
+    if (recorrente) {
+      const payload = {
+        sala_id: form.sala_id,
+        titulo: form.titulo,
+        hora_inicio: form.hora_inicio,
+        hora_fim: form.hora_fim,
+        dias_semana: diasSelecionados,
+        data_inicio: form.data,
+        data_fim: dataFim,
+        responsavel: form.responsavel,
+        email: form.email,
+        descricao: form.descricao,
+      };
+      response = await createReservaRecorrente(payload);
+    } else {
+      response = await createReserva(form);
+    }
+
+    if (response.erro) {
+      showToast(response.erro, 'error');
+      return;
+    }
+
+    if (recorrente) {
+      if (response.conflitos && response.conflitos.length > 0) {
+        const conflitosStr = response.conflitos.join(', ');
+        const userConfirmed = window.confirm(
+          `Existem conflitos nas seguintes datas: ${conflitosStr}\n\nDeseja criar as reservas apenas para as datas disponíveis? (As reservas com conflito serão ignoradas.)`
+        );
+        if (!userConfirmed) {
+          if (response.grupo_id) {
+            await deleteReservasByGrupo(response.grupo_id);
+            showToast('Operação cancelada. Nenhuma reserva foi criada.', 'info');
+          } else {
+            showToast('Nenhuma reserva foi criada devido a conflitos.', 'error');
+          }
+          await loadReservas();
+          return;
+        } else {
+          showToast(
+            `${response.reservas_criadas.length} reservas criadas. Conflitos ignorados: ${response.conflitos.length}`,
+            'success'
+          );
+        }
+      } else {
+        showToast(response.mensagem, 'success');
+      }
+      await loadReservas();
+      setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
       setDataFim('');
       setDiasSelecionados([]);
       setRecorrente(false);
     } else {
-      // Reserva pontual
       showToast('Reserva criada com sucesso!', 'success');
       setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
       await loadReservas();
@@ -258,6 +255,13 @@ function App() {
     { label: 'Sexta', value: 4 },
   ];
 
+  // Ordenar salas em ordem alfabética/numerica
+  const salasOrdenadas = useMemo(() => {
+    return [...salas].sort((a, b) =>
+      a.nome.localeCompare(b.nome, undefined, { numeric: true })
+    );
+  }, [salas]);
+
   return (
     <div className="app-container">
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
@@ -269,6 +273,38 @@ function App() {
         </div>
       </header>
 
+      {/* Mapa de Salas - lista ordenada */}
+      <section className="box mapa-salas">
+        <h2>🗺️ Mapa das Salas</h2>
+        <div className="salas-grid-mapa">
+          {salasOrdenadas.map((sala) => (
+            <div
+              key={sala.id}
+              className={`sala-card-mapa ${form.sala_id == sala.id ? 'selecionada' : ''}`}
+              onClick={() => setForm((prev) => ({ ...prev, sala_id: sala.id }))}
+            >
+              <div className="sala-nome">{sala.nome}</div>
+              <div className="sala-localizacao">
+                📍 Bloco {sala.bloco || '?'} | Andar {sala.andar || '?'}
+              </div>
+              <div className="sala-info">
+                <span>👥 Capacidade: {sala.capacidade || '?'} pessoas</span>
+              </div>
+              {sala.equipamentos && (
+                <div className="sala-equipamentos">
+                  <strong>📋 Equipamentos:</strong>
+                  <ul>
+                    {sala.equipamentos.split(',').map((item, idx) => (
+                      <li key={idx}>{item.trim()}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="box">
         <h2>Fazer reserva</h2>
         <form onSubmit={handleSubmitReserva} className="form-grid">
@@ -276,8 +312,10 @@ function App() {
             Sala *
             <select name="sala_id" value={form.sala_id} onChange={handleChange} required>
               <option value="">Selecione uma sala</option>
-              {salas.map((sala) => (
-                <option key={sala.id} value={sala.id}>{sala.nome}</option>
+              {salasOrdenadas.map((sala) => (
+                <option key={sala.id} value={sala.id}>
+                  {sala.nome}
+                </option>
               ))}
             </select>
           </label>
@@ -337,7 +375,7 @@ function App() {
               <label className="full-width">
                 Dias da semana (segunda a sexta):
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                  {diasOptions.map(day => (
+                  {diasOptions.map((day) => (
                     <label key={day.value} style={{ flexDirection: 'row', alignItems: 'center', gap: '0.3rem' }}>
                       <input
                         type="checkbox"
@@ -348,7 +386,7 @@ function App() {
                           if (e.target.checked) {
                             setDiasSelecionados([...diasSelecionados, val]);
                           } else {
-                            setDiasSelecionados(diasSelecionados.filter(d => d !== val));
+                            setDiasSelecionados(diasSelecionados.filter((d) => d !== val));
                           }
                         }}
                       />
