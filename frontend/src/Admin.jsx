@@ -171,9 +171,16 @@ function AdminPanel() {
         <div className="admin-sala-form">
           <input name="nome" placeholder="Nome da sala (obrigatório)" value={novaSala.nome} onChange={handleChangeSala} />
           <input name="bloco" placeholder="Bloco (ex: 43431)" value={novaSala.bloco} onChange={handleChangeSala} />
-          <input name="andar" placeholder="Andar (ex: 2° andar)" value={novaSala.andar} onChange={handleChangeSala} />
+          
+          <select name="andar" value={novaSala.andar} onChange={handleChangeSala}>
+            <option value="">Selecione o andar</option>
+            <option value="1° andar">1° andar</option>
+            <option value="2° andar">2° andar</option>
+          </select>
+
           <input name="capacidade" placeholder="Capacidade (pessoas)" type="number" value={novaSala.capacidade} onChange={handleChangeSala} />
           <textarea name="equipamentos" placeholder="Equipamentos (separados por vírgula)" value={novaSala.equipamentos} onChange={handleChangeSala} rows="2" />
+          
           {editandoSala ? (
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleUpdateSala}>Salvar alterações</button>
@@ -188,7 +195,7 @@ function AdminPanel() {
           {salas.map((sala) => (
             <div key={sala.id} className="sala-card-mapa">
               <div className="sala-nome">{sala.nome}</div>
-              <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | Andar {sala.andar || '?'}</div>
+              <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</div>
               <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'} pessoas</div>
               {sala.equipamentos && (
                 <div className="sala-equipamentos">

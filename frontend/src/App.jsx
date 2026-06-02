@@ -426,22 +426,29 @@ function App() {
       )}
 
       <section className="box">
-        <h2>Reservas Confirmadas</h2>
-        <div className="reservas-grid">
-          {reservas.map((reserva) => (
-            <div className="reserva-card" key={reserva.id}>
-              <h3>{reserva.sala_nome} - {reserva.titulo}</h3>
-              {reserva.grupo_id && (
-                <p><strong>Grupo:</strong> {reserva.grupo_id.substring(0, 8)}...</p>
-              )}
-              <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
-              <p><strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}</p>
-              {reserva.responsavel && <p><strong>Responsável:</strong> {reserva.responsavel}</p>}
-              {reserva.email && <p><strong>E-mail:</strong> {reserva.email}</p>}
-              {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
-            </div>
-          ))}
+  <h2>Reservas Confirmadas</h2>
+  <div className="reservas-grid">
+    {reservas.map((reserva) => {
+      const sala = salas.find(s => s.id === reserva.sala_id);
+      return (
+        <div className="reserva-card" key={reserva.id}>
+          <h3>{reserva.sala_nome}</h3>
+          <p><strong>Título:</strong> {reserva.titulo}</p>
+          {reserva.grupo_id && (
+            <p><strong>Grupo:</strong> {reserva.grupo_id.substring(0, 8)}...</p>
+          )}
+          <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
+          <p><strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}</p>
+          {sala && (
+            <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</p>
+          )}
+          <p><strong>Responsável:</strong> {reserva.responsavel}</p>
+          <p><strong>E-mail:</strong> {reserva.email}</p>
+          {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
         </div>
+          );
+          })}
+          </div>
       </section>
 
       <footer className="admin-footer">
