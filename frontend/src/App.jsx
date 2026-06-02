@@ -144,51 +144,81 @@ function App() {
   };
 
   const handleSubmitReserva = async (e) => {
-    e.preventDefault();
-    if (!form.sala_id) {
-      showToast('Escolha uma sala antes de reservar', 'error');
-      return;
-    }
-    if (!recorrente && !form.data) {
-      showToast('Selecione uma data', 'error');
-      return;
-    }
-    if (recorrente && (!dataFim || diasSelecionados.length === 0)) {
-      showToast('Informe a data final e pelo menos um dia da semana', 'error');
-      return;
-    }
+  e.preventDefault();
+  if (!form.sala_id) {
+    showToast('Escolha uma sala antes de reservar', 'error');
+    return;
+  }
+  if (!recorrente && !form.data) {
+    showToast('Selecione uma data', 'error');
+    return;
+  }
+  if (recorrente && (!dataFim || diasSelecionados.length === 0)) {
+    showToast('Informe a data final e pelo menos um dia da semana', 'error');
+    return;
+  }
 
-    let response;
-    if (recorrente) {
-      const payload = {
-        sala_id: form.sala_id,
-        titulo: form.titulo,
-        hora_inicio: form.hora_inicio,
-        hora_fim: form.hora_fim,
-        dias_semana: diasSelecionados,
-        data_inicio: form.data,
-        data_fim: dataFim,
-        responsavel: form.responsavel,
-        email: form.email,
-        descricao: form.descricao,
-      };
-      response = await createReservaRecorrente(payload);
-    } else {
-      response = await createReserva(form);
-    }
+  let response;
+  if (recorrente) {
+    const payload = {
+      sala_id: form.sala_id,
+      titulo: form.titulo,
+      hora_inicio: form.hora_inicio,
+      hora_fim: form.hora_fim,
+      dias_semana: diasSelecionados,
+      data_inicio: form.data,
+      data_fim: dataFim,
+      responsavel: form.responsavel,
+      email: form.email,
+      descricao: form.descricao,
+    };
+    response = await createReservaRecorrente(payload);
+  } else {
+    response = await createReserva(form);
+  }
 
-    if (response.erro) {
-      showToast(response.erro, 'error');
-    } else if (response.mensagem) {
-      showToast(response.mensagem, 'success');
-      if (response.conflitos && response.conflitos.length) {
-        showToast(`Conflitos nas datas: ${response.conflitos.join(', ')}`, 'error');
+  if (response.erro) {
+    showToast(response.erro, 'error');
+    return;
+  }
+
+  if (recorrente) {
+    // Caso recorrente: verificar conflitos
+    if (response.conflitos && response.conflitos.length > 0) {
+      const conflitosStr = response.conflitos.join(', ');
+      const userConfirmed = window.confirm(
+        `Existem conflitos nas seguintes datas: ${conflitosStr}\n\nDeseja criar as reservas apenas para as datas disponíveis? (As reservas com conflito serão ignoradas.)`
+      );
+      if (!userConfirmed) {
+        // Cancelar operação: deletar o grupo recém-criado
+        if (response.grupo_id) {
+          await deleteReservasByGrupo(response.grupo_id);
+          showToast('Operação cancelada. Nenhuma reserva foi criada.', 'info');
+        } else {
+          showToast('Nenhuma reserva foi criada devido a conflitos.', 'error');
+        }
+        await loadReservas(); // recarregar para garantir consistência
+        return;
+      } else {
+        showToast(
+          `${response.reservas_criadas.length} reservas criadas. Conflitos ignorados: ${response.conflitos.length}`,
+          'success'
+        );
       }
-      await loadReservas();
     } else {
+      showToast(response.mensagem, 'success');
+    }
+    await loadReservas();
+    // Limpar formulário? Opcional
+    setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
+      setDataFim('');
+      setDiasSelecionados([]);
+      setRecorrente(false);
+    } else {
+      // Reserva pontual
+      showToast('Reserva criada com sucesso!', 'success');
       setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
       await loadReservas();
-      showToast('Reserva criada com sucesso!', 'success');
     }
   };
 
