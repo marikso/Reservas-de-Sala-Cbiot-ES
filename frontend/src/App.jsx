@@ -20,13 +20,11 @@ const minutesToTime = (minutes) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
-const add30min = (timeStr) => {
-  return minutesToTime(timeToMinutes(timeStr) + 30);
-};
+const add30min = (timeStr) => minutesToTime(timeToMinutes(timeStr) + 30);
 
 const generateAllStartTimes = () => {
   const times = [];
-  let mins = 8 * 60; // 08:00
+  let mins = 8 * 60;
   while (mins < 19 * 60) {
     times.push(minutesToTime(mins));
     mins += 30;
@@ -36,7 +34,7 @@ const generateAllStartTimes = () => {
 
 const generateAllEndTimes = () => {
   const times = [];
-  let mins = 8 * 60 + 30; // 08:30
+  let mins = 8 * 60 + 30;
   while (mins <= 19 * 60) {
     times.push(minutesToTime(mins));
     mins += 30;
@@ -63,7 +61,7 @@ function App() {
 
   // Estados para reserva recorrente
   const [recorrente, setRecorrente] = useState(false);
-  const [diasSelecionados, setDiasSelecionados] = useState([]); // [0,1,2,3,4] (segunda a sexta)
+  const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dataFim, setDataFim] = useState('');
 
   const dataSelecionada = !!form.data;
@@ -88,12 +86,13 @@ function App() {
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
-  const reservasIntervalos = useMemo(() => {
-    return reservasDoDia.map((r) => ({
+  const reservasIntervalos = useMemo(
+    () => reservasDoDia.map((r) => ({
       inicio: timeToMinutes(r.hora_inicio),
       fim: timeToMinutes(r.hora_fim),
-    }));
-  }, [reservasDoDia]);
+    })),
+    [reservasDoDia]
+  );
 
   const conflita = (inicio, fim) => {
     return reservasIntervalos.some((r) => inicio < r.fim && fim > r.inicio);
@@ -115,10 +114,7 @@ function App() {
     if (!form.hora_inicio) return [];
     const inicioMin = timeToMinutes(form.hora_inicio);
     if (recorrente) {
-      return todosFins.filter((fimStr) => {
-        const fimMin = timeToMinutes(fimStr);
-        return fimMin > inicioMin;
-      });
+      return todosFins.filter((fimStr) => timeToMinutes(fimStr) > inicioMin);
     }
     const proximosInicios = reservasIntervalos
       .map((r) => r.inicio)
@@ -139,7 +135,6 @@ function App() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Não há validação de fim de semana no frontend (deixamos o backend fazer)
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -170,7 +165,7 @@ function App() {
         titulo: form.titulo,
         hora_inicio: form.hora_inicio,
         hora_fim: form.hora_fim,
-        dias_semana: diasSelecionados, // array ex: [1,3] para terça e quinta
+        dias_semana: diasSelecionados,
         data_inicio: form.data,
         data_fim: dataFim,
         responsavel: form.responsavel,
@@ -210,7 +205,6 @@ function App() {
     setDisponibilidade(response);
   };
 
-  // Atualiza reservas do dia quando sala ou data mudam (apenas para reserva pontual)
   useEffect(() => {
     if (!form.sala_id || !form.data) {
       setReservasDoDia([]);
@@ -226,7 +220,6 @@ function App() {
   const selectsDisabled = !dataSelecionada && !recorrente;
   const camposTextDisabled = !dataSelecionada && !recorrente;
 
-  // Dias úteis (apenas segunda a sexta)
   const diasOptions = [
     { label: 'Segunda', value: 0 },
     { label: 'Terça', value: 1 },
@@ -302,7 +295,6 @@ function App() {
             <textarea name="descricao" value={form.descricao} onChange={handleChange} rows="3" disabled={camposTextDisabled} />
           </label>
 
-          {/* Opção de reserva recorrente */}
           <div className="full-width">
             <label style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
               <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
@@ -371,6 +363,9 @@ function App() {
           {reservas.map((reserva) => (
             <div className="reserva-card" key={reserva.id}>
               <h3>{reserva.sala_nome} - {reserva.titulo}</h3>
+              {reserva.grupo_id && (
+                <p><strong>Grupo:</strong> {reserva.grupo_id.substring(0, 8)}...</p>
+              )}
               <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
               <p><strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}</p>
               {reserva.responsavel && <p><strong>Responsável:</strong> {reserva.responsavel}</p>}

@@ -6,11 +6,12 @@ import {
   deleteSala,
   getReservas,
   deleteReserva,
+  deleteReservasByGrupo,
   adminLogin,
   adminLogout,
 } from './api';
 
-// ========== COMPONENTE DE LOGIN ==========
+// Componente de login
 function AdminLogin({ onLogin }) {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
@@ -45,7 +46,7 @@ function AdminLogin({ onLogin }) {
   );
 }
 
-// ========== PAINEL ADMIN (APÓS LOGIN) ==========
+// Componente do painel (após login)
 function AdminPanel() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
@@ -53,11 +54,9 @@ function AdminPanel() {
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
 
-  // Função para formatar data sem usar new Date() (evita erro de fuso)
   const formatarData = (dataISO) => {
     if (!dataISO) return '';
     const partes = dataISO.split('-');
-    if (partes.length !== 3) return dataISO;
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
@@ -88,7 +87,7 @@ function AdminPanel() {
     } else {
       setNovaSala('');
       await loadSalas();
-      showToast('Sala criada com sucesso!', 'success');
+      showToast('Sala criada com sucesso!');
     }
   };
 
@@ -96,25 +95,40 @@ function AdminPanel() {
     await deleteSala(id);
     await loadSalas();
     await loadReservas();
-    showToast(`Sala "${nome}" excluída com sucesso!`, 'success');
+    showToast(`Sala "${nome}" excluída com sucesso!`);
   };
 
   const handleDeletarReserva = async (id, titulo) => {
     await deleteReserva(id);
     await loadReservas();
-    showToast(`Reserva "${titulo}" cancelada com sucesso!`, 'success');
+    showToast(`Reserva "${titulo}" cancelada com sucesso!`);
+  };
+
+  const handleDeletarGrupo = async (grupoId) => {
+    if (window.confirm('Cancelar TODAS as reservas deste grupo recorrente?')) {
+      const res = await deleteReservasByGrupo(grupoId);
+      if (res.erro) {
+        showToast(res.erro, 'error');
+      } else {
+        await loadReservas();
+        showToast(res.mensagem, 'success');
+      }
+    }
+  };
+
+  const handleLogout = async () => {
+    await adminLogout();
+    navigate('/admin');
   };
 
   return (
     <div className="admin-container">
-      {/* Toast notification */}
       {toast && (
         <div className={`toast toast-${toast.type}`}>
           {toast.message}
         </div>
       )}
 
-      {/* Cabeçalho */}
       <header className="admin-header">
         <div className="header-content">
           <img src="/CBiot_logo.jpg" alt="Logo CBiot" className="logo" />
@@ -122,7 +136,6 @@ function AdminPanel() {
         </div>
       </header>
 
-      {/* Gerenciar Salas */}
       <section className="box">
         <h2>Gerenciar Salas</h2>
         <div className="admin-row">
@@ -144,19 +157,36 @@ function AdminPanel() {
         </div>
       </section>
 
-      {/* Cancelar Reservas */}
       <section className="box">
         <h2>Cancelar Reservas</h2>
         <div className="reservas-grid">
-          {reservas.map((reserva) => (
-            <div className="reserva-card" key={reserva.id}>
-              <h3>{reserva.sala_nome} · {reserva.titulo}</h3>
-              <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
-              <p><strong>Horário:</strong> {reserva.hora_inicio} – {reserva.hora_fim}</p>
-              {reserva.responsavel && <p><strong>Responsável:</strong> {reserva.responsavel}</p>}
-              {reserva.email && <p><strong>E-mail:</strong> {reserva.email}</p>}
-              {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
-              <button className="cancel-btn" onClick={() => handleDeletarReserva(reserva.id, reserva.titulo)}>
+          {reservas.map((r) => (
+            <div className="reserva-card admin-card" key={r.id}>
+              <h3>{r.sala_nome} · {r.titulo}</h3>
+              {r.grupo_id && (
+                <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.5rem' }}>
+                  Grupo: {r.grupo_id.substring(0, 8)}...
+                  <button
+                    className="cancel-group-btn"
+                    onClick={() => handleDeletarGrupo(r.grupo_id)}
+                    style={{
+                      marginLeft: '0.5rem',
+                      background: '#e67e22',
+                      padding: '0.2rem 0.5rem',
+                      fontSize: '0.7rem',
+                      borderRadius: '20px'
+                    }}
+                  >
+                    Cancelar todas
+                  </button>
+                </p>
+              )}
+              <p><strong>Data:</strong> {formatarData(r.data)}</p>
+              <p><strong>Horário:</strong> {r.hora_inicio} – {r.hora_fim}</p>
+              {r.responsavel && <p><strong>Responsável:</strong> {r.responsavel}</p>}
+              {r.email && <p><strong>E-mail:</strong> {r.email}</p>}
+              {r.descricao && <p><strong>Descrição:</strong> {r.descricao}</p>}
+              <button className="cancel-btn" onClick={() => handleDeletarReserva(r.id, r.titulo)}>
                 Cancelar reserva
               </button>
             </div>
@@ -164,7 +194,6 @@ function AdminPanel() {
         </div>
       </section>
 
-      {/* Rodapé com botão de voltar */}
       <footer className="admin-footer">
         <Link to="/" className="back-button">← Voltar ao público</Link>
       </footer>

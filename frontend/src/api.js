@@ -74,3 +74,11 @@ export function createReservaRecorrente(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function getReservasByGrupo(grupoId) {
+  return request(`/api/reservas/grupo/${grupoId}`);
+}
+
+export function deleteReservasByGrupo(grupoId) {
+  return request(`/api/reservas/grupo/${grupoId}`, { method: 'DELETE' });
+}

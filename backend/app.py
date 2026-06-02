@@ -7,6 +7,7 @@ from models import Sala, Reserva
 from datetime import datetime, time, date, timedelta
 from sqlalchemy import and_
 from functools import wraps
+import uuid
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -38,7 +39,6 @@ def validate_business_hours(data, hora_inicio, hora_fim):
         agora = datetime.now().time()
         if hora_inicio < agora:
             return 'Não é possível reservar para um horário que já passou hoje'
-    # Impedir reservas em sábado (5) e domingo (6)
     if data.weekday() in (5, 6):
         return 'Reservas não são permitidas aos sábados e domingos'
     if hora_inicio.minute not in (0, 30) or hora_fim.minute not in (0, 30):
@@ -71,6 +71,7 @@ def formatReserva(row):
         'responsavel': row.responsavel,
         'email': row.email,
         'descricao': row.descricao,
+        'grupo_id': row.grupo_id,
     }
 
 # ---------- ROTAS PÚBLICAS ----------
@@ -131,16 +132,16 @@ def create_reserva():
         hora_fim=hora_fim,
         responsavel=dados['responsavel'],
         email=dados.get('email', ''),
-        descricao=dados.get('descricao', '')
+        descricao=dados.get('descricao', ''),
+        grupo_id=None   # reserva pontual não possui grupo
     )
     db.session.add(nova)
     db.session.commit()
     return jsonify(formatReserva(nova)), 201
 
 @app.route('/api/reservas/recorrente', methods=['POST'])
-@admin_required   # remove o decorator se quiser permitir usuários comuns
+@admin_required   # altere se desejar que usuários comuns também possam criar
 def create_reservas_recorrentes():
-    """Cria múltiplas reservas para um intervalo de datas, nos dias da semana especificados."""
     dados = request.get_json()
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
                     'data_inicio', 'data_fim', 'responsavel']
@@ -152,35 +153,31 @@ def create_reservas_recorrentes():
         data_fim = parse_date(dados['data_fim'])
         hora_ini = parse_time(dados['hora_inicio'])
         hora_fim = parse_time(dados['hora_fim'])
-        dias_semana = dados['dias_semana']  # lista de inteiros (0=segunda, 4=sexta)
+        dias_semana = dados['dias_semana']
         if not isinstance(dias_semana, list) or not all(isinstance(d, int) for d in dias_semana):
             return jsonify({'erro': 'dias_semana deve ser uma lista de inteiros'}), 400
-        # Validar se os dias estão dentro do intervalo permitido (segunda a sexta)
         if any(d > 4 for d in dias_semana):
             return jsonify({'erro': 'Recorrência não permitida em sábado ou domingo'}), 400
     except (ValueError, KeyError):
         return jsonify({'erro': 'Formato inválido'}), 400
 
-    # Validar horário (não depende de data)
     erro = validate_time_only(hora_ini, hora_fim)
     if erro:
         return jsonify({'erro': erro}), 400
 
-    # Limitar período máximo (ex.: 180 dias)
     LIMITE_DIAS = 180
     if (data_fim - data_inicio).days > LIMITE_DIAS:
         return jsonify({'erro': f'O período máximo para reservas recorrentes é de {LIMITE_DIAS} dias'}), 400
 
+    grupo_id = str(uuid.uuid4())
     reservas_criadas = []
     conflitos = []
 
     current_date = data_inicio
     while current_date <= data_fim:
         if current_date.weekday() in dias_semana:
-            # Impedir se por acaso algum dia da lista for sábado/domingo (já validado acima, mas seguro)
             if current_date.weekday() in (5,6):
                 continue
-            # Verificar conflito para esta data específica
             conflito = Reserva.query.filter(
                 and_(
                     Reserva.sala_id == dados['sala_id'],
@@ -200,7 +197,8 @@ def create_reservas_recorrentes():
                     hora_fim=hora_fim,
                     responsavel=dados['responsavel'],
                     email=dados.get('email', ''),
-                    descricao=dados.get('descricao', '')
+                    descricao=dados.get('descricao', ''),
+                    grupo_id=grupo_id
                 )
                 db.session.add(nova)
                 reservas_criadas.append(current_date.isoformat())
@@ -209,9 +207,30 @@ def create_reservas_recorrentes():
     db.session.commit()
     return jsonify({
         'mensagem': f'{len(reservas_criadas)} reservas criadas',
+        'grupo_id': grupo_id,
         'reservas_criadas': reservas_criadas,
         'conflitos': conflitos
     }), 201
+
+# Rota para listar todas as reservas de um grupo (pública)
+@app.route('/api/reservas/grupo/<grupo_id>', methods=['GET'])
+def get_reservas_by_grupo(grupo_id):
+    reservas = Reserva.query.filter_by(grupo_id=grupo_id).order_by(Reserva.data).all()
+    if not reservas:
+        return jsonify({'erro': 'Grupo não encontrado'}), 404
+    return jsonify([formatReserva(r) for r in reservas])
+
+# Rota para cancelar todas as reservas de um grupo (admin)
+@app.route('/api/reservas/grupo/<grupo_id>', methods=['DELETE'])
+@admin_required
+def delete_reservas_by_grupo(grupo_id):
+    reservas = Reserva.query.filter_by(grupo_id=grupo_id).all()
+    if not reservas:
+        return jsonify({'erro': 'Grupo não encontrado'}), 404
+    for r in reservas:
+        db.session.delete(r)
+    db.session.commit()
+    return jsonify({'mensagem': f'{len(reservas)} reservas canceladas do grupo'})
 
 @app.route('/api/disponibilidade', methods=['GET'])
 def disponibilidade():
@@ -228,17 +247,15 @@ def disponibilidade():
     sala = Sala.query.get_or_404(sala_id)
     reservas = Reserva.query.filter_by(sala_id=sala_id, data=data_res).all()
 
-    # Converter reservas para minutos desde meia-noite
     reservas_min = []
     for r in reservas:
         inicio_min = r.hora_inicio.hour * 60 + r.hora_inicio.minute
         fim_min = r.hora_fim.hour * 60 + r.hora_fim.minute
         reservas_min.append((inicio_min, fim_min))
 
-    # Gerar blocos de 30 minutos das 08:00 às 19:00
     horarios = []
-    current = 8 * 60          # 08:00
-    end_of_day = 19 * 60      # 19:00
+    current = 8 * 60
+    end_of_day = 19 * 60
     while current < end_of_day:
         inicio_min = current
         fim_min = current + 30
