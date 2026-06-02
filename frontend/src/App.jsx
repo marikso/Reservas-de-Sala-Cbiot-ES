@@ -63,7 +63,7 @@ function App() {
 
   // Estados para reserva recorrente
   const [recorrente, setRecorrente] = useState(false);
-  const [diasSelecionados, setDiasSelecionados] = useState([]); // lista de inteiros (0=segunda...6=domingo)
+  const [diasSelecionados, setDiasSelecionados] = useState([]); // [0,1,2,3,4] (segunda a sexta)
   const [dataFim, setDataFim] = useState('');
 
   const dataSelecionada = !!form.data;
@@ -104,7 +104,6 @@ function App() {
 
   const horasInicioDisponiveis = useMemo(() => {
     if (!dataSelecionada && !recorrente) return [];
-    // Se for recorrente, não depende da data inicial para exibir horários
     if (recorrente) return todosInicios;
     return todosInicios.filter((inicio) => {
       const fim = add30min(inicio);
@@ -116,7 +115,6 @@ function App() {
     if (!form.hora_inicio) return [];
     const inicioMin = timeToMinutes(form.hora_inicio);
     if (recorrente) {
-      // Para recorrente, mostra todos os fins maiores que o início
       return todosFins.filter((fimStr) => {
         const fimMin = timeToMinutes(fimStr);
         return fimMin > inicioMin;
@@ -141,17 +139,7 @@ function App() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-  
-    // VALIDAÇÃO DE FIM DE SEMANA (adicione estas linhas)
-    if (name === 'data') {
-      const selectedDate = new Date(value);
-      const dayOfWeek = selectedDate.getDay(); // 0=domingo, 6=sábado
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
-        showToast('Reservas não são permitidas aos sábados e domingos', 'error');
-        return; // Impede a atualização do estado
-      }
-    }
-  
+    // Não há validação de fim de semana no frontend (deixamos o backend fazer)
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -171,7 +159,7 @@ function App() {
       return;
     }
     if (recorrente && (!dataFim || diasSelecionados.length === 0)) {
-      showToast('Informe a data final e pelo menos um dia da semana para a recorrência', 'error');
+      showToast('Informe a data final e pelo menos um dia da semana', 'error');
       return;
     }
 
@@ -182,7 +170,7 @@ function App() {
         titulo: form.titulo,
         hora_inicio: form.hora_inicio,
         hora_fim: form.hora_fim,
-        dias_semana: diasSelecionados,
+        dias_semana: diasSelecionados, // array ex: [1,3] para terça e quinta
         data_inicio: form.data,
         data_fim: dataFim,
         responsavel: form.responsavel,
@@ -222,7 +210,7 @@ function App() {
     setDisponibilidade(response);
   };
 
-
+  // Atualiza reservas do dia quando sala ou data mudam (apenas para reserva pontual)
   useEffect(() => {
     if (!form.sala_id || !form.data) {
       setReservasDoDia([]);
@@ -238,14 +226,13 @@ function App() {
   const selectsDisabled = !dataSelecionada && !recorrente;
   const camposTextDisabled = !dataSelecionada && !recorrente;
 
+  // Dias úteis (apenas segunda a sexta)
   const diasOptions = [
     { label: 'Segunda', value: 0 },
     { label: 'Terça', value: 1 },
     { label: 'Quarta', value: 2 },
     { label: 'Quinta', value: 3 },
     { label: 'Sexta', value: 4 },
-    { label: 'Sábado', value: 5 },
-    { label: 'Domingo', value: 6 },
   ];
 
   return (
@@ -315,7 +302,7 @@ function App() {
             <textarea name="descricao" value={form.descricao} onChange={handleChange} rows="3" disabled={camposTextDisabled} />
           </label>
 
-          {/* Opções de recorrência */}
+          {/* Opção de reserva recorrente */}
           <div className="full-width">
             <label style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
               <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
@@ -326,7 +313,7 @@ function App() {
           {recorrente && (
             <>
               <label className="full-width">
-                Dias da semana:
+                Dias da semana (segunda a sexta):
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
                   {diasOptions.map(day => (
                     <label key={day.value} style={{ flexDirection: 'row', alignItems: 'center', gap: '0.3rem' }}>

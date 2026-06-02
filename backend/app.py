@@ -30,6 +30,7 @@ def parse_time(time_str):
     return datetime.strptime(time_str, '%H:%M').time()
 
 def validate_business_hours(data, hora_inicio, hora_fim):
+    """Valida data e horário para reservas pontuais (bloqueia fins de semana)."""
     hoje = date.today()
     if data < hoje:
         return 'Não é possível reservar para datas já passadas'
@@ -137,8 +138,9 @@ def create_reserva():
     return jsonify(formatReserva(nova)), 201
 
 @app.route('/api/reservas/recorrente', methods=['POST'])
-@admin_required
+@admin_required   # remove o decorator se quiser permitir usuários comuns
 def create_reservas_recorrentes():
+    """Cria múltiplas reservas para um intervalo de datas, nos dias da semana especificados."""
     dados = request.get_json()
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
                     'data_inicio', 'data_fim', 'responsavel']
@@ -150,15 +152,24 @@ def create_reservas_recorrentes():
         data_fim = parse_date(dados['data_fim'])
         hora_ini = parse_time(dados['hora_inicio'])
         hora_fim = parse_time(dados['hora_fim'])
-        dias_semana = dados['dias_semana']  # lista de inteiros (0=segunda...6=domingo)
+        dias_semana = dados['dias_semana']  # lista de inteiros (0=segunda, 4=sexta)
         if not isinstance(dias_semana, list) or not all(isinstance(d, int) for d in dias_semana):
             return jsonify({'erro': 'dias_semana deve ser uma lista de inteiros'}), 400
+        # Validar se os dias estão dentro do intervalo permitido (segunda a sexta)
+        if any(d > 4 for d in dias_semana):
+            return jsonify({'erro': 'Recorrência não permitida em sábado ou domingo'}), 400
     except (ValueError, KeyError):
         return jsonify({'erro': 'Formato inválido'}), 400
 
+    # Validar horário (não depende de data)
     erro = validate_time_only(hora_ini, hora_fim)
     if erro:
         return jsonify({'erro': erro}), 400
+
+    # Limitar período máximo (ex.: 180 dias)
+    LIMITE_DIAS = 180
+    if (data_fim - data_inicio).days > LIMITE_DIAS:
+        return jsonify({'erro': f'O período máximo para reservas recorrentes é de {LIMITE_DIAS} dias'}), 400
 
     reservas_criadas = []
     conflitos = []
@@ -166,9 +177,10 @@ def create_reservas_recorrentes():
     current_date = data_inicio
     while current_date <= data_fim:
         if current_date.weekday() in dias_semana:
+            # Impedir se por acaso algum dia da lista for sábado/domingo (já validado acima, mas seguro)
             if current_date.weekday() in (5,6):
-                continue  # Pular sábados e domingos mesmo que estejam nos dias_semana
-
+                continue
+            # Verificar conflito para esta data específica
             conflito = Reserva.query.filter(
                 and_(
                     Reserva.sala_id == dados['sala_id'],
