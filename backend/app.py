@@ -1,19 +1,70 @@
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, make_response
 from flask_cors import CORS
 from flask_session import Session
 from config import Config
 from database import db
-from models import Sala, Reserva, Manutencao
+from models import Sala, Reserva, Manutencao, User
 from datetime import datetime, time, date, timedelta
 from sqlalchemy import and_
 from functools import wraps
 import uuid
+import traceback
 
 app = Flask(__name__)
 app.config.from_object(Config)
-CORS(app, origins=['http://localhost:5173'], supports_credentials=True)
+CORS(app, origins=['http://localhost:5173', 'http://localhost:5174'], supports_credentials=True)
 Session(app)
 db.init_app(app)
+
+# Ensure CORS headers are present even on error responses and dynamically allow dev origins
+ALLOWED_ORIGINS = {'http://localhost:5173', 'http://localhost:5174'}
+
+
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get('Origin')
+    if origin in ALLOWED_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
+
+
+@app.before_request
+def handle_options_preflight():
+    # respond to OPTIONS preflight with proper CORS headers
+    if request.method == 'OPTIONS':
+        resp = make_response()
+        origin = request.headers.get('Origin')
+        if origin in ALLOWED_ORIGINS:
+            resp.headers['Access-Control-Allow-Origin'] = origin
+            resp.headers['Access-Control-Allow-Credentials'] = 'true'
+            resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return resp
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Ensure even internal errors return CORS headers so browser can read response
+    tb = traceback.format_exc()
+    traceback.print_exc()
+    try:
+        with open('error.log', 'a', encoding='utf-8') as f:
+            f.write('\n---- EXCEPTION ----\n')
+            f.write(tb)
+    except Exception:
+        pass
+    origin = request.headers.get('Origin')
+    body = {'erro': 'Internal server error'}
+    resp = make_response(jsonify(body), 500)
+    if origin in ALLOWED_ORIGINS:
+        resp.headers['Access-Control-Allow-Origin'] = origin
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return resp
 
 def admin_required(f):
     @wraps(f)
@@ -22,6 +73,18 @@ def admin_required(f):
             return jsonify({'erro': 'Acesso não autorizado'}), 401
         return f(*args, **kwargs)
     return decorated
+
+
+def role_required(allowed_roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            user = session.get('user')
+            if not user or user.get('cargo') not in allowed_roles:
+                return jsonify({'erro': 'Acesso não autorizado'}), 401
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
 
 # ---------- FUNÇÕES AUXILIARES ----------
 def parse_date(data_str):
@@ -168,7 +231,6 @@ def create_reserva():
     return jsonify(formatReserva(nova)), 201
 
 @app.route('/api/reservas/recorrente', methods=['POST'])
-@admin_required
 def create_reservas_recorrentes():
     dados = request.get_json()
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
@@ -257,7 +319,7 @@ def get_reservas_by_grupo(grupo_id):
     return jsonify([formatReserva(r) for r in reservas])
 
 @app.route('/api/reservas/grupo/<grupo_id>', methods=['DELETE'])
-@admin_required
+@role_required(['admin'])
 def delete_reservas_by_grupo(grupo_id):
     reservas = Reserva.query.filter_by(grupo_id=grupo_id).all()
     if not reservas:
@@ -396,6 +458,52 @@ def salas_disponiveis_por_data_hora():
         disponiveis.append(sala.to_dict())
     return jsonify(disponiveis)
 
+
+# ---------- AUTENTICAÇÃO SIMPLES (SEM SENHA) ----------
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    dados = request.get_json() or {}
+    email = dados.get('email')
+    senha = dados.get('senha')
+    if not email or not senha:
+        return jsonify({'erro': 'email e senha são necessários'}), 400
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(senha):
+        return jsonify({'erro': 'Credenciais inválidas'}), 401
+    session['user'] = user.to_dict()
+    return jsonify(session['user'])
+
+
+@app.route('/api/auth/register', methods=['POST'])
+def auth_register():
+    dados = request.get_json() or {}
+    nome = dados.get('nome')
+    email = dados.get('email')
+    senha = dados.get('senha')
+    if not nome or not email or not senha:
+        return jsonify({'erro': 'nome, email e senha são obrigatórios'}), 400
+    existing = User.query.filter_by(email=email).first()
+    if existing:
+        return jsonify({'erro': 'Email já cadastrado'}), 400
+    # default cargo is 'aluno'
+    user = User(email=email, nome=nome, cargo='aluno')
+    user.set_password(senha)
+    db.session.add(user)
+    db.session.commit()
+    session['user'] = user.to_dict()
+    return jsonify(session['user']), 201
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def auth_logout():
+    session.pop('user', None)
+    return jsonify({'sucesso': True})
+
+
+@app.route('/api/auth/whoami', methods=['GET'])
+def auth_whoami():
+    return jsonify(session.get('user') or {})
+
 # ---------- ROTAS ADMIN ----------
 @app.route('/api/admin/login', methods=['POST'])
 def admin_login():
@@ -411,7 +519,7 @@ def admin_logout():
     return jsonify({'sucesso': True})
 
 @app.route('/api/salas', methods=['POST'])
-@admin_required
+@role_required(['admin'])
 def create_sala():
     dados = request.get_json()
     if not dados or not dados.get('nome'):
@@ -430,7 +538,7 @@ def create_sala():
     return jsonify(sala.to_dict()), 201
 
 @app.route('/api/salas/<int:sala_id>', methods=['PUT'])
-@admin_required
+@role_required(['admin'])
 def update_sala(sala_id):
     sala = Sala.query.get_or_404(sala_id)
     dados = request.get_json()
@@ -449,7 +557,7 @@ def update_sala(sala_id):
     return jsonify(sala.to_dict()), 200
 
 @app.route('/api/salas/<int:sala_id>', methods=['DELETE'])
-@admin_required
+@role_required(['admin'])
 def delete_sala(sala_id):
     sala = Sala.query.get_or_404(sala_id)
     db.session.delete(sala)
@@ -457,7 +565,7 @@ def delete_sala(sala_id):
     return jsonify({'mensagem': 'Sala deletada'})
 
 @app.route('/api/reservas/<int:reserva_id>', methods=['DELETE'])
-@admin_required
+@role_required(['admin'])
 def delete_reserva(reserva_id):
     reserva = Reserva.query.get_or_404(reserva_id)
     db.session.delete(reserva)
@@ -466,13 +574,13 @@ def delete_reserva(reserva_id):
 
 # ---------- ROTAS DE MANUTENÇÃO ----------
 @app.route('/api/manutencoes', methods=['GET'])
-@admin_required
+@role_required(['admin'])
 def listar_manutencoes():
     manutencoes = Manutencao.query.order_by(Manutencao.data_inicio).all()
     return jsonify([m.to_dict() for m in manutencoes])
 
 @app.route('/api/manutencoes', methods=['POST'])
-@admin_required
+@role_required(['admin'])
 def criar_manutencao():
     dados = request.get_json()
     obrigatorios = ['sala_id', 'data_inicio', 'data_fim', 'hora_inicio', 'hora_fim', 'motivo']
@@ -517,7 +625,7 @@ def criar_manutencao():
     return jsonify(nova.to_dict()), 201
 
 @app.route('/api/manutencoes/<int:manutencao_id>', methods=['DELETE'])
-@admin_required
+@role_required(['admin'])
 def deletar_manutencao(manutencao_id):
     m = Manutencao.query.get_or_404(manutencao_id)
     db.session.delete(m)

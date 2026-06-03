@@ -8,8 +8,7 @@ import {
   getReservas,
   deleteReserva,
   deleteReservasByGrupo,
-  adminLogin,
-  adminLogout,
+  whoami,
 } from './api';
 
 // Função para gerar horários de 30 em 30 minutos (08:00 às 19:00)
@@ -23,30 +22,7 @@ const generateTimeOptions = () => {
 };
 
 // Componente de login
-function AdminLogin({ onLogin }) {
-  const [senha, setSenha] = useState('');
-  const [erro, setErro] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const res = await adminLogin(senha);
-    if (res.erro) setErro(res.erro);
-    else onLogin(true);
-  };
-
-  return (
-    <div className="admin-login">
-      <img src="/CBiot_logo.jpg" alt="CBiot" className="logo-small" />
-      <h2>Login Painel Administrativo</h2>
-      <form onSubmit={handleSubmit}>
-        <input type="password" placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} required />
-        <button type="submit">Entrar</button>
-        {erro && <p className="erro">{erro}</p>}
-      </form>
-      <Link to="/" className="back-link">← Voltar ao sistema</Link>
-    </div>
-  );
-}
+// Admin access is controlled by user role (cargo === 'admin') via whoami(), no password required.
 
 // Componente do painel (após login)
 function AdminPanel() {
@@ -380,13 +356,22 @@ function AdminPanel() {
       </section>
 
       <footer className="admin-footer">
-        <Link to="/" className="back-button">← Voltar ao público</Link>
+        <Link to="/app" className="back-button">← Voltar ao sistema</Link>
       </footer>
     </div>
   );
 }
 
 export default function Admin() {
-  const [autenticado, setAutenticado] = useState(false);
-  return autenticado ? <AdminPanel /> : <AdminLogin onLogin={setAutenticado} />;
+  const [isAdmin, setIsAdmin] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    whoami().then((u) => {
+      if (u && u.cargo === 'admin') setIsAdmin(true);
+      else navigate('/');
+    }).catch(() => navigate('/'));
+  }, []);
+
+  return isAdmin ? <AdminPanel /> : null;
 }
