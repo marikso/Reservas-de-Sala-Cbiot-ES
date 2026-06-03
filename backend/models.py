@@ -9,7 +9,11 @@ class Sala(db.Model):
     andar = db.Column(db.String(10))
     capacidade = db.Column(db.Integer)
     equipamentos = db.Column(db.Text)
-    avisos = db.Column(db.Text)          # opcional
+    avisos = db.Column(db.Text)
+
+    # Relacionamentos
+    reservas = db.relationship('Reserva', backref='sala', cascade='all, delete-orphan')
+    manutencoes = db.relationship('Manutencao', backref='sala', cascade='all, delete-orphan')
 
     def to_dict(self):
         return {
@@ -34,9 +38,7 @@ class Reserva(db.Model):
     email = db.Column(db.String(100))
     descricao = db.Column(db.Text)
     criada_em = db.Column(db.DateTime, default=datetime.utcnow)
-    grupo_id = db.Column(db.String(36), nullable=True, index=True)   # UUID do grupo recorrente
-
-    sala = db.relationship('Sala', backref=db.backref('reservas', cascade='all, delete-orphan'))
+    grupo_id = db.Column(db.String(36), nullable=True, index=True)
 
     def to_dict(self):
         return {
@@ -51,4 +53,27 @@ class Reserva(db.Model):
             'email': self.email,
             'descricao': self.descricao,
             'grupo_id': self.grupo_id,
+        }
+
+class Manutencao(db.Model):
+    __tablename__ = 'manutencoes'
+    id = db.Column(db.Integer, primary_key=True)
+    sala_id = db.Column(db.Integer, db.ForeignKey('salas.id'), nullable=False)
+    data_inicio = db.Column(db.Date, nullable=False)
+    data_fim = db.Column(db.Date, nullable=False)
+    hora_inicio = db.Column(db.Time, nullable=False)
+    hora_fim = db.Column(db.Time, nullable=False)
+    motivo = db.Column(db.String(200), nullable=False)
+    criada_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sala_id': self.sala_id,
+            'sala_nome': self.sala.nome,
+            'data_inicio': self.data_inicio.isoformat(),
+            'data_fim': self.data_fim.isoformat(),
+            'hora_inicio': self.hora_inicio.strftime('%H:%M'),
+            'hora_fim': self.hora_fim.strftime('%H:%M'),
+            'motivo': self.motivo,
         }
