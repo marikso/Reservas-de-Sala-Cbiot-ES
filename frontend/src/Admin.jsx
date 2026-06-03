@@ -8,6 +8,9 @@ import {
   getReservas,
   deleteReserva,
   deleteReservasByGrupo,
+  getUsers,
+  updateUser,
+  approveUser,
   whoami,
 } from './api';
 
@@ -21,13 +24,11 @@ const generateTimeOptions = () => {
   return times;
 };
 
-// Componente de login
-// Admin access is controlled by user role (cargo === 'admin') via whoami(), no password required.
-
 // Componente do painel (após login)
 function AdminPanel() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
+  const [users, setUsers] = useState([]);
   const [novaSala, setNovaSala] = useState({
     nome: '',
     bloco: '',
@@ -37,6 +38,7 @@ function AdminPanel() {
   });
   const [editandoSala, setEditandoSala] = useState(null);
   const [toast, setToast] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
 
   // Estados para manutenções
@@ -57,7 +59,7 @@ function AdminPanel() {
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
-  // Carregar salas e reservas
+  // Carregar dados
   const loadSalas = async () => {
     const data = await getSalas();
     const sorted = [...data].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
@@ -67,8 +69,6 @@ function AdminPanel() {
     const data = await getReservas();
     setReservas(data);
   };
-
-  // Carregar manutenções
   const loadManutencoes = async () => {
     try {
       const res = await fetch('http://localhost:5000/api/manutencoes', {
@@ -80,11 +80,27 @@ function AdminPanel() {
       console.error('Erro ao carregar manutenções', err);
     }
   };
+  const loadUsers = async () => {
+    try {
+      const data = await getUsers();
+      setUsers(data);
+    } catch (err) {
+      console.error('Erro ao carregar usuários', err);
+    }
+  };
 
   useEffect(() => {
+    whoami().then((u) => {
+      if (u && (u.cargo === 'admin' || u.cargo === 'gerente')) {
+        setCurrentUser(u);
+      } else {
+        navigate('/');
+      }
+    });
     loadSalas();
     loadReservas();
     loadManutencoes();
+    loadUsers();
   }, []);
 
   const showToast = (message, type = 'success') => {
@@ -204,7 +220,7 @@ function AdminPanel() {
           motivo: '',
         });
         loadManutencoes();
-        loadSalas(); // para atualizar a badge de manutenção
+        loadSalas();
       }
     } catch (err) {
       showToast('Erro de conexão', 'error');
@@ -232,6 +248,29 @@ function AdminPanel() {
     }
   };
 
+  // ---------- Gerenciamento de Usuários ----------
+  const handleUpdateUser = async (userId, data) => {
+    const res = await updateUser(userId, data);
+    if (res.erro) {
+      showToast(res.erro, 'error');
+    } else {
+      showToast('Usuário atualizado', 'success');
+      loadUsers();
+    }
+  };
+
+  const handleApproveUser = async (userId, cargo) => {
+    const res = await approveUser(userId, cargo);
+    if (res.erro) {
+      showToast(res.erro, 'error');
+    } else {
+      showToast('Usuário aprovado', 'success');
+      loadUsers();
+    }
+  };
+
+  if (!currentUser) return <div>Verificando permissões...</div>;
+
   return (
     <div className="admin-container">
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
@@ -240,6 +279,10 @@ function AdminPanel() {
         <div className="header-content">
           <img src="/CBiot_logo.jpg" alt="Logo CBiot" className="logo" />
           <h1 className="central-title">Administração - Reserva de Salas CBiot</h1>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <span>{currentUser.nome} ({currentUser.cargo})</span>
+          <Link to="/app" className="back-button">Voltar ao sistema</Link>
         </div>
       </header>
 
@@ -295,22 +338,16 @@ function AdminPanel() {
           <select name="sala_id" value={novaManutencao.sala_id} onChange={handleChangeManutencao}>
             <option value="">Selecione a sala</option>
             {salas.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nome}
-              </option>
+              <option key={s.id} value={s.id}>{s.nome}</option>
             ))}
           </select>
           <input type="date" name="data_inicio" placeholder="Data início" value={novaManutencao.data_inicio} onChange={handleChangeManutencao} />
           <input type="date" name="data_fim" placeholder="Data fim" value={novaManutencao.data_fim} onChange={handleChangeManutencao} />
           <select name="hora_inicio" value={novaManutencao.hora_inicio} onChange={handleChangeManutencao}>
-            {horarios.map((h) => (
-              <option key={h}>{h}</option>
-            ))}
+            {horarios.map((h) => <option key={h}>{h}</option>)}
           </select>
           <select name="hora_fim" value={novaManutencao.hora_fim} onChange={handleChangeManutencao}>
-            {horarios.map((h) => (
-              <option key={h}>{h}</option>
-            ))}
+            {horarios.map((h) => <option key={h}>{h}</option>)}
           </select>
           <input name="motivo" placeholder="Motivo (ex.: reforma, manutenção elétrica)" value={novaManutencao.motivo} onChange={handleChangeManutencao} />
           <button onClick={handleCriarManutencao}>Bloquear período</button>
@@ -328,6 +365,79 @@ function AdminPanel() {
             </div>
           ))}
           {manutencoes.length === 0 && <p>Nenhum bloqueio ativo.</p>}
+        </div>
+      </section>
+
+      {/* Gerenciamento de Usuários */}
+      <section className="box">
+        <h2>Gerenciar Usuários</h2>
+        <div className="users-table-container">
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Cargo</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.nome}</td>
+                  <td>{u.email}</td>
+                  <td>
+                    <select
+                      value={u.cargo}
+                      onChange={(e) => handleUpdateUser(u.id, { cargo: e.target.value })}
+                    >
+                      <option value="aluno">Aluno</option>
+                      <option value="professor">Professor</option>
+                      <option value="gerente">Gerente</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </td>
+                  <td>{u.status}</td>
+                  <td>
+                    {u.status === 'pendente' && (
+                      <>
+                        <button
+                          className="small-btn"
+                          onClick={() => handleApproveUser(u.id, u.cargo)}
+                        >
+                          Aprovar
+                        </button>
+                        <button
+                          className="small-btn danger"
+                          onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}
+                        >
+                          Rejeitar
+                        </button>
+                      </>
+                    )}
+                    {u.status === 'aprovado' && (
+                      <button
+                        className="small-btn danger"
+                        onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}
+                      >
+                        Bloquear
+                      </button>
+                    )}
+                    {u.status === 'rejeitado' && (
+                      <button
+                        className="small-btn"
+                        onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}
+                      >
+                        Reativar
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {users.length === 0 && <p>Nenhum usuário cadastrado.</p>}
         </div>
       </section>
 
@@ -363,15 +473,17 @@ function AdminPanel() {
 }
 
 export default function Admin() {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAllowed, setIsAllowed] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    whoami().then((u) => {
-      if (u && u.cargo === 'admin') setIsAdmin(true);
-      else navigate('/');
-    }).catch(() => navigate('/'));
+    whoami()
+      .then((u) => {
+        if (u && (u.cargo === 'admin' || u.cargo === 'gerente')) setIsAllowed(true);
+        else navigate('/');
+      })
+      .catch(() => navigate('/'));
   }, []);
 
-  return isAdmin ? <AdminPanel /> : null;
+  return isAllowed ? <AdminPanel /> : null;
 }

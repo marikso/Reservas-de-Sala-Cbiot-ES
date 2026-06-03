@@ -19,23 +19,26 @@ export default function Login() {
     const res = await authLogin({ email: form.email, senha: form.senha });
     if (res && res.erro) {
       setError(res.erro);
-      return;
-    }
-    navigate('/app', { replace: true });
-  };
+            return;
+        }
+        navigate('/app', { replace: true });
+    };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setError(null);
-    const res = await authRegister({ nome: form.nome, email: form.email, senha: form.senha });
-    if (res && res.erro) {
-      setError(res.erro);
-      return;
-    }
-    navigate('/app', { replace: true });
-  };
+    const handleRegister = async (e) => {
+        e.preventDefault();
+        setError(null);
+        const res = await authRegister({ nome: form.nome, email: form.email, senha: form.senha });
+        if (res && res.erro) {
+            setError(res.erro);
+            return;
+        }
+        // Mostra mensagem e volta para login
+        alert('Cadastro realizado! Aguarde a aprovação do administrador.');
+        setMode('login');
+        setForm({ email: '', nome: '', senha: '' });
+    };
 
-  return (
+    return (
     <div className="login-page">
       <div className="login-box">
         <h2>{mode === 'login' ? 'Entrar no Sistema' : 'Cadastro de Usuário'}</h2>

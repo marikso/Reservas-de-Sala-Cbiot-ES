@@ -89,9 +89,19 @@ function App() {
   useEffect(() => {
     loadSalas();
     loadReservas();
-    whoami().then((u) => {
-      if (u && u.email) setCurrentUser(u);
-    }).catch(() => {});
+    whoami()
+      .then((u) => {
+        if (u && u.email) {
+          setCurrentUser(u);
+          // Preenche responsável e e-mail com os dados do usuário
+          setForm((prev) => ({
+            ...prev,
+            responsavel: u.nome || '',
+            email: u.email,
+          }));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // ========== AUXILIARES ==========
@@ -159,6 +169,8 @@ function App() {
   // ========== MANIPULAÇÃO DE RESERVAS ==========
   const handleChange = (e) => {
     const { name, value } = e.target;
+    // Campos responsavel e email são apenas leitura, então não permitimos alteração
+    if (name === 'responsavel' || name === 'email') return;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -166,8 +178,6 @@ function App() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
-
-  
 
   const handleLogout = async () => {
     await authLogout();
@@ -237,13 +247,13 @@ function App() {
         showToast(response.mensagem, 'success');
       }
       await loadReservas();
-      setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
+      setForm((prev) => ({ ...prev, titulo: '', responsavel: currentUser?.nome || '', email: currentUser?.email || '', descricao: '' }));
       setDataFim('');
       setDiasSelecionados([]);
       setRecorrente(false);
     } else {
       showToast('Reserva criada com sucesso!', 'success');
-      setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
+      setForm((prev) => ({ ...prev, titulo: '', descricao: '' })); // mantém responsavel/email do usuário
       await loadReservas();
     }
   };
@@ -541,12 +551,26 @@ function App() {
 
           <label>
             Responsável *
-            <input type="text" name="responsavel" value={form.responsavel} onChange={handleChange} required disabled={camposTextDisabled} />
+            <input
+              type="text"
+              name="responsavel"
+              value={form.responsavel}
+              onChange={handleChange}
+              required
+              disabled={true} // sempre desabilitado, preenchido pelo usuário logado
+            />
           </label>
 
           <label>
             E-mail *
-            <input type="email" name="email" value={form.email} onChange={handleChange} required disabled={camposTextDisabled} />
+            <input
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              required
+              disabled={true} // sempre desabilitado, preenchido pelo usuário logado
+            />
           </label>
 
           <label>
@@ -635,7 +659,7 @@ function App() {
       </section>
 
       <footer className="admin-footer">
-        {(currentUser && currentUser.cargo === 'admin') ? (
+        {(currentUser && (currentUser.cargo === 'admin' || currentUser.cargo === 'gerente')) ? (
           <Link to="/admin" className="admin-link">Área Administrativa</Link>
         ) : (
           <span style={{ color: '#999' }}>Área Administrativa</span>

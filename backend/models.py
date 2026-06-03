@@ -85,8 +85,9 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(150), unique=True, nullable=False)
     nome = db.Column(db.String(150), nullable=False)
-    cargo = db.Column(db.String(50), nullable=False)  # ex: aluno, professor, gestor, admin
+    cargo = db.Column(db.String(50), nullable=False)  # ex: aluno, professor, gerente, admin
     password_hash = db.Column(db.String(200), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='pendente')  # pendente, aprovado, rejeitado
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -96,10 +97,13 @@ class User(db.Model):
             return False
         return check_password_hash(self.password_hash, password)
 
-    def to_dict(self):
-        return {
+    def to_dict(self, include_status=True):
+        data = {
             'id': self.id,
             'email': self.email,
             'nome': self.nome,
             'cargo': self.cargo,
         }
+        if include_status:
+            data['status'] = self.status
+        return data
