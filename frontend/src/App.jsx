@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   getSalas,
   getReservas,
@@ -7,6 +7,8 @@ import {
   createReservaRecorrente,
   getDisponibilidade,
   deleteReservasByGrupo,
+  whoami,
+  authLogout,
 } from './api';
 
 // ========== FUNÇÕES AUXILIARES DE HORÁRIO (30 minutos) ==========
@@ -57,6 +59,8 @@ function App() {
   });
   const [toast, setToast] = useState(null);
   const [reservasDoDia, setReservasDoDia] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const navigate = useNavigate();
   const [recorrente, setRecorrente] = useState(false);
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dataFim, setDataFim] = useState('');
@@ -85,6 +89,19 @@ function App() {
   useEffect(() => {
     loadSalas();
     loadReservas();
+    whoami()
+      .then((u) => {
+        if (u && u.email) {
+          setCurrentUser(u);
+          // Preenche responsável e e-mail com os dados do usuário
+          setForm((prev) => ({
+            ...prev,
+            responsavel: u.nome || '',
+            email: u.email,
+          }));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // ========== AUXILIARES ==========
@@ -152,12 +169,21 @@ function App() {
   // ========== MANIPULAÇÃO DE RESERVAS ==========
   const handleChange = (e) => {
     const { name, value } = e.target;
+    // Campos responsavel e email são apenas leitura, então não permitimos alteração
+    if (name === 'responsavel' || name === 'email') return;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleLogout = async () => {
+    await authLogout();
+    setCurrentUser(null);
+    showToast('Desconectado', 'info');
+    navigate('/');
   };
 
   const handleSubmitReserva = async (e) => {
@@ -221,13 +247,13 @@ function App() {
         showToast(response.mensagem, 'success');
       }
       await loadReservas();
-      setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
+      setForm((prev) => ({ ...prev, titulo: '', responsavel: currentUser?.nome || '', email: currentUser?.email || '', descricao: '' }));
       setDataFim('');
       setDiasSelecionados([]);
       setRecorrente(false);
     } else {
       showToast('Reserva criada com sucesso!', 'success');
-      setForm((prev) => ({ ...prev, titulo: '', responsavel: '', email: '', descricao: '' }));
+      setForm((prev) => ({ ...prev, titulo: '', descricao: '' })); // mantém responsavel/email do usuário
       await loadReservas();
     }
   };
@@ -292,6 +318,18 @@ function App() {
         <div className="header-content">
           <img src="/CBiot_logo.jpg" alt="Logo CBiot" className="logo" />
           <h1 className="central-title">Sistema de Reserva de Sala do CBiot</h1>
+        </div>
+        <div style={{ position: 'absolute', right: '1rem', top: '1rem' }}>
+          {currentUser ? (
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.9rem' }}>{currentUser.nome || currentUser.email} ({currentUser.cargo})</span>
+              <button onClick={handleLogout} className="secondary">Sair</button>
+            </div>
+          ) : (
+            <div>
+              <Link to="/">Entrar</Link>
+            </div>
+          )}
         </div>
       </header>
 
@@ -513,12 +551,26 @@ function App() {
 
           <label>
             Responsável *
-            <input type="text" name="responsavel" value={form.responsavel} onChange={handleChange} required disabled={camposTextDisabled} />
+            <input
+              type="text"
+              name="responsavel"
+              value={form.responsavel}
+              onChange={handleChange}
+              required
+              disabled={true} // sempre desabilitado, preenchido pelo usuário logado
+            />
           </label>
 
           <label>
             E-mail *
-            <input type="email" name="email" value={form.email} onChange={handleChange} required disabled={camposTextDisabled} />
+            <input
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              required
+              disabled={true} // sempre desabilitado, preenchido pelo usuário logado
+            />
           </label>
 
           <label>
@@ -607,7 +659,11 @@ function App() {
       </section>
 
       <footer className="admin-footer">
-        <Link to="/admin" className="admin-link">Área Administrativa</Link>
+        {(currentUser && (currentUser.cargo === 'admin' || currentUser.cargo === 'gerente')) ? (
+          <Link to="/admin" className="admin-link">Área Administrativa</Link>
+        ) : (
+          <span style={{ color: '#999' }}>Área Administrativa</span>
+        )}
       </footer>
     </div>
   );

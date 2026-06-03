@@ -32,3 +32,13 @@ export function createReservaRecorrente(payload) {
 }
 export function getReservasByGrupo(grupoId) { return request(`/api/reservas/grupo/${grupoId}`); }
 export function deleteReservasByGrupo(grupoId) { return request(`/api/reservas/grupo/${grupoId}`, { method: 'DELETE' }); }
+
+// Autenticação simples
+export function authLogin(body) { return request('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }); }
+export function authRegister(body) { return request('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }); }
+export function authLogout() { return request('/api/auth/logout', { method: 'POST' }); }
+export function whoami() { return request('/api/auth/whoami'); }
+
+export function getUsers() { return request('/api/users'); }
+export function updateUser(userId, data) { return request(`/api/users/${userId}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export function approveUser(userId, cargo) { return request(`/api/users/${userId}/approve`, { method: 'POST', body: JSON.stringify({ cargo }) }); }

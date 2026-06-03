@@ -1,27 +1,77 @@
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, make_response
 from flask_cors import CORS
 from flask_session import Session
 from config import Config
 from database import db
-from models import Sala, Reserva, Manutencao
+from models import Sala, Reserva, Manutencao, User
 from datetime import datetime, time, date, timedelta
 from sqlalchemy import and_
 from functools import wraps
 import uuid
+import traceback
 
 app = Flask(__name__)
 app.config.from_object(Config)
-CORS(app, origins=['http://localhost:5173'], supports_credentials=True)
+CORS(app, origins=['http://localhost:5173', 'http://localhost:5174'], supports_credentials=True)
 Session(app)
 db.init_app(app)
 
-def admin_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not session.get('admin'):
-            return jsonify({'erro': 'Acesso não autorizado'}), 401
-        return f(*args, **kwargs)
-    return decorated
+# Garantir que CORS funcione mesmo em erros e preflight
+ALLOWED_ORIGINS = {'http://localhost:5173', 'http://localhost:5174'}
+
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get('Origin')
+    if origin in ALLOWED_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
+
+@app.before_request
+def handle_options_preflight():
+    if request.method == 'OPTIONS':
+        resp = make_response()
+        origin = request.headers.get('Origin')
+        if origin in ALLOWED_ORIGINS:
+            resp.headers['Access-Control-Allow-Origin'] = origin
+            resp.headers['Access-Control-Allow-Credentials'] = 'true'
+            resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return resp
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    tb = traceback.format_exc()
+    traceback.print_exc()
+    try:
+        with open('error.log', 'a', encoding='utf-8') as f:
+            f.write('\n---- EXCEPTION ----\n')
+            f.write(tb)
+    except Exception:
+        pass
+    origin = request.headers.get('Origin')
+    body = {'erro': 'Internal server error'}
+    resp = make_response(jsonify(body), 500)
+    if origin in ALLOWED_ORIGINS:
+        resp.headers['Access-Control-Allow-Origin'] = origin
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return resp
+
+# ---------- DECORATORS DE PERMISSÃO ----------
+def role_required(allowed_roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            user = session.get('user')
+            if not user or user.get('cargo') not in allowed_roles:
+                return jsonify({'erro': 'Acesso não autorizado'}), 401
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
 
 # ---------- FUNÇÕES AUXILIARES ----------
 def parse_date(data_str):
@@ -168,7 +218,6 @@ def create_reserva():
     return jsonify(formatReserva(nova)), 201
 
 @app.route('/api/reservas/recorrente', methods=['POST'])
-@admin_required
 def create_reservas_recorrentes():
     dados = request.get_json()
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
@@ -257,7 +306,7 @@ def get_reservas_by_grupo(grupo_id):
     return jsonify([formatReserva(r) for r in reservas])
 
 @app.route('/api/reservas/grupo/<grupo_id>', methods=['DELETE'])
-@admin_required
+@role_required(['admin', 'gerente'])
 def delete_reservas_by_grupo(grupo_id):
     reservas = Reserva.query.filter_by(grupo_id=grupo_id).all()
     if not reservas:
@@ -315,7 +364,6 @@ def disponibilidade():
                 break
 
         if not ocupado:
-            # Verificar reservas normais
             for r in reservas:
                 r_ini = r.hora_inicio.hour*60 + r.hora_inicio.minute
                 r_fim = r.hora_fim.hour*60 + r.hora_fim.minute
@@ -338,7 +386,6 @@ def disponibilidade():
         'horarios': horarios
     })
 
-# ---------- NOVA ROTA: SALAS DISPONÍVEIS POR DATA E HORA (INTERVALO) ----------
 @app.route('/api/salas/disponiveis', methods=['GET'])
 def salas_disponiveis_por_data_hora():
     data_str = request.args.get('data')
@@ -363,7 +410,6 @@ def salas_disponiveis_por_data_hora():
     salas = Sala.query.all()
     disponiveis = []
     for sala in salas:
-        # Verificar reservas normais
         reserva = Reserva.query.filter(
             Reserva.sala_id == sala.id,
             Reserva.data == data_res,
@@ -372,7 +418,6 @@ def salas_disponiveis_por_data_hora():
         ).first()
         if reserva:
             continue
-        # Verificar manutenção contínua
         manut = Manutencao.query.filter(
             Manutencao.sala_id == sala.id,
             Manutencao.data_inicio <= data_res,
@@ -396,22 +441,82 @@ def salas_disponiveis_por_data_hora():
         disponiveis.append(sala.to_dict())
     return jsonify(disponiveis)
 
-# ---------- ROTAS ADMIN ----------
-@app.route('/api/admin/login', methods=['POST'])
-def admin_login():
-    dados = request.get_json()
-    if dados.get('senha') == app.config['ADMIN_PASSWORD']:
-        session['admin'] = True
-        return jsonify({'sucesso': True})
-    return jsonify({'erro': 'Senha inválida'}), 401
+# ---------- AUTENTICAÇÃO ----------
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    dados = request.get_json() or {}
+    email = dados.get('email')
+    senha = dados.get('senha')
+    if not email or not senha:
+        return jsonify({'erro': 'email e senha são necessários'}), 400
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(senha):
+        return jsonify({'erro': 'Credenciais inválidas'}), 401
+    if user.status != 'aprovado':
+        return jsonify({'erro': 'Conta aguardando aprovação do administrador.'}), 403
+    session['user'] = user.to_dict(include_status=False)
+    return jsonify(session['user'])
 
-@app.route('/api/admin/logout', methods=['POST'])
-def admin_logout():
-    session.pop('admin', None)
+@app.route('/api/auth/register', methods=['POST'])
+def auth_register():
+    dados = request.get_json() or {}
+    nome = dados.get('nome')
+    email = dados.get('email')
+    senha = dados.get('senha')
+    if not nome or not email or not senha:
+        return jsonify({'erro': 'nome, email e senha são obrigatórios'}), 400
+    existing = User.query.filter_by(email=email).first()
+    if existing:
+        return jsonify({'erro': 'Email já cadastrado'}), 400
+    user = User(email=email, nome=nome, cargo='aluno', status='pendente')
+    user.set_password(senha)
+    db.session.add(user)
+    db.session.commit()
+    # NÃO cria sessão
+    return jsonify({'mensagem': 'Cadastro realizado. Aguardando aprovação do administrador.'}), 201
+
+@app.route('/api/auth/logout', methods=['POST'])
+def auth_logout():
+    session.pop('user', None)
     return jsonify({'sucesso': True})
 
+@app.route('/api/auth/whoami', methods=['GET'])
+def auth_whoami():
+    return jsonify(session.get('user') or {})
+
+# ---------- ROTAS DE GERENCIAMENTO DE USUÁRIOS (APENAS ADMIN/GERENTE) ----------
+@app.route('/api/users', methods=['GET'])
+@role_required(['admin', 'gerente'])
+def listar_usuarios():
+    users = User.query.order_by(User.status, User.nome).all()
+    return jsonify([u.to_dict() for u in users])
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@role_required(['admin', 'gerente'])
+def atualizar_usuario(user_id):
+    user = User.query.get_or_404(user_id)
+    dados = request.get_json()
+    if 'cargo' in dados:
+        user.cargo = dados['cargo']
+    if 'status' in dados:
+        user.status = dados['status']
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+@app.route('/api/users/<int:user_id>/approve', methods=['POST'])
+@role_required(['admin', 'gerente'])
+def aprovar_usuario(user_id):
+    user = User.query.get_or_404(user_id)
+    cargo = request.json.get('cargo', 'aluno')
+    user.cargo = cargo
+    user.status = 'aprovado'
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+# ---------- ROTAS ADMINISTRATIVAS (SALAS, MANUTENÇÕES, ETC) ----------
+# Todas as rotas que antes eram @admin_required agora usam @role_required(['admin','gerente'])
 @app.route('/api/salas', methods=['POST'])
-@admin_required
+@role_required(['admin', 'gerente'])
 def create_sala():
     dados = request.get_json()
     if not dados or not dados.get('nome'):
@@ -430,7 +535,7 @@ def create_sala():
     return jsonify(sala.to_dict()), 201
 
 @app.route('/api/salas/<int:sala_id>', methods=['PUT'])
-@admin_required
+@role_required(['admin', 'gerente'])
 def update_sala(sala_id):
     sala = Sala.query.get_or_404(sala_id)
     dados = request.get_json()
@@ -449,7 +554,7 @@ def update_sala(sala_id):
     return jsonify(sala.to_dict()), 200
 
 @app.route('/api/salas/<int:sala_id>', methods=['DELETE'])
-@admin_required
+@role_required(['admin', 'gerente'])
 def delete_sala(sala_id):
     sala = Sala.query.get_or_404(sala_id)
     db.session.delete(sala)
@@ -457,22 +562,21 @@ def delete_sala(sala_id):
     return jsonify({'mensagem': 'Sala deletada'})
 
 @app.route('/api/reservas/<int:reserva_id>', methods=['DELETE'])
-@admin_required
+@role_required(['admin', 'gerente'])
 def delete_reserva(reserva_id):
     reserva = Reserva.query.get_or_404(reserva_id)
     db.session.delete(reserva)
     db.session.commit()
     return jsonify({'mensagem': 'Reserva cancelada'})
 
-# ---------- ROTAS DE MANUTENÇÃO ----------
 @app.route('/api/manutencoes', methods=['GET'])
-@admin_required
+@role_required(['admin', 'gerente'])
 def listar_manutencoes():
     manutencoes = Manutencao.query.order_by(Manutencao.data_inicio).all()
     return jsonify([m.to_dict() for m in manutencoes])
 
 @app.route('/api/manutencoes', methods=['POST'])
-@admin_required
+@role_required(['admin', 'gerente'])
 def criar_manutencao():
     dados = request.get_json()
     obrigatorios = ['sala_id', 'data_inicio', 'data_fim', 'hora_inicio', 'hora_fim', 'motivo']
@@ -495,7 +599,6 @@ def criar_manutencao():
     if hora_ini < time(8,0) or hora_fim > time(19,0):
         return jsonify({'erro': 'Fora do horário comercial (08:00-19:00)'}), 400
 
-    # Verificar sobreposição
     conflito = Manutencao.query.filter(
         Manutencao.sala_id == sala_id,
         Manutencao.data_inicio <= data_fim,
@@ -517,12 +620,26 @@ def criar_manutencao():
     return jsonify(nova.to_dict()), 201
 
 @app.route('/api/manutencoes/<int:manutencao_id>', methods=['DELETE'])
-@admin_required
+@role_required(['admin', 'gerente'])
 def deletar_manutencao(manutencao_id):
     m = Manutencao.query.get_or_404(manutencao_id)
     db.session.delete(m)
     db.session.commit()
     return jsonify({'mensagem': 'Bloqueio removido'})
+
+# ---------- ROTA ADMIN LEGACY (SENHA ÚNICA) – OPCIONAL ----------
+@app.route('/api/admin/login', methods=['POST'])
+def admin_login():
+    dados = request.get_json()
+    if dados.get('senha') == app.config['ADMIN_PASSWORD']:
+        session['admin'] = True
+        return jsonify({'sucesso': True})
+    return jsonify({'erro': 'Senha inválida'}), 401
+
+@app.route('/api/admin/logout', methods=['POST'])
+def admin_logout():
+    session.pop('admin', None)
+    return jsonify({'sucesso': True})
 
 # ---------- INICIALIZAÇÃO ----------
 with app.app_context():
