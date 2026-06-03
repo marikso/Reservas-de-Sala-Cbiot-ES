@@ -12,6 +12,17 @@ import {
   adminLogout,
 } from './api';
 
+// Função para gerar horários de 30 em 30 minutos (08:00 às 19:00)
+const generateTimeOptions = () => {
+  const times = [];
+  for (let i = 8; i < 19; i++) {
+    times.push(`${String(i).padStart(2, '0')}:00`);
+    if (i < 18) times.push(`${String(i).padStart(2, '0')}:30`);
+  }
+  return times;
+};
+
+// Componente de login
 function AdminLogin({ onLogin }) {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
@@ -37,6 +48,7 @@ function AdminLogin({ onLogin }) {
   );
 }
 
+// Componente do painel (após login)
 function AdminPanel() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
@@ -51,12 +63,25 @@ function AdminPanel() {
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
 
+  // Estados para manutenções
+  const [manutencoes, setManutencoes] = useState([]);
+  const [novaManutencao, setNovaManutencao] = useState({
+    sala_id: '',
+    data_inicio: '',
+    data_fim: '',
+    hora_inicio: '08:00',
+    hora_fim: '09:00',
+    motivo: '',
+  });
+  const horarios = generateTimeOptions();
+
   const formatarData = (dataISO) => {
     if (!dataISO) return '';
     const partes = dataISO.split('-');
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
+  // Carregar salas e reservas
   const loadSalas = async () => {
     const data = await getSalas();
     const sorted = [...data].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
@@ -67,9 +92,23 @@ function AdminPanel() {
     setReservas(data);
   };
 
+  // Carregar manutenções
+  const loadManutencoes = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/manutencoes', {
+        credentials: 'include',
+      });
+      const data = await res.json();
+      setManutencoes(data);
+    } catch (err) {
+      console.error('Erro ao carregar manutenções', err);
+    }
+  };
+
   useEffect(() => {
     loadSalas();
     loadReservas();
+    loadManutencoes();
   }, []);
 
   const showToast = (message, type = 'success') => {
@@ -77,6 +116,7 @@ function AdminPanel() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // ---------- CRUD de Salas ----------
   const handleChangeSala = (e) => {
     const { name, value } = e.target;
     setNovaSala((prev) => ({ ...prev, [name]: value }));
@@ -138,6 +178,7 @@ function AdminPanel() {
     }
   };
 
+  // ---------- Cancelamento de Reservas ----------
   const handleDeletarReserva = async (id, titulo) => {
     await deleteReserva(id);
     await loadReservas();
@@ -155,6 +196,66 @@ function AdminPanel() {
     }
   };
 
+  // ---------- Gerenciamento de Manutenções ----------
+  const handleChangeManutencao = (e) => {
+    const { name, value } = e.target;
+    setNovaManutencao((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCriarManutencao = async () => {
+    if (!novaManutencao.sala_id || !novaManutencao.data_inicio || !novaManutencao.data_fim || !novaManutencao.motivo) {
+      showToast('Preencha todos os campos da manutenção', 'error');
+      return;
+    }
+    try {
+      const res = await fetch('http://localhost:5000/api/manutencoes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(novaManutencao),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.erro || 'Erro ao criar bloqueio', 'error');
+      } else {
+        showToast('Bloqueio criado com sucesso', 'success');
+        setNovaManutencao({
+          sala_id: '',
+          data_inicio: '',
+          data_fim: '',
+          hora_inicio: '08:00',
+          hora_fim: '09:00',
+          motivo: '',
+        });
+        loadManutencoes();
+        loadSalas(); // para atualizar a badge de manutenção
+      }
+    } catch (err) {
+      showToast('Erro de conexão', 'error');
+    }
+  };
+
+  const handleRemoverManutencao = async (id) => {
+    if (window.confirm('Remover este bloqueio de manutenção?')) {
+      try {
+        const res = await fetch(`http://localhost:5000/api/manutencoes/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (res.ok) {
+          showToast('Bloqueio removido', 'success');
+          loadManutencoes();
+          loadSalas();
+        } else {
+          const err = await res.json();
+          showToast(err.erro || 'Erro ao remover', 'error');
+        }
+      } catch (err) {
+        showToast('Erro de conexão', 'error');
+      }
+    }
+  };
+
   return (
     <div className="admin-container">
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
@@ -166,21 +267,19 @@ function AdminPanel() {
         </div>
       </header>
 
+      {/* Gerenciar Salas */}
       <section className="box">
         <h2>Gerenciar Salas</h2>
         <div className="admin-sala-form">
           <input name="nome" placeholder="Nome da sala (obrigatório)" value={novaSala.nome} onChange={handleChangeSala} />
           <input name="bloco" placeholder="Bloco (ex: 43431)" value={novaSala.bloco} onChange={handleChangeSala} />
-          
           <select name="andar" value={novaSala.andar} onChange={handleChangeSala}>
             <option value="">Selecione o andar</option>
             <option value="1° andar">1° andar</option>
             <option value="2° andar">2° andar</option>
           </select>
-
           <input name="capacidade" placeholder="Capacidade (pessoas)" type="number" value={novaSala.capacidade} onChange={handleChangeSala} />
           <textarea name="equipamentos" placeholder="Equipamentos (separados por vírgula)" value={novaSala.equipamentos} onChange={handleChangeSala} rows="2" />
-          
           {editandoSala ? (
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleUpdateSala}>Salvar alterações</button>
@@ -193,7 +292,7 @@ function AdminPanel() {
 
         <div className="salas-grid-mapa">
           {salas.map((sala) => (
-            <div key={sala.id} className="sala-card-mapa">
+            <div key={sala.id} className={`sala-card-mapa ${sala.em_manutencao ? 'manutencao' : ''}`}>
               <div className="sala-nome">{sala.nome}</div>
               <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</div>
               <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'} pessoas</div>
@@ -203,6 +302,7 @@ function AdminPanel() {
                   <ul>{sala.equipamentos.split(',').map((item, idx) => <li key={idx}>{item.trim()}</li>)}</ul>
                 </div>
               )}
+              {sala.em_manutencao && <div className="sala-manutencao-badge">🔧 Em manutenção</div>}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <button className="edit-sala-btn" onClick={() => handleEditarSala(sala)}>Editar</button>
                 <button className="delete-sala-btn" onClick={() => handleDeletarSala(sala.id, sala.nome)}>Excluir</button>
@@ -212,6 +312,50 @@ function AdminPanel() {
         </div>
       </section>
 
+      {/* Bloqueios de Manutenção */}
+      <section className="box">
+        <h2>Bloqueios por Manutenção</h2>
+        <div className="admin-sala-form">
+          <select name="sala_id" value={novaManutencao.sala_id} onChange={handleChangeManutencao}>
+            <option value="">Selecione a sala</option>
+            {salas.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nome}
+              </option>
+            ))}
+          </select>
+          <input type="date" name="data_inicio" placeholder="Data início" value={novaManutencao.data_inicio} onChange={handleChangeManutencao} />
+          <input type="date" name="data_fim" placeholder="Data fim" value={novaManutencao.data_fim} onChange={handleChangeManutencao} />
+          <select name="hora_inicio" value={novaManutencao.hora_inicio} onChange={handleChangeManutencao}>
+            {horarios.map((h) => (
+              <option key={h}>{h}</option>
+            ))}
+          </select>
+          <select name="hora_fim" value={novaManutencao.hora_fim} onChange={handleChangeManutencao}>
+            {horarios.map((h) => (
+              <option key={h}>{h}</option>
+            ))}
+          </select>
+          <input name="motivo" placeholder="Motivo (ex.: reforma, manutenção elétrica)" value={novaManutencao.motivo} onChange={handleChangeManutencao} />
+          <button onClick={handleCriarManutencao}>Bloquear período</button>
+        </div>
+
+        <div className="manutencoes-list">
+          {manutencoes.map((m) => (
+            <div key={m.id} className="manutencao-item">
+              <div>
+                <strong>{m.sala_nome}</strong> – {formatarData(m.data_inicio)} a {formatarData(m.data_fim)} das {m.hora_inicio} às {m.hora_fim}
+                <br />
+                <small>Motivo: {m.motivo}</small>
+              </div>
+              <button onClick={() => handleRemoverManutencao(m.id)}>Remover</button>
+            </div>
+          ))}
+          {manutencoes.length === 0 && <p>Nenhum bloqueio ativo.</p>}
+        </div>
+      </section>
+
+      {/* Cancelar Reservas */}
       <section className="box">
         <h2>Cancelar Reservas</h2>
         <div className="reservas-grid">
