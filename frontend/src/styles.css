@@ -639,3 +639,40 @@ button.secondary:hover {
   margin-top: -0.5rem;
   margin-bottom: 0.5rem;
 }
+
+.modo-consulta {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.consulta-sala, .consulta-data-hora {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.resultado-disponibilidade {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+.salas-disponiveis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.small-btn {
+  background: #3b82f6;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
+.grid-list li.livre:hover {
+  background: #c8f0d1;
+  cursor: pointer;
+  transform: scale(1.02);
+  transition: all 0.2s;
+}

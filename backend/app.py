@@ -79,7 +79,6 @@ def get_salas():
     hoje = date.today()
     resultado = []
     for s in salas:
-        # Verifica se existe manutenção ativa para esta sala (que cubra hoje ou futuro)
         manutencao = Manutencao.query.filter(
             Manutencao.sala_id == s.id,
             Manutencao.data_inicio <= hoje,
@@ -123,7 +122,7 @@ def create_reserva():
     if erro:
         return jsonify({'erro': erro}), 400
 
-    # Verificar conflito com reservas normais
+    # Conflito com reservas normais
     conflito = Reserva.query.filter(
         and_(
             Reserva.sala_id == dados['sala_id'],
@@ -141,17 +140,15 @@ def create_reserva():
         Manutencao.data_inicio <= data_res,
         Manutencao.data_fim >= data_res
     ).all()
-
     for m in manutencoes:
         if data_res == m.data_inicio:
             inicio_manut = m.hora_inicio
         else:
-            inicio_manut = time(8, 0)
+            inicio_manut = time(8,0)
         if data_res == m.data_fim:
             fim_manut = m.hora_fim
         else:
-            fim_manut = time(19, 0)
-
+            fim_manut = time(19,0)
         if hora_ini < fim_manut and hora_fim > inicio_manut:
             return jsonify({'erro': f'Sala em manutenção no período: {m.motivo}'}), 400
 
@@ -209,7 +206,7 @@ def create_reservas_recorrentes():
         if current_date.weekday() in dias_semana:
             if current_date.weekday() in (5,6):
                 continue
-            # Verificar conflitos (reservas normais e manutenções)
+            # Verificar conflito normal
             conflito = Reserva.query.filter(
                 and_(
                     Reserva.sala_id == dados['sala_id'],
@@ -218,6 +215,7 @@ def create_reservas_recorrentes():
                     Reserva.hora_fim > hora_ini
                 )
             ).first()
+            # Verificar manutenção
             manut = Manutencao.query.filter(
                 Manutencao.sala_id == dados['sala_id'],
                 Manutencao.data_inicio <= current_date,
@@ -281,19 +279,12 @@ def disponibilidade():
         return jsonify({'erro': 'Formato de data inválido'}), 400
 
     sala = Sala.query.get_or_404(sala_id)
-
-    # Reservas normais
     reservas = Reserva.query.filter_by(sala_id=sala_id, data=data_res).all()
-    # Manutenções que afetam esta data
     manutencoes = Manutencao.query.filter(
         Manutencao.sala_id == sala_id,
         Manutencao.data_inicio <= data_res,
         Manutencao.data_fim >= data_res
     ).all()
-
-    # Converter reservas normais para minutos
-    ocupados_min = [(r.hora_inicio.hour*60 + r.hora_inicio.minute,
-                     r.hora_fim.hour*60 + r.hora_fim.minute) for r in reservas]
 
     horarios = []
     current = 8 * 60
@@ -301,34 +292,33 @@ def disponibilidade():
     while current < end_of_day:
         bloco_inicio = current
         bloco_fim = current + 30
-        inicio_str = f"{bloco_inicio//60:02d}:{bloco_inicio%60:02d}"
-        fim_str = f"{bloco_fim//60:02d}:{bloco_fim%60:02d}"
+        inicio_str = f"{bloco_inicio // 60:02d}:{bloco_inicio % 60:02d}"
+        fim_str = f"{bloco_fim // 60:02d}:{bloco_fim % 60:02d}"
         ocupado = False
         titulo = ''
 
-        # Verificar se o bloco está ocupado por manutenção (contínua)
+        # Verificar manutenção contínua
         for m in manutencoes:
-            # Determina o horário efetivo de início e fim da manutenção neste dia
             if data_res == m.data_inicio:
                 inicio_manut = m.hora_inicio
             else:
-                inicio_manut = time(8, 0)
+                inicio_manut = time(8,0)
             if data_res == m.data_fim:
                 fim_manut = m.hora_fim
             else:
-                fim_manut = time(19, 0)
-
+                fim_manut = time(19,0)
             inicio_manut_min = inicio_manut.hour*60 + inicio_manut.minute
             fim_manut_min = fim_manut.hour*60 + fim_manut.minute
-
             if bloco_inicio < fim_manut_min and bloco_fim > inicio_manut_min:
                 ocupado = True
                 titulo = f"Manutenção: {m.motivo}"
                 break
 
-        # Se não ocupado por manutenção, verifica reservas normais
         if not ocupado:
-            for (r_ini, r_fim) in ocupados_min:
+            # Verificar reservas normais
+            for r in reservas:
+                r_ini = r.hora_inicio.hour*60 + r.hora_inicio.minute
+                r_fim = r.hora_fim.hour*60 + r.hora_fim.minute
                 if bloco_inicio < r_fim and bloco_fim > r_ini:
                     ocupado = True
                     titulo = 'Reservado'
@@ -347,6 +337,64 @@ def disponibilidade():
         'data': data_str,
         'horarios': horarios
     })
+
+# ---------- NOVA ROTA: SALAS DISPONÍVEIS POR DATA E HORA (INTERVALO) ----------
+@app.route('/api/salas/disponiveis', methods=['GET'])
+def salas_disponiveis_por_data_hora():
+    data_str = request.args.get('data')
+    hora_inicio_str = request.args.get('hora_inicio')
+    hora_fim_str = request.args.get('hora_fim')
+    if not data_str or not hora_inicio_str or not hora_fim_str:
+        return jsonify({'erro': 'data, hora_inicio e hora_fim são obrigatórios'}), 400
+    try:
+        data_res = parse_date(data_str)
+        hora_ini = parse_time(hora_inicio_str)
+        hora_fim = parse_time(hora_fim_str)
+    except ValueError:
+        return jsonify({'erro': 'Formato inválido'}), 400
+
+    if hora_ini.minute not in (0,30) or hora_fim.minute not in (0,30):
+        return jsonify({'erro': 'Horários devem ser em hora cheia ou meia hora'}), 400
+    if hora_ini >= hora_fim:
+        return jsonify({'erro': 'Início deve ser anterior ao fim'}), 400
+    if hora_ini < time(8,0) or hora_fim > time(19,0):
+        return jsonify({'erro': 'Horário fora do expediente (08:00-19:00)'}), 400
+
+    salas = Sala.query.all()
+    disponiveis = []
+    for sala in salas:
+        # Verificar reservas normais
+        reserva = Reserva.query.filter(
+            Reserva.sala_id == sala.id,
+            Reserva.data == data_res,
+            Reserva.hora_inicio < hora_fim,
+            Reserva.hora_fim > hora_ini
+        ).first()
+        if reserva:
+            continue
+        # Verificar manutenção contínua
+        manut = Manutencao.query.filter(
+            Manutencao.sala_id == sala.id,
+            Manutencao.data_inicio <= data_res,
+            Manutencao.data_fim >= data_res
+        ).all()
+        bloqueado = False
+        for m in manut:
+            if data_res == m.data_inicio:
+                inicio_dia = m.hora_inicio
+            else:
+                inicio_dia = time(8,0)
+            if data_res == m.data_fim:
+                fim_dia = m.hora_fim
+            else:
+                fim_dia = time(19,0)
+            if hora_ini < fim_dia and hora_fim > inicio_dia:
+                bloqueado = True
+                break
+        if bloqueado:
+            continue
+        disponiveis.append(sala.to_dict())
+    return jsonify(disponiveis)
 
 # ---------- ROTAS ADMIN ----------
 @app.route('/api/admin/login', methods=['POST'])
@@ -447,7 +495,7 @@ def criar_manutencao():
     if hora_ini < time(8,0) or hora_fim > time(19,0):
         return jsonify({'erro': 'Fora do horário comercial (08:00-19:00)'}), 400
 
-    # Verificar se já existe manutenção sobreposta (para evitar duplicidade)
+    # Verificar sobreposição
     conflito = Manutencao.query.filter(
         Manutencao.sala_id == sala_id,
         Manutencao.data_inicio <= data_fim,
