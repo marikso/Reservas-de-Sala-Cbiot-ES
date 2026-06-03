@@ -71,9 +71,12 @@ function App() {
     const data = await getSalas();
     setSalas(data);
   };
+  
   const loadReservas = async () => {
     const data = await getReservas();
-    setReservas(data);
+    const hoje = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    const reservasAtivas = data.filter(r => r.data >= hoje);
+    setReservas(reservasAtivas);
   };
 
   useEffect(() => {
