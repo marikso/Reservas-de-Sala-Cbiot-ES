@@ -7,6 +7,9 @@ import {
   createReservaRecorrente,
   getDisponibilidade,
   deleteReservasByGrupo,
+  deleteReserva,
+  deleteUserGrupo,
+  updateReserva,
   whoami,
   authLogout,
 } from './api';
@@ -43,7 +46,6 @@ const generateAllEndTimes = () => {
 };
 
 function App() {
-  // ========== ESTADOS ==========
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [disponibilidade, setDisponibilidade] = useState(null);
@@ -72,6 +74,16 @@ function App() {
   const [horaConsulta, setHoraConsulta] = useState('08:00');
   const [horaFimConsulta, setHoraFimConsulta] = useState('08:30');
 
+  // Estados para edição de reserva (modal)
+  const [editandoReserva, setEditandoReserva] = useState(null);
+  const [editForm, setEditForm] = useState({
+    titulo: '',
+    descricao: '',
+    data: '',
+    hora_inicio: '',
+    hora_fim: '',
+  });
+
   const dataSelecionada = !!form.data;
 
   // ========== CARREGAMENTO INICIAL ==========
@@ -82,27 +94,33 @@ function App() {
   const loadReservas = async () => {
     const data = await getReservas();
     const hoje = new Date().toISOString().slice(0, 10);
-    const reservasAtivas = data.filter(r => r.data >= hoje);
-    setReservas(reservasAtivas);
+    const minhasReservas = data.filter(
+      (r) => r.data >= hoje && r.email === currentUser?.email
+    );
+    setReservas(minhasReservas);
   };
 
   useEffect(() => {
     loadSalas();
-    loadReservas();
     whoami()
       .then((u) => {
         if (u && u.email) {
           setCurrentUser(u);
-          // Preenche responsável e e-mail com os dados do usuário
           setForm((prev) => ({
             ...prev,
             responsavel: u.nome || '',
             email: u.email,
           }));
+        } else {
+          navigate('/');
         }
       })
-      .catch(() => {});
+      .catch(() => navigate('/'));
   }, []);
+
+  useEffect(() => {
+    if (currentUser) loadReservas();
+  }, [currentUser]);
 
   // ========== AUXILIARES ==========
   const formatarData = (dataISO) => {
@@ -111,13 +129,15 @@ function App() {
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
-  // ========== LÓGICA DE HORÁRIOS DISPONÍVEIS (formulário) ==========
-  const reservasIntervalos = useMemo(() => {
-    return reservasDoDia.map((r) => ({
-      inicio: timeToMinutes(r.hora_inicio),
-      fim: timeToMinutes(r.hora_fim),
-    }));
-  }, [reservasDoDia]);
+  // ========== LÓGICA DE HORÁRIOS DISPONÍVEIS ==========
+  const reservasIntervalos = useMemo(
+    () =>
+      reservasDoDia.map((r) => ({
+        inicio: timeToMinutes(r.hora_inicio),
+        fim: timeToMinutes(r.hora_fim),
+      })),
+    [reservasDoDia]
+  );
 
   const conflita = (inicio, fim) => {
     return reservasIntervalos.some((r) => inicio < r.fim && fim > r.inicio);
@@ -169,7 +189,6 @@ function App() {
   // ========== MANIPULAÇÃO DE RESERVAS ==========
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Campos responsavel e email são apenas leitura, então não permitimos alteração
     if (name === 'responsavel' || name === 'email') return;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
@@ -184,6 +203,66 @@ function App() {
     setCurrentUser(null);
     showToast('Desconectado', 'info');
     navigate('/');
+  };
+
+  // Cancelar reserva individual
+  const handleCancelarReserva = async (id, titulo) => {
+    if (window.confirm(`Cancelar a reserva "${titulo}"?`)) {
+      const res = await deleteReserva(id);
+      if (res.erro) showToast(res.erro, 'error');
+      else {
+        showToast('Reserva cancelada', 'success');
+        await loadReservas();
+      }
+    }
+  };
+
+  // Cancelar série recorrente (usuário comum)
+  const handleCancelarGrupo = async (grupoId) => {
+    if (window.confirm('Cancelar TODAS as reservas desta série recorrente?')) {
+      const res = await deleteUserGrupo(grupoId);
+      if (res.erro) showToast(res.erro, 'error');
+      else {
+        showToast(res.mensagem, 'success');
+        await loadReservas();
+      }
+    }
+  };
+
+  // Editar reserva (abrir modal)
+  const handleEditarReserva = (reserva) => {
+    setEditandoReserva(reserva);
+    setEditForm({
+      titulo: reserva.titulo,
+      descricao: reserva.descricao || '',
+      data: reserva.data,
+      hora_inicio: reserva.hora_inicio,
+      hora_fim: reserva.hora_fim,
+    });
+  };
+
+  // Salvar edição
+  const handleUpdateReserva = async () => {
+    if (!editandoReserva) return;
+    const payload = {
+      titulo: editForm.titulo,
+      descricao: editForm.descricao,
+      data: editForm.data,
+      hora_inicio: editForm.hora_inicio,
+      hora_fim: editForm.hora_fim,
+    };
+    const res = await updateReserva(editandoReserva.id, payload);
+    if (res.erro) {
+      showToast(res.erro, 'error');
+    } else {
+      showToast('Reserva atualizada!', 'success');
+      setEditandoReserva(null);
+      await loadReservas();
+      // Se a data/hora editada afetar a disponibilidade do formulário atual, recarregamos a disponibilidade (opcional)
+      if (form.sala_id && form.data) {
+        handleDisponibilidade();
+      }
+    }
   };
 
   const handleSubmitReserva = async (e) => {
@@ -247,13 +326,13 @@ function App() {
         showToast(response.mensagem, 'success');
       }
       await loadReservas();
-      setForm((prev) => ({ ...prev, titulo: '', responsavel: currentUser?.nome || '', email: currentUser?.email || '', descricao: '' }));
+      setForm((prev) => ({ ...prev, titulo: '', descricao: '' }));
       setDataFim('');
       setDiasSelecionados([]);
       setRecorrente(false);
     } else {
       showToast('Reserva criada com sucesso!', 'success');
-      setForm((prev) => ({ ...prev, titulo: '', descricao: '' })); // mantém responsavel/email do usuário
+      setForm((prev) => ({ ...prev, titulo: '', descricao: '' }));
       await loadReservas();
     }
   };
@@ -284,15 +363,16 @@ function App() {
     });
   }, [form.sala_id, form.data]);
 
-  // ========== CONSULTA POR DATA/HORA (intervalo) ==========
+  // ========== CONSULTA POR DATA/HORA ==========
   const handleConsultarDisponibilidadeDataHora = async () => {
     if (!dataConsulta || !horaConsulta || !horaFimConsulta) {
       showToast('Selecione data, início e fim', 'error');
       return;
     }
-    const res = await fetch(`http://localhost:5000/api/salas/disponiveis?data=${dataConsulta}&hora_inicio=${horaConsulta}&hora_fim=${horaFimConsulta}`, {
-      credentials: 'include',
-    });
+    const res = await fetch(
+      `http://localhost:5000/api/salas/disponiveis?data=${dataConsulta}&hora_inicio=${horaConsulta}&hora_fim=${horaFimConsulta}`,
+      { credentials: 'include' }
+    );
     const data = await res.json();
     if (res.ok) {
       setDisponibilidadeDataHora(data);
@@ -301,18 +381,82 @@ function App() {
     }
   };
 
-  // ========== ORDENAÇÃO DAS SALAS PARA MAPA ==========
+  // ========== ORDENAÇÃO DAS SALAS ==========
   const salasOrdenadas = useMemo(() => {
-    return [...salas].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
+    return [...salas].sort((a, b) =>
+      a.nome.localeCompare(b.nome, undefined, { numeric: true })
+    );
   }, [salas]);
 
-  // ========== RENDER ==========
   const selectsDisabled = !dataSelecionada && !recorrente;
   const camposTextDisabled = !dataSelecionada && !recorrente;
+
+  if (!currentUser) return <div>Carregando...</div>;
 
   return (
     <div className="app-container">
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
+
+      {/* Modal de edição */}
+      {editandoReserva && (
+        <div className="modal-overlay" onClick={() => setEditandoReserva(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Editar Reserva</h3>
+            <label>
+              Título:
+              <input
+                type="text"
+                value={editForm.titulo}
+                onChange={(e) => setEditForm({ ...editForm, titulo: e.target.value })}
+              />
+            </label>
+            <label>
+              Data:
+              <input
+                type="date"
+                value={editForm.data}
+                onChange={(e) => setEditForm({ ...editForm, data: e.target.value })}
+              />
+            </label>
+            <label>
+              Início:
+              <select
+                value={editForm.hora_inicio}
+                onChange={(e) => setEditForm({ ...editForm, hora_inicio: e.target.value })}
+              >
+                {todosInicios.map((h) => (
+                  <option key={h}>{h}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Fim:
+              <select
+                value={editForm.hora_fim}
+                onChange={(e) => setEditForm({ ...editForm, hora_fim: e.target.value })}
+              >
+                {todosFins
+                  .filter((f) => timeToMinutes(f) > timeToMinutes(editForm.hora_inicio))
+                  .map((h) => (
+                    <option key={h}>{h}</option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Descrição:
+              <textarea
+                value={editForm.descricao}
+                onChange={(e) => setEditForm({ ...editForm, descricao: e.target.value })}
+                rows="2"
+              />
+            </label>
+            <div className="modal-buttons">
+              <button onClick={handleUpdateReserva}>Salvar</button>
+              <button onClick={() => setEditandoReserva(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <header>
         <div className="header-content">
@@ -320,16 +464,14 @@ function App() {
           <h1 className="central-title">Sistema de Reserva de Sala do CBiot</h1>
         </div>
         <div style={{ position: 'absolute', right: '1rem', top: '1rem' }}>
-          {currentUser ? (
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.9rem' }}>{currentUser.nome || currentUser.email} ({currentUser.cargo})</span>
-              <button onClick={handleLogout} className="secondary">Sair</button>
-            </div>
-          ) : (
-            <div>
-              <Link to="/">Entrar</Link>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <span>
+              {currentUser.nome || currentUser.email} ({currentUser.cargo})
+            </span>
+            <button onClick={handleLogout} className="secondary">
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 
@@ -340,12 +482,18 @@ function App() {
           {salasOrdenadas.map((sala) => (
             <div
               key={sala.id}
-              className={`sala-card-mapa ${form.sala_id == sala.id ? 'selecionada' : ''} ${sala.em_manutencao ? 'manutencao' : ''}`}
+              className={`sala-card-mapa ${
+                form.sala_id == sala.id ? 'selecionada' : ''
+              } ${sala.em_manutencao ? 'manutencao' : ''}`}
               onClick={() => setForm((prev) => ({ ...prev, sala_id: sala.id }))}
             >
               <div className="sala-nome">{sala.nome}</div>
-              <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</div>
-              <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'} pessoas</div>
+              <div className="sala-localizacao">
+                📍 Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}
+              </div>
+              <div className="sala-info">
+                👥 Capacidade: {sala.capacidade || '?'} pessoas
+              </div>
               {sala.equipamentos && (
                 <div className="sala-equipamentos">
                   <strong>📋 Equipamentos:</strong>
@@ -367,11 +515,21 @@ function App() {
         <h2>🔍 Consultar disponibilidade</h2>
         <div className="modo-consulta">
           <label>
-            <input type="radio" value="sala" checked={modoDisponibilidade === 'sala'} onChange={() => setModoDisponibilidade('sala')} />
+            <input
+              type="radio"
+              value="sala"
+              checked={modoDisponibilidade === 'sala'}
+              onChange={() => setModoDisponibilidade('sala')}
+            />
             Por sala e data
           </label>
           <label>
-            <input type="radio" value="data_hora" checked={modoDisponibilidade === 'data_hora'} onChange={() => setModoDisponibilidade('data_hora')} />
+            <input
+              type="radio"
+              value="data_hora"
+              checked={modoDisponibilidade === 'data_hora'}
+              onChange={() => setModoDisponibilidade('data_hora')}
+            />
             Por data e hora (intervalo)
           </label>
         </div>
@@ -380,16 +538,25 @@ function App() {
           <div className="consulta-sala">
             <label>
               Sala:
-              <select value={form.sala_id} onChange={(e) => setForm((prev) => ({ ...prev, sala_id: e.target.value }))}>
+              <select
+                value={form.sala_id}
+                onChange={(e) => setForm((prev) => ({ ...prev, sala_id: e.target.value }))}
+              >
                 <option value="">Selecione</option>
                 {salas.map((s) => (
-                  <option key={s.id} value={s.id}>{s.nome}</option>
+                  <option key={s.id} value={s.id}>
+                    {s.nome}
+                  </option>
                 ))}
               </select>
             </label>
             <label>
               Data:
-              <input type="date" value={form.data} onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))} />
+              <input
+                type="date"
+                value={form.data}
+                onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))}
+              />
             </label>
             <button onClick={handleDisponibilidade}>Ver disponibilidade</button>
           </div>
@@ -410,7 +577,7 @@ function App() {
             <label>
               Fim:
               <select value={horaFimConsulta} onChange={(e) => setHoraFimConsulta(e.target.value)}>
-                {todosFins.filter(f => timeToMinutes(f) > timeToMinutes(horaConsulta)).map((h) => (
+                {todosFins.filter((f) => timeToMinutes(f) > timeToMinutes(horaConsulta)).map((h) => (
                   <option key={h}>{h}</option>
                 ))}
               </select>
@@ -419,10 +586,12 @@ function App() {
           </div>
         )}
 
-        {/* Resultado da consulta - modo sala/data (com clique nos horários livres) */}
+        {/* Resultado sala/data */}
         {modoDisponibilidade === 'sala' && disponibilidade && (
           <div className="resultado-disponibilidade">
-            <h3>Horários disponíveis - {disponibilidade.sala_nome} ({formatarData(disponibilidade.data)})</h3>
+            <h3>
+              Horários disponíveis - {disponibilidade.sala_nome} ({formatarData(disponibilidade.data)})
+            </h3>
             <ul className="grid-list">
               {disponibilidade.horarios.map((item) => (
                 <li
@@ -457,9 +626,12 @@ function App() {
           </div>
         )}
 
+        {/* Resultado data/hora */}
         {modoDisponibilidade === 'data_hora' && disponibilidadeDataHora && (
           <div className="resultado-disponibilidade">
-            <h3>Salas disponíveis em {formatarData(dataConsulta)} das {horaConsulta} às {horaFimConsulta}</h3>
+            <h3>
+              Salas disponíveis em {formatarData(dataConsulta)} das {horaConsulta} às {horaFimConsulta}
+            </h3>
             {disponibilidadeDataHora.length === 0 ? (
               <p>Nenhuma sala disponível nesse horário.</p>
             ) : (
@@ -485,7 +657,9 @@ function App() {
                     }}
                   >
                     <div className="sala-nome">{sala.nome}</div>
-                    <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || '?'}</div>
+                    <div className="sala-localizacao">
+                      📍 Bloco {sala.bloco || '?'} | {sala.andar || '?'}
+                    </div>
                     <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'}</div>
                     {sala.equipamentos && (
                       <div className="sala-equipamentos">📋 {sala.equipamentos.substring(0, 50)}...</div>
@@ -499,7 +673,7 @@ function App() {
         )}
       </section>
 
-      {/* FORMULÁRIO DE RESERVA (com id para rolagem) */}
+      {/* FORMULÁRIO DE RESERVA */}
       <section className="box" id="form-reserva">
         <h2>📝 Fazer reserva</h2>
         <form onSubmit={handleSubmitReserva} className="form-grid">
@@ -508,45 +682,81 @@ function App() {
             <select name="sala_id" value={form.sala_id} onChange={handleChange} required>
               <option value="">Selecione uma sala</option>
               {salasOrdenadas.map((sala) => (
-                <option key={sala.id} value={sala.id}>{sala.nome}</option>
+                <option key={sala.id} value={sala.id}>
+                  {sala.nome}
+                </option>
               ))}
             </select>
           </label>
 
           <label>
             Data *
-            <input type="date" name="data" value={form.data} onChange={handleChange} required={!recorrente} disabled={recorrente} />
+            <input
+              type="date"
+              name="data"
+              value={form.data}
+              onChange={handleChange}
+              required={!recorrente}
+              disabled={recorrente}
+            />
           </label>
 
           <label>
             Início *
-            <select name="hora_inicio" value={form.hora_inicio} onChange={handleChange} required disabled={selectsDisabled}>
+            <select
+              name="hora_inicio"
+              value={form.hora_inicio}
+              onChange={handleChange}
+              required
+              disabled={selectsDisabled}
+            >
               {horasInicioDisponiveis.length > 0 ? (
                 horasInicioDisponiveis.map((h) => (
-                  <option key={h} value={h}>{h}</option>
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
                 ))
               ) : (
-                <option value="" disabled>Nenhum horário disponível</option>
+                <option value="" disabled>
+                  Nenhum horário disponível
+                </option>
               )}
             </select>
           </label>
 
           <label>
             Fim *
-            <select name="hora_fim" value={form.hora_fim} onChange={handleChange} required disabled={selectsDisabled}>
+            <select
+              name="hora_fim"
+              value={form.hora_fim}
+              onChange={handleChange}
+              required
+              disabled={selectsDisabled}
+            >
               {horasFimDisponiveis.length > 0 ? (
                 horasFimDisponiveis.map((h) => (
-                  <option key={h} value={h}>{h}</option>
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
                 ))
               ) : (
-                <option value="" disabled>Nenhum horário disponível</option>
+                <option value="" disabled>
+                  Nenhum horário disponível
+                </option>
               )}
             </select>
           </label>
 
           <label>
             Título *
-            <input type="text" name="titulo" value={form.titulo} onChange={handleChange} required disabled={camposTextDisabled} />
+            <input
+              type="text"
+              name="titulo"
+              value={form.titulo}
+              onChange={handleChange}
+              required
+              disabled={camposTextDisabled}
+            />
           </label>
 
           <label>
@@ -557,7 +767,7 @@ function App() {
               value={form.responsavel}
               onChange={handleChange}
               required
-              disabled={true} // sempre desabilitado, preenchido pelo usuário logado
+              disabled={true}
             />
           </label>
 
@@ -569,18 +779,28 @@ function App() {
               value={form.email}
               onChange={handleChange}
               required
-              disabled={true} // sempre desabilitado, preenchido pelo usuário logado
+              disabled={true}
             />
           </label>
 
           <label>
             Descrição
-            <textarea name="descricao" value={form.descricao} onChange={handleChange} rows="3" disabled={camposTextDisabled} />
+            <textarea
+              name="descricao"
+              value={form.descricao}
+              onChange={handleChange}
+              rows="3"
+              disabled={camposTextDisabled}
+            />
           </label>
 
           <div className="full-width">
             <label style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={recorrente}
+                onChange={(e) => setRecorrente(e.target.checked)}
+              />
               Reserva recorrente (mesmo horário todas as semanas)
             </label>
           </div>
@@ -624,34 +844,68 @@ function App() {
           )}
 
           <div className="actions">
-            <button type="submit" disabled={!dataSelecionada && !recorrente || (dataSelecionada && horasInicioDisponiveis.length === 0)}>
+            <button
+              type="submit"
+              disabled={
+                (!dataSelecionada && !recorrente) ||
+                (dataSelecionada && horasInicioDisponiveis.length === 0)
+              }
+            >
               Reservar
             </button>
           </div>
         </form>
       </section>
 
-      {/* RESERVAS CONFIRMADAS */}
+      {/* MINHAS RESERVAS (com botões editar/cancelar) */}
       <section className="box">
-        <h2>📋 Reservas Confirmadas</h2>
+        <h2>📋 Minhas Reservas</h2>
+        {reservas.length === 0 && <p>Você não possui reservas.</p>}
         <div className="reservas-grid">
           {reservas.map((reserva) => {
             const sala = salas.find((s) => s.id === reserva.sala_id);
             return (
               <div className="reserva-card" key={reserva.id}>
                 <h3>{reserva.sala_nome}</h3>
-                <p><strong>Título:</strong> {reserva.titulo}</p>
+                <p>
+                  <strong>Título:</strong> {reserva.titulo}
+                </p>
                 {reserva.grupo_id && (
-                  <p><strong>Grupo:</strong> {reserva.grupo_id.substring(0, 8)}...</p>
+                  <p>
+                    <strong>Grupo:</strong> {reserva.grupo_id.substring(0, 8)}...
+                  </p>
                 )}
-                <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
-                <p><strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}</p>
+                <p>
+                  <strong>Data:</strong> {formatarData(reserva.data)}
+                </p>
+                <p>
+                  <strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}
+                </p>
                 {sala && (
-                  <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</p>
+                  <p>
+                    <strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}
+                  </p>
                 )}
-                <p><strong>Responsável:</strong> {reserva.responsavel}</p>
-                <p><strong>E-mail:</strong> {reserva.email}</p>
-                {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
+                <p>
+                  <strong>Responsável:</strong> {reserva.responsavel}
+                </p>
+                <p>
+                  <strong>E-mail:</strong> {reserva.email}
+                </p>
+                {reserva.descricao && <p>{reserva.descricao}</p>}
+                <div className="reserva-actions">
+                  {reserva.grupo_id && (
+                    <button className="cancel-group-btn" onClick={() => handleCancelarGrupo(reserva.grupo_id)}>
+                      Cancelar série
+                    </button>
+                  )}
+                  <button className="edit-btn" onClick={() => handleEditarReserva(reserva)}>
+                    Editar
+                  </button>
+                  <button className="cancel-btn" onClick={() => handleCancelarReserva(reserva.id, reserva.titulo)}>
+                    Cancelar
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -659,8 +913,10 @@ function App() {
       </section>
 
       <footer className="admin-footer">
-        {(currentUser && (currentUser.cargo === 'admin' || currentUser.cargo === 'gerente')) ? (
-          <Link to="/admin" className="admin-link">Área Administrativa</Link>
+        {currentUser && (currentUser.cargo === 'admin' || currentUser.cargo === 'gerente') ? (
+          <Link to="/admin" className="admin-link">
+            Área Administrativa
+          </Link>
         ) : (
           <span style={{ color: '#999' }}>Área Administrativa</span>
         )}

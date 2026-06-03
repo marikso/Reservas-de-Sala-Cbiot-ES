@@ -16,7 +16,6 @@ CORS(app, origins=['http://localhost:5173', 'http://localhost:5174'], supports_c
 Session(app)
 db.init_app(app)
 
-# Garantir que CORS funcione mesmo em erros e preflight
 ALLOWED_ORIGINS = {'http://localhost:5173', 'http://localhost:5174'}
 
 @app.after_request
@@ -255,7 +254,6 @@ def create_reservas_recorrentes():
         if current_date.weekday() in dias_semana:
             if current_date.weekday() in (5,6):
                 continue
-            # Verificar conflito normal
             conflito = Reserva.query.filter(
                 and_(
                     Reserva.sala_id == dados['sala_id'],
@@ -264,7 +262,6 @@ def create_reservas_recorrentes():
                     Reserva.hora_fim > hora_ini
                 )
             ).first()
-            # Verificar manutenção
             manut = Manutencao.query.filter(
                 Manutencao.sala_id == dados['sala_id'],
                 Manutencao.data_inicio <= current_date,
@@ -305,6 +302,7 @@ def get_reservas_by_grupo(grupo_id):
         return jsonify({'erro': 'Grupo não encontrado'}), 404
     return jsonify([formatReserva(r) for r in reservas])
 
+# Admin/gerente cancelar grupo
 @app.route('/api/reservas/grupo/<grupo_id>', methods=['DELETE'])
 @role_required(['admin', 'gerente'])
 def delete_reservas_by_grupo(grupo_id):
@@ -315,6 +313,100 @@ def delete_reservas_by_grupo(grupo_id):
         db.session.delete(r)
     db.session.commit()
     return jsonify({'mensagem': f'{len(reservas)} reservas canceladas do grupo'})
+
+# Usuário comum cancelar seu próprio grupo recorrente
+@app.route('/api/reservas/grupo/<grupo_id>/user', methods=['DELETE'])
+def delete_user_grupo(grupo_id):
+    user = session.get('user')
+    if not user:
+        return jsonify({'erro': 'Não autenticado'}), 401
+    reservas = Reserva.query.filter_by(grupo_id=grupo_id).all()
+    if not reservas:
+        return jsonify({'erro': 'Grupo não encontrado'}), 404
+    for r in reservas:
+        if r.email != user.get('email'):
+            return jsonify({'erro': 'Você não pode cancelar este grupo'}), 403
+    for r in reservas:
+        db.session.delete(r)
+    db.session.commit()
+    return jsonify({'mensagem': f'{len(reservas)} reservas canceladas'})
+
+@app.route('/api/reservas/<int:reserva_id>', methods=['PUT'])
+def update_reserva(reserva_id):
+    reserva = Reserva.query.get_or_404(reserva_id)
+    user = session.get('user')
+    if not user or (user.get('cargo') not in ['admin', 'gerente'] and reserva.email != user.get('email')):
+        return jsonify({'erro': 'Acesso não autorizado'}), 401
+
+    dados = request.get_json()
+    titulo = dados.get('titulo')
+    descricao = dados.get('descricao')
+    data_str = dados.get('data')
+    hora_inicio_str = dados.get('hora_inicio')
+    hora_fim_str = dados.get('hora_fim')
+
+    if titulo is not None:
+        reserva.titulo = titulo
+    if descricao is not None:
+        reserva.descricao = descricao
+
+    if data_str and hora_inicio_str and hora_fim_str:
+        try:
+            nova_data = parse_date(data_str)
+            nova_hora_ini = parse_time(hora_inicio_str)
+            nova_hora_fim = parse_time(hora_fim_str)
+        except ValueError:
+            return jsonify({'erro': 'Formato inválido de data ou hora'}), 400
+
+        erro = validate_business_hours(nova_data, nova_hora_ini, nova_hora_fim)
+        if erro:
+            return jsonify({'erro': erro}), 400
+
+        conflito = Reserva.query.filter(
+            and_(
+                Reserva.sala_id == reserva.sala_id,
+                Reserva.data == nova_data,
+                Reserva.hora_inicio < nova_hora_fim,
+                Reserva.hora_fim > nova_hora_ini,
+                Reserva.id != reserva_id
+            )
+        ).first()
+        if conflito:
+            return jsonify({'erro': 'Conflito de horário: sala já reservada neste período'}), 400
+
+        manutencoes = Manutencao.query.filter(
+            Manutencao.sala_id == reserva.sala_id,
+            Manutencao.data_inicio <= nova_data,
+            Manutencao.data_fim >= nova_data
+        ).all()
+        for m in manutencoes:
+            if nova_data == m.data_inicio:
+                inicio_manut = m.hora_inicio
+            else:
+                inicio_manut = time(8,0)
+            if nova_data == m.data_fim:
+                fim_manut = m.hora_fim
+            else:
+                fim_manut = time(19,0)
+            if nova_hora_ini < fim_manut and nova_hora_fim > inicio_manut:
+                return jsonify({'erro': f'Sala em manutenção no período: {m.motivo}'}), 400
+
+        reserva.data = nova_data
+        reserva.hora_inicio = nova_hora_ini
+        reserva.hora_fim = nova_hora_fim
+
+    db.session.commit()
+    return jsonify(formatReserva(reserva)), 200
+
+@app.route('/api/reservas/<int:reserva_id>', methods=['DELETE'])
+def delete_reserva(reserva_id):
+    reserva = Reserva.query.get_or_404(reserva_id)
+    user = session.get('user')
+    if user and (user.get('cargo') in ['admin', 'gerente'] or reserva.email == user.get('email')):
+        db.session.delete(reserva)
+        db.session.commit()
+        return jsonify({'mensagem': 'Reserva cancelada'})
+    return jsonify({'erro': 'Acesso não autorizado'}), 401
 
 @app.route('/api/disponibilidade', methods=['GET'])
 def disponibilidade():
@@ -346,7 +438,6 @@ def disponibilidade():
         ocupado = False
         titulo = ''
 
-        # Verificar manutenção contínua
         for m in manutencoes:
             if data_res == m.data_inicio:
                 inicio_manut = m.hora_inicio
@@ -472,7 +563,6 @@ def auth_register():
     user.set_password(senha)
     db.session.add(user)
     db.session.commit()
-    # NÃO cria sessão
     return jsonify({'mensagem': 'Cadastro realizado. Aguardando aprovação do administrador.'}), 201
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -513,8 +603,7 @@ def aprovar_usuario(user_id):
     db.session.commit()
     return jsonify(user.to_dict())
 
-# ---------- ROTAS ADMINISTRATIVAS (SALAS, MANUTENÇÕES, ETC) ----------
-# Todas as rotas que antes eram @admin_required agora usam @role_required(['admin','gerente'])
+# ---------- ROTAS ADMINISTRATIVAS (SALAS, MANUTENÇÕES) ----------
 @app.route('/api/salas', methods=['POST'])
 @role_required(['admin', 'gerente'])
 def create_sala():
@@ -539,7 +628,6 @@ def create_sala():
 def update_sala(sala_id):
     sala = Sala.query.get_or_404(sala_id)
     dados = request.get_json()
-
     if 'nome' in dados:
         outro = Sala.query.filter(Sala.nome == dados['nome'], Sala.id != sala_id).first()
         if outro:
@@ -549,7 +637,6 @@ def update_sala(sala_id):
     sala.andar = dados.get('andar', sala.andar)
     sala.capacidade = dados.get('capacidade', sala.capacidade)
     sala.equipamentos = dados.get('equipamentos', sala.equipamentos)
-
     db.session.commit()
     return jsonify(sala.to_dict()), 200
 
@@ -560,14 +647,6 @@ def delete_sala(sala_id):
     db.session.delete(sala)
     db.session.commit()
     return jsonify({'mensagem': 'Sala deletada'})
-
-@app.route('/api/reservas/<int:reserva_id>', methods=['DELETE'])
-@role_required(['admin', 'gerente'])
-def delete_reserva(reserva_id):
-    reserva = Reserva.query.get_or_404(reserva_id)
-    db.session.delete(reserva)
-    db.session.commit()
-    return jsonify({'mensagem': 'Reserva cancelada'})
 
 @app.route('/api/manutencoes', methods=['GET'])
 @role_required(['admin', 'gerente'])
@@ -591,14 +670,12 @@ def criar_manutencao():
         motivo = dados['motivo']
     except ValueError:
         return jsonify({'erro': 'Formato inválido'}), 400
-
     if hora_ini.minute not in (0,30) or hora_fim.minute not in (0,30):
         return jsonify({'erro': 'Horários devem ser em hora cheia ou meia hora'}), 400
     if hora_ini >= hora_fim:
         return jsonify({'erro': 'Início deve ser anterior ao fim'}), 400
     if hora_ini < time(8,0) or hora_fim > time(19,0):
         return jsonify({'erro': 'Fora do horário comercial (08:00-19:00)'}), 400
-
     conflito = Manutencao.query.filter(
         Manutencao.sala_id == sala_id,
         Manutencao.data_inicio <= data_fim,
@@ -606,7 +683,6 @@ def criar_manutencao():
     ).first()
     if conflito:
         return jsonify({'erro': 'Já existe um bloqueio de manutenção neste período'}), 400
-
     nova = Manutencao(
         sala_id=sala_id,
         data_inicio=data_inicio,

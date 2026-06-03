@@ -42,3 +42,16 @@ export function whoami() { return request('/api/auth/whoami'); }
 export function getUsers() { return request('/api/users'); }
 export function updateUser(userId, data) { return request(`/api/users/${userId}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export function approveUser(userId, cargo) { return request(`/api/users/${userId}/approve`, { method: 'POST', body: JSON.stringify({ cargo }) }); }
+
+
+// Cancelar grupo recorrente pelo usuário (dono)
+export function deleteUserGrupo(grupoId) {
+  return request(`/api/reservas/grupo/${grupoId}/user`, { method: 'DELETE' });
+}
+
+export function updateReserva(reservaId, data) {
+  return request(`/api/reservas/${reservaId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
