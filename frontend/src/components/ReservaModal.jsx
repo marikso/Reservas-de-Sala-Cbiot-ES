@@ -28,7 +28,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
   const [form, setForm] = useState({
     sala_id: '',
     titulo: '',
-    descricao: '',      // ← descrição separada
+    descricao: '',
     data: '',
     hora_inicio: '',
     hora_fim: '',
@@ -37,7 +37,8 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dataFim, setDataFim] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState(''); // 'error', 'success', 'warning'
   const [showConflictWarning, setShowConflictWarning] = useState(false);
   const [conflictData, setConflictData] = useState({ conflitos: [], grupo_id: null, reservasCriadas: [] });
   const [disponibilidade, setDisponibilidade] = useState(null);
@@ -59,7 +60,8 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
 
   useEffect(() => {
     if (isOpen) {
-      setErrorMessage('');
+      setMessage('');
+      setMessageType('');
       setShowConflictWarning(false);
       setConflictData({ conflitos: [], grupo_id: null, reservasCriadas: [] });
     }
@@ -156,29 +158,46 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMessage('');
+    setMessage('');
+    setMessageType('');
     setShowConflictWarning(false);
     setLoading(true);
 
-    if (!form.sala_id) { setErrorMessage('Selecione uma sala.'); setLoading(false); return; }
-    if (!form.titulo.trim()) { setErrorMessage('Preencha o título.'); setLoading(false); return; }
+    if (!form.sala_id) {
+      setMessage('Selecione uma sala.');
+      setMessageType('error');
+      setLoading(false);
+      return;
+    }
+    if (!form.titulo.trim()) {
+      setMessage('Preencha o título.');
+      setMessageType('error');
+      setLoading(false);
+      return;
+    }
     if (!recorrente && (!form.data || !form.hora_inicio || !form.hora_fim)) {
-          setErrorMessage('Selecione data, início e fim.'); setLoading(false); return;
+      setMessage('Selecione data, início e fim.');
+      setMessageType('error');
+      setLoading(false);
+      return;
+    }
+    if (recorrente && (!form.data || !dataFim || diasSelecionados.length === 0)) {
+      setMessage('Preencha data de início, data final e pelo menos um dia da semana.');
+      setMessageType('error');
+      setLoading(false);
+      return;
+    }
+    if (!recorrente && form.data) {
+      const [ano, mes, dia] = form.data.split('-').map(Number);
+      const dataUTC = new Date(Date.UTC(ano, mes - 1, dia));
+      const diaSemana = dataUTC.getUTCDay();
+      if (diaSemana === 0 || diaSemana === 6) {
+        setMessage('Reservas não são permitidas aos sábados e domingos.');
+        setMessageType('error');
+        setLoading(false);
+        return;
       }
-      if (recorrente && (!form.data || !dataFim || diasSelecionados.length === 0)) {
-          setErrorMessage('Preencha data de início, data final e pelo menos um dia da semana.'); setLoading(false); return;
-      }
-      if (!recorrente && form.data) {
-          // Parse da data no formato YYYY-MM-DD sem fuso horário
-          const [ano, mes, dia] = form.data.split('-').map(Number);
-          const dataUTC = new Date(Date.UTC(ano, mes - 1, dia));
-          const diaSemana = dataUTC.getUTCDay(); // 0 = domingo, 6 = sábado
-          if (diaSemana === 0 || diaSemana === 6) {
-              setErrorMessage('Reservas não são permitidas aos sábados e domingos.');
-              setLoading(false);
-              return;
-          }
-      }
+    }
 
     let response;
     if (recorrente) {
@@ -209,7 +228,8 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     }
 
     if (response.erro) {
-      setErrorMessage(response.erro);
+      setMessage(response.erro);
+      setMessageType('error');
       setLoading(false);
     } else if (recorrente && response.conflitos && response.conflitos.length > 0) {
       setConflictData({
@@ -220,7 +240,10 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
       setShowConflictWarning(true);
       setLoading(false);
     } else {
-      setErrorMessage(response.mensagem || 'Reserva criada com sucesso!');
+      const msg = response.mensagem || 'Reserva criada com sucesso!';
+      setMessage(msg);
+      // Define a cor: amarelo para usuários externos (pendente), verde para internos (aprovada)
+      setMessageType(isExterno ? 'warning' : 'success');
       setLoading(false);
       setTimeout(() => {
         onClose();
@@ -230,7 +253,8 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
   };
 
   const handleProceedWithConflicts = () => {
-    setErrorMessage(`${conflictData.reservasCriadas.length} reservas criadas. Conflitos ignorados.`);
+    setMessage(`${conflictData.reservasCriadas.length} reservas criadas. Conflitos ignorados.`);
+    setMessageType(isExterno ? 'warning' : 'success');
     setShowConflictWarning(false);
     setTimeout(() => {
       onClose();
@@ -246,9 +270,10 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
       });
     }
     setShowConflictWarning(false);
-    setErrorMessage('Operação cancelada. Nenhuma reserva foi criada.');
+    setMessage('Operação cancelada. Nenhuma reserva foi criada.');
+    setMessageType('error');
     setTimeout(() => {
-      setErrorMessage('');
+      setMessage('');
       onClose();
     }, 2000);
   };
@@ -296,9 +321,9 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
           <p>A solicitação será analisada pelo gerente do CBiot.</p>
         </div>
 
-        {errorMessage && (
-          <div className={`reserva-message ${errorMessage.includes('sucesso') || errorMessage.includes('criada') ? 'success' : 'error'}`}>
-            {errorMessage}
+        {message && (
+          <div className={`reserva-message ${messageType}`}>
+            {message}
           </div>
         )}
 
@@ -383,7 +408,6 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
                 </div>
               </div>
 
-              {/* Campo TÍTULO (novo) */}
               <div className="reserva-field">
                 <label>TÍTULO</label>
                 <input
@@ -395,7 +419,6 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
                 />
               </div>
 
-              {/* Campo DESCRIÇÃO (antiga FINALIDADE) */}
               <div className="reserva-field">
                 <label>DESCRIÇÃO</label>
                 <textarea

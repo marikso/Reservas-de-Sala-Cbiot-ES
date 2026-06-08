@@ -549,7 +549,6 @@ function App() {
       const hoje = new Date().toISOString().slice(0, 10);
       const isExterno = currentUser.cargo === 'usuario_externo';
 
-      // Filtros
       const reservasAtivas = reservas.filter(r => {
         const dataReserva = r.data;
         const isFutura = dataReserva >= hoje;
@@ -566,11 +565,10 @@ function App() {
         return isPassada || statusHistorico;
       });
 
-      const renderReservaCard = (reserva, isHistorico = false, isPendente = false) => {
+      const renderReservaCard = (reserva, isHistorico = false) => {
         const sala = salas.find((s) => s.id === reserva.sala_id);
         const statusClass = reserva.status === 'aprovada' ? 'status-confirmada' :
-          reserva.status === 'pendente' ? 'status-pendente' :
-            'status-cancelada';
+          reserva.status === 'pendente' ? 'status-pendente' : 'status-cancelada';
         const statusTexto = reserva.status === 'aprovada' ? 'CONFIRMADA' :
           reserva.status === 'pendente' ? 'PENDENTE' :
             reserva.status === 'rejeitada' ? 'REJEITADA' : 'CANCELADA';
@@ -653,19 +651,13 @@ function App() {
 
           <div className="reservas-lista">
             {tabReservas === 'ativas' && (
-              reservasAtivas.length === 0 ?
-                <p className="sem-reservas">Nenhuma reserva ativa.</p> :
-                reservasAtivas.map(r => renderReservaCard(r, false, false))
+              reservasAtivas.length === 0 ? <p className="sem-reservas">Nenhuma reserva ativa.</p> : reservasAtivas.map(r => renderReservaCard(r, false))
             )}
             {tabReservas === 'pendentes' && isExterno && (
-              reservasPendentes.length === 0 ?
-                <p className="sem-reservas">Nenhuma solicitação pendente.</p> :
-                reservasPendentes.map(r => renderReservaCard(r, false, true))
+              reservasPendentes.length === 0 ? <p className="sem-reservas">Nenhuma solicitação pendente.</p> : reservasPendentes.map(r => renderReservaCard(r, false))
             )}
             {tabReservas === 'historico' && (
-              reservasHistorico.length === 0 ?
-                <p className="sem-reservas">Nenhuma solicitação no histórico.</p> :
-                reservasHistorico.map(r => renderReservaCard(r, true, false))
+              reservasHistorico.length === 0 ? <p className="sem-reservas">Nenhuma solicitação no histórico.</p> : reservasHistorico.map(r => renderReservaCard(r, true))
             )}
           </div>
         </section>
@@ -737,9 +729,7 @@ function App() {
                 <label>SALA</label>
                 <select value={form.sala_id} onChange={(e) => setForm((prev) => ({ ...prev, sala_id: e.target.value }))}>
                   <option value="">Selecione uma sala</option>
-                  {salas.map((s) => (
-                    <option key={s.id} value={s.id}>{s.nome}</option>
-                  ))}
+                  {salas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
                 </select>
               </div>
               <div className="consulta-field">
@@ -781,69 +771,42 @@ function App() {
                       Capacidade: {salaSelecionada?.capacidade || '?'} pessoas
                       {salaSelecionada?.andar && ` · Andar: ${salaSelecionada.andar}`}
                     </p>
-                    {salaSelecionada?.equipamentos && (
-                      <p className="sala-info-detalhes">
-                        Equipamentos: {salaSelecionada.equipamentos}
-                      </p>
-                    )}
+                    {salaSelecionada?.equipamentos && <p className="sala-info-detalhes">Equipamentos: {salaSelecionada.equipamentos}</p>}
                     <p className="sala-mensagem">🔑 Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</p>
                   </div>
                 );
               })()}
               <p className="horario-titulo">Horários · 08:00 às 19:00 · blocos de 30 min</p>
               <div className="horarios-grade">
-                {disponibilidade.horarios.map((item, idx) => {
+                {disponibilidade.horarios.map((item) => {
                   let statusClass = '';
                   let statusText = '';
                   let isSelected = false;
-
                   if (item.ocupado) {
-                    if (item.titulo?.startsWith('Manutenção')) {
-                      statusClass = 'status-manutencao';
-                      statusText = 'MANUTENÇÃO';
-                    } else {
-                      statusClass = 'status-reservado';
-                      statusText = 'RESERVADO';
-                    }
+                    statusClass = item.titulo?.startsWith('Manutenção') ? 'status-manutencao' : 'status-reservado';
+                    statusText = item.titulo?.startsWith('Manutenção') ? 'MANUTENÇÃO' : 'RESERVADO';
                   } else {
                     statusClass = 'status-disponivel';
                     statusText = 'DISPONÍVEL';
                     if (selectedStart && selectedEnd) {
-                      const startTime = selectedStart.hora_inicio;
-                      const endTime = selectedEnd.hora_inicio;
-                      if (item.hora_inicio >= startTime && item.hora_inicio <= endTime) {
-                        isSelected = true;
-                      }
-                    } else if (selectedStart && !selectedEnd && item.hora_inicio === selectedStart.hora_inicio) {
-                      isSelected = true;
-                    }
+                      if (item.hora_inicio >= selectedStart.hora_inicio && item.hora_inicio <= selectedEnd.hora_inicio) isSelected = true;
+                    } else if (selectedStart && !selectedEnd && item.hora_inicio === selectedStart.hora_inicio) isSelected = true;
                   }
-
                   if (isSelected && !item.ocupado) {
                     statusClass = 'status-selecionado';
                     statusText = 'SELECIONADO';
                   }
-
                   return (
                     <div
                       key={`${item.hora_inicio}-${item.hora_fim}`}
                       className={`horario-card ${statusClass}`}
                       onClick={() => {
                         if (item.ocupado) return;
-                        if (!selectedStart) {
-                          setSelectedStart(item);
-                          setSelectedEnd(null);
-                        } else if (!selectedEnd) {
-                          if (item.hora_inicio > selectedStart.hora_inicio) {
-                            setSelectedEnd(item);
-                          } else {
-                            setSelectedStart(item);
-                            setSelectedEnd(null);
-                          }
-                        } else {
-                          setSelectedStart(item);
-                          setSelectedEnd(null);
-                        }
+                        if (!selectedStart) setSelectedStart(item);
+                        else if (!selectedEnd) {
+                          if (item.hora_inicio > selectedStart.hora_inicio) setSelectedEnd(item);
+                          else setSelectedStart(item);
+                        } else setSelectedStart(item);
                       }}
                     >
                       <span className="horario-inicio">{item.hora_inicio}</span>
@@ -895,9 +858,7 @@ function App() {
           {modoDisponibilidade === 'data_hora' && disponibilidadeDataHora && (
             <div className="resultado-disponibilidade">
               <h3>Salas disponíveis em {formatarData(dataConsulta)} das {horaConsulta} às {horaFimConsulta}</h3>
-              {disponibilidadeDataHora.length === 0 ? (
-                <p className="sem-resultados">Nenhuma sala disponível nesse horário.</p>
-              ) : (
+              {disponibilidadeDataHora.length === 0 ? <p className="sem-resultados">Nenhuma sala disponível nesse horário.</p> : (
                 <div className="salas-disponiveis-grid">
                   {disponibilidadeDataHora.map((sala) => (
                     <div key={sala.id} className="sala-card-horario" onClick={() => {
@@ -981,41 +942,30 @@ function App() {
           <h2>👥 Gerenciar Usuários</h2>
           <div className="users-table-container">
             <table className="users-table">
-              <thead>
-                <tr><th>Nome</th><th>E-mail</th><th>Cargo</th><th>Status</th><th>Ações</th></tr>
-              </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id}>
-                      <td>{u.nome}</td>
-                      <td>{u.email}</td>
-                      <td>
-                        <select value={u.cargo} onChange={(e) => handleUpdateUser(u.id, { cargo: e.target.value })}>
-                          <option value="admin">Admin</option>
-                          <option value="gerente">Gerente</option>
-                          <option value="usuario_comum">Usuário comum</option>
-                          <option value="usuario_externo">Usuário externo</option>
-                        </select>
-                      </td>
-                      <td>{u.status}</td>
-                      <td>
-                        {u.status === 'pendente' && (
-                          <>
-                            <button className="small-btn" onClick={() => handleApproveUser(u.id, u.cargo)}>Aprovar</button>
-                            <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Rejeitar</button>
-                          </>
-                        )}
-                        {u.status === 'aprovado' && (
-                          <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Bloquear</button>
-                        )}
-                        {u.status === 'rejeitado' && (
-                          <button className="small-btn" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>Reativar</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <thead><tr><th>Nome</th><th>E-mail</th><th>Cargo</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.nome}</td><td>{u.email}</td>
+                    <td><select value={u.cargo} onChange={(e) => handleUpdateUser(u.id, { cargo: e.target.value })}>
+                      <option value="admin">Admin</option><option value="gerente">Gerente</option>
+                      <option value="usuario_comum">Usuário comum</option><option value="usuario_externo">Usuário externo</option>
+                    </select></td>
+                    <td>{u.status}</td>
+                    <td>
+                      {u.status === 'pendente' && (
+                        <>
+                          <button className="small-btn" onClick={() => handleApproveUser(u.id, u.cargo)}>Aprovar</button>
+                          <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Rejeitar</button>
+                        </>
+                      )}
+                      {u.status === 'aprovado' && <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Bloquear</button>}
+                      {u.status === 'rejeitado' && <button className="small-btn" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>Reativar</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             {users.length === 0 && <p>Nenhum usuário cadastrado.</p>}
           </div>
         </section>
@@ -1025,67 +975,74 @@ function App() {
     // SOLICITAÇÕES DE RESERVA (admin/gerente)
     if (activeView === 'solicitacoes-reserva' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       return (
-        <section className="box">
-          <h2>📋 Solicitações de Reserva</h2>
-          <div className="modo-consulta" style={{ marginBottom: '1rem' }}>
-            <button
-              className={`small-btn ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`}
-              onClick={() => setTabSolicitacoes('pendentes')}
-            >Pendentes</button>
-            <button
-              className={`small-btn ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`}
-              onClick={() => setTabSolicitacoes('rejeitadas')}
-            >Rejeitadas</button>
+        <section className="box minhas-reservas-box">
+          <div className="disponibilidade-header">
+            <div>
+              <h2>Solicitações de Reserva</h2>
+              <p className="disponibilidade-sub">Aprove ou rejeite as solicitações pendentes.</p>
+            </div>
           </div>
-
-          {tabSolicitacoes === 'pendentes' && (
-            <>
-              {solicitacoes.length === 0 && <p>Nenhuma solicitação pendente.</p>}
-              <div className="reservas-grid">
-                {solicitacoes.map((s) => {
-                  const sala = salas.find(sl => sl.id === s.sala_id);
-                  return (
-                    <div className="reserva-card admin-card" key={s.id}>
-                      <h3>{s.sala_nome} · {s.titulo}</h3>
-                      <p><strong>Solicitante:</strong> {s.responsavel}</p>
-                      <p><strong>E-mail:</strong> {s.email}</p>
-                      <p><strong>Data:</strong> {formatarData(s.data)}</p>
-                      <p><strong>Horário:</strong> {s.hora_inicio} – {s.hora_fim}</p>
-                      {sala && <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || '?'}</p>}
-                      {s.descricao && <p><strong>Descrição:</strong> {s.descricao}</p>}
-                      <div className="reserva-actions">
-                        <button className="edit-btn" onClick={() => handleAprovarSolicitacao(s.id)}>Aprovar</button>
-                        <button className="cancel-btn" onClick={() => handleRejeitarSolicitacao(s.id)}>Rejeitar</button>
-                      </div>
+          <div className="modo-consulta" style={{ marginBottom: '1.5rem' }}>
+            <label className={`modo-radio ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`}>
+              <input type="radio" name="tabSolicitacoes" value="pendentes" checked={tabSolicitacoes === 'pendentes'} onChange={() => setTabSolicitacoes('pendentes')} />
+              <span>Pendentes ({solicitacoes.length})</span>
+            </label>
+            <label className={`modo-radio ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`}>
+              <input type="radio" name="tabSolicitacoes" value="rejeitadas" checked={tabSolicitacoes === 'rejeitadas'} onChange={() => setTabSolicitacoes('rejeitadas')} />
+              <span>Rejeitadas ({rejeitadas.length})</span>
+            </label>
+          </div>
+          <div className="reservas-lista">
+            {tabSolicitacoes === 'pendentes' && (
+              solicitacoes.length === 0 ? <p className="sem-reservas">Nenhuma solicitação pendente.</p> : solicitacoes.map((s) => {
+                const sala = salas.find(sl => sl.id === s.sala_id);
+                const [ano, mes, dia] = s.data.split('-');
+                const dataObj = new Date(Date.UTC(ano, mes - 1, dia));
+                const diasSemana = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+                const diaSemana = diasSemana[dataObj.getUTCDay()];
+                const dataFormatada = `${dia}/${mes}/${ano}`;
+                return (
+                  <div className="reserva-card-minha" key={s.id}>
+                    <div className="reserva-card-header"><h3>{s.sala_nome}</h3><span className="reserva-status status-pendente">PENDENTE</span></div>
+                    <div className="reserva-card-info">
+                      <p><strong>{dataFormatada}</strong> · {diaSemana} · {s.hora_inicio} às {s.hora_fim}</p>
+                      {sala && <p className="sala-localizacao-card">Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}</p>}
+                      <p className="reserva-titulo">{s.titulo}</p>
+                      <p className="reserva-pendente-msg">Solicitada por {s.responsavel} ({s.email}) · em {formatarData(s.data_criacao || s.data)}</p>
                     </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {tabSolicitacoes === 'rejeitadas' && (
-            <>
-              {rejeitadas.length === 0 && <p>Nenhuma reserva rejeitada.</p>}
-              <div className="reservas-grid">
-                {rejeitadas.map((s) => {
-                  const sala = salas.find(sl => sl.id === s.sala_id);
-                  return (
-                    <div className="reserva-card admin-card" key={s.id}>
-                      <h3>{s.sala_nome} · {s.titulo}</h3>
-                      <p><strong>Solicitante:</strong> {s.responsavel}</p>
-                      <p><strong>E-mail:</strong> {s.email}</p>
-                      <p><strong>Data:</strong> {formatarData(s.data)}</p>
-                      <p><strong>Horário:</strong> {s.hora_inicio} – {s.hora_fim}</p>
-                      {sala && <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || '?'}</p>}
-                      {s.descricao && <p><strong>Descrição:</strong> {s.descricao}</p>}
-                      <p><strong>Rejeitado por:</strong> {s.aprovador} em {new Date(s.data_aprovacao).toLocaleString()}</p>
+                    <div className="reserva-actions-minhas">
+                      <button className="edit-reserva-btn" onClick={() => handleAprovarSolicitacao(s.id)}>Aprovar</button>
+                      <button className="cancel-reserva-btn" onClick={() => handleRejeitarSolicitacao(s.id)}>Rejeitar</button>
                     </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+                  </div>
+                );
+              })
+            )}
+            {tabSolicitacoes === 'rejeitadas' && (
+              rejeitadas.length === 0 ? <p className="sem-reservas">Nenhuma reserva rejeitada.</p> : rejeitadas.map((s) => {
+                const sala = salas.find(sl => sl.id === s.sala_id);
+                const [ano, mes, dia] = s.data.split('-');
+                const dataObj = new Date(Date.UTC(ano, mes - 1, dia));
+                const diasSemana = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+                const diaSemana = diasSemana[dataObj.getUTCDay()];
+                const dataFormatada = `${dia}/${mes}/${ano}`;
+                return (
+                  <div className="reserva-card-minha" key={s.id}>
+                    <div className="reserva-card-header"><h3>{s.sala_nome}</h3><span className="reserva-status status-cancelada">REJEITADA</span></div>
+                    <div className="reserva-card-info">
+                      <p><strong>{dataFormatada}</strong> · {diaSemana} · {s.hora_inicio} às {s.hora_fim}</p>
+                      {sala && <p className="sala-localizacao-card">Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}</p>}
+                      <p className="reserva-titulo">{s.titulo}</p>
+                      <p className="reserva-rejeitada-msg">Rejeitada por {s.aprovador} em {new Date(s.data_aprovacao).toLocaleString()}</p>
+                    </div>
+                    <div className="reserva-actions-minhas">
+                      <button className="detalhes-reserva-btn" onClick={() => alert(`Detalhes da reserva rejeitada:\nTítulo: ${s.titulo}\nSala: ${s.sala_nome}\nData: ${dataFormatada}\nHorário: ${s.hora_inicio} - ${s.hora_fim}`)}>Ver detalhes</button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </section>
       );
     }
@@ -1118,17 +1075,10 @@ function App() {
             <h3>Editar Reserva</h3>
             <label>Título: <input type="text" value={editForm.titulo} onChange={(e) => setEditForm({ ...editForm, titulo: e.target.value })} /></label>
             <label>Data: <input type="date" value={editForm.data} onChange={(e) => setEditForm({ ...editForm, data: e.target.value })} /></label>
-            <label>Início: <select value={editForm.hora_inicio} onChange={(e) => setEditForm({ ...editForm, hora_inicio: e.target.value })}>
-              {todosInicios.map((h) => <option key={h}>{h}</option>)}
-            </select></label>
-            <label>Fim: <select value={editForm.hora_fim} onChange={(e) => setEditForm({ ...editForm, hora_fim: e.target.value })}>
-              {todosFins.filter((f) => timeToMinutes(f) > timeToMinutes(editForm.hora_inicio)).map((h) => <option key={h}>{h}</option>)}
-            </select></label>
+            <label>Início: <select value={editForm.hora_inicio} onChange={(e) => setEditForm({ ...editForm, hora_inicio: e.target.value })}>{todosInicios.map((h) => <option key={h}>{h}</option>)}</select></label>
+            <label>Fim: <select value={editForm.hora_fim} onChange={(e) => setEditForm({ ...editForm, hora_fim: e.target.value })}>{todosFins.filter((f) => timeToMinutes(f) > timeToMinutes(editForm.hora_inicio)).map((h) => <option key={h}>{h}</option>)}</select></label>
             <label>Descrição: <textarea value={editForm.descricao} onChange={(e) => setEditForm({ ...editForm, descricao: e.target.value })} rows="2" /></label>
-            <div className="modal-buttons">
-              <button onClick={handleUpdateReserva}>Salvar</button>
-              <button onClick={() => setEditandoReserva(null)}>Cancelar</button>
-            </div>
+            <div className="modal-buttons"><button onClick={handleUpdateReserva}>Salvar</button><button onClick={() => setEditandoReserva(null)}>Cancelar</button></div>
           </div>
         </div>
       )}
@@ -1143,57 +1093,39 @@ function App() {
         initialData={reservaData}
       />
 
-      {/* Sidebar fixa (sem toggle) */}
+      {/* Sidebar fixa */}
       <aside className="sidebar">
         <div className="sidebar-brand">
           <img src="/CBiot_logo.jpg" alt="CBiot" className="logo-sidebar" />
-          <div>
-            <strong>CBiot</strong>
-            <span>Reserva de salas</span>
-          </div>
+          <div><strong>CBiot</strong><span>Reserva de salas</span></div>
         </div>
-
         <div className="sidebar-section">
           <div className="sidebar-section-title">PRINCIPAL</div>
           <button className={`sidebar-item ${activeView === 'inicio' ? 'active' : ''}`} onClick={() => setActiveView('inicio')}>Início</button>
           <button className={`sidebar-item ${activeView === 'consultar-disponibilidade' ? 'active' : ''}`} onClick={() => setActiveView('consultar-disponibilidade')}>Consultar disponibilidade</button>
           <button className={`sidebar-item ${activeView === 'minhas-reservas' ? 'active' : ''}`} onClick={() => setActiveView('minhas-reservas')}>Minhas reservas</button>
         </div>
-
         {(currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') && (
           <div className="sidebar-section">
             <div className="sidebar-section-title">ADMINISTRATIVO</div>
-            <button className={`sidebar-item ${activeView === 'solicitacoes-reserva' ? 'active' : ''}`} onClick={() => setActiveView('solicitacoes-reserva')}>
-              Solicitações de Reserva
-            </button>
-            <button className={`sidebar-item ${activeView === 'admin-reservas' ? 'active' : ''}`} onClick={() => setActiveView('admin-reservas')}>
-              Gerenciar Reservas
-            </button>
+            <button className={`sidebar-item ${activeView === 'solicitacoes-reserva' ? 'active' : ''}`} onClick={() => setActiveView('solicitacoes-reserva')}>Solicitações de Reserva</button>
+            <button className={`sidebar-item ${activeView === 'admin-reservas' ? 'active' : ''}`} onClick={() => setActiveView('admin-reservas')}>Gerenciar Reservas</button>
             {currentUser?.cargo === 'admin' && (
               <>
-                <button className={`sidebar-item ${activeView === 'gerenciar-salas' ? 'active' : ''}`} onClick={() => setActiveView('gerenciar-salas')}>
-                  Gerenciar Salas
-                </button>
-                <button className={`sidebar-item ${activeView === 'gerenciar-usuarios' ? 'active' : ''}`} onClick={() => setActiveView('gerenciar-usuarios')}>
-                  Gerenciar Usuários
-                </button>
+                <button className={`sidebar-item ${activeView === 'gerenciar-salas' ? 'active' : ''}`} onClick={() => setActiveView('gerenciar-salas')}>Gerenciar Salas</button>
+                <button className={`sidebar-item ${activeView === 'gerenciar-usuarios' ? 'active' : ''}`} onClick={() => setActiveView('gerenciar-usuarios')}>Gerenciar Usuários</button>
               </>
             )}
           </div>
         )}
-
         <div className="sidebar-section">
           <div className="sidebar-section-title">CONTA</div>
           <button className={`sidebar-item ${activeView === 'meus-dados' ? 'active' : ''}`} onClick={() => setActiveView('meus-dados')}>Meus Dados</button>
           <button className="sidebar-item" onClick={handleLogout}>Sair</button>
         </div>
-
         <div className="sidebar-footer">
           <div className="sidebar-avatar">{currentUser?.nome?.charAt(0) || 'U'}</div>
-          <div>
-            <div style={{ fontWeight: 600 }}>{currentUser?.nome}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{currentUser?.cargo}</div>
-          </div>
+          <div><div style={{ fontWeight: 600 }}>{currentUser?.nome}</div><div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{currentUser?.cargo}</div></div>
         </div>
       </aside>
 

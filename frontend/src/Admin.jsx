@@ -51,6 +51,11 @@ function AdminPanel() {
   });
   const horarios = generateTimeOptions();
 
+  // Solicitações de reserva (pendentes e rejeitadas)
+  const [solicitacoesPendentes, setSolicitacoesPendentes] = useState([]);
+  const [solicitacoesRejeitadas, setSolicitacoesRejeitadas] = useState([]);
+  const [tabSolicitacoes, setTabSolicitacoes] = useState('pendentes');
+
   // Edição de reserva
   const [editandoReserva, setEditandoReserva] = useState(null);
   const [editForm, setEditForm] = useState({
@@ -67,6 +72,25 @@ function AdminPanel() {
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
+  // NOVA FUNÇÃO para exibir data/hora UTC corretamente
+  const formatarDataHoraBrasilia = (isoString) => {
+    if (!isoString) return '';
+    // Converte a string ISO para objeto Date
+    const data = new Date(isoString);
+    // Ajusta para UTC-3 (Brasília)
+    const offsetBrasilia = -3 * 60; // minutos
+    const localTime = data.getTime() + (data.getTimezoneOffset() * 60000);
+    const brasiliaTime = new Date(localTime + (offsetBrasilia * 60000));
+
+    const dia = brasiliaTime.getUTCDate().toString().padStart(2, '0');
+    const mes = (brasiliaTime.getUTCMonth() + 1).toString().padStart(2, '0');
+    const ano = brasiliaTime.getUTCFullYear();
+    const horas = brasiliaTime.getUTCHours().toString().padStart(2, '0');
+    const minutos = brasiliaTime.getUTCMinutes().toString().padStart(2, '0');
+    return `${dia}/${mes}/${ano}, ${horas}:${minutos}`;
+  };
+
+  // Carregar dados
   const loadSalas = async () => {
     const data = await getSalas();
     const sorted = [...data].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
@@ -93,6 +117,28 @@ function AdminPanel() {
       console.error('Erro ao carregar usuários', err);
     }
   };
+  const loadSolicitacoesPendentes = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/solicitacoes', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setSolicitacoesPendentes(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  const loadSolicitacoesRejeitadas = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/solicitacoes/rejeitadas', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setSolicitacoesRejeitadas(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     whoami().then((u) => {
@@ -103,6 +149,8 @@ function AdminPanel() {
     loadReservas();
     loadManutencoes();
     loadUsers();
+    loadSolicitacoesPendentes();
+    loadSolicitacoesRejeitadas();
   }, []);
 
   const showToast = (message, type = 'success') => {
@@ -110,7 +158,7 @@ function AdminPanel() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Salas
+  // ========== SALAS ==========
   const handleChangeSala = (e) => {
     const { name, value } = e.target;
     setNovaSala((prev) => ({ ...prev, [name]: value }));
@@ -165,7 +213,7 @@ function AdminPanel() {
     }
   };
 
-  // Reservas
+  // ========== RESERVAS ==========
   const handleDeletarReserva = async (id, titulo) => {
     await deleteReserva(id);
     await loadReservas();
@@ -209,7 +257,40 @@ function AdminPanel() {
     }
   };
 
-  // Manutenções
+  // ========== SOLICITAÇÕES (APROVAR/REJEITAR) ==========
+  const handleAprovarSolicitacao = async (id) => {
+    const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/aprovar`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (res.ok) {
+      showToast('Reserva aprovada!', 'success');
+      loadSolicitacoesPendentes();
+      loadSolicitacoesRejeitadas();
+      loadReservas();
+    } else {
+      const err = await res.json();
+      showToast(err.erro || 'Erro ao aprovar', 'error');
+    }
+  };
+  const handleRejeitarSolicitacao = async (id) => {
+    if (window.confirm('Rejeitar esta solicitação?')) {
+      const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/rejeitar`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        showToast('Solicitação rejeitada', 'success');
+        loadSolicitacoesPendentes();
+        loadSolicitacoesRejeitadas();
+      } else {
+        const err = await res.json();
+        showToast(err.erro || 'Erro ao rejeitar', 'error');
+      }
+    }
+  };
+
+  // ========== MANUTENÇÕES ==========
   const handleChangeManutencao = (e) => {
     const { name, value } = e.target;
     setNovaManutencao((prev) => ({ ...prev, [name]: value }));
@@ -263,7 +344,7 @@ function AdminPanel() {
     }
   };
 
-  // Usuários (apenas admin)
+  // ========== USUÁRIOS ==========
   const handleUpdateUser = async (userId, data) => {
     const res = await updateUser(userId, data);
     if (res.erro) showToast(res.erro, 'error');
@@ -324,7 +405,8 @@ function AdminPanel() {
                 onChange={(e) => setEditForm({ ...editForm, hora_fim: e.target.value })}
               >
                 {horarios.filter((f) => {
-                  const inicioMin = parseInt(editForm.hora_inicio.split(':')[0]) * 60 + parseInt(editForm.hora_inicio.split(':')[1]);
+                  const inicioMin =
+                    parseInt(editForm.hora_inicio.split(':')[0]) * 60 + parseInt(editForm.hora_inicio.split(':')[1]);
                   const fimMin = parseInt(f.split(':')[0]) * 60 + parseInt(f.split(':')[1]);
                   return fimMin > inicioMin;
                 }).map((h) => <option key={h}>{h}</option>)}
@@ -352,12 +434,16 @@ function AdminPanel() {
           <h1 className="central-title">Administração - Reserva de Salas CBiot</h1>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <span>{currentUser.nome} ({currentUser.cargo})</span>
-          <Link to="/app" className="back-button">Voltar ao sistema</Link>
+          <span>
+            {currentUser.nome} ({currentUser.cargo})
+          </span>
+          <Link to="/app" className="back-button">
+            Voltar ao sistema
+          </Link>
         </div>
       </header>
 
-      {/* Gerenciar Salas */}
+      {/* ========== GERENCIAR SALAS ========== */}
       <section className="box">
         <h2>Gerenciar Salas</h2>
         <div className="admin-sala-form">
@@ -373,7 +459,9 @@ function AdminPanel() {
           {editandoSala ? (
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleUpdateSala}>Salvar alterações</button>
-              <button onClick={handleCancelarEdicao} className="secondary">Cancelar</button>
+              <button onClick={handleCancelarEdicao} className="secondary">
+                Cancelar
+              </button>
             </div>
           ) : (
             <button onClick={handleAdicionarSala}>Adicionar sala</button>
@@ -389,26 +477,38 @@ function AdminPanel() {
               {sala.equipamentos && (
                 <div className="sala-equipamentos">
                   <strong>📋 Equipamentos:</strong>
-                  <ul>{sala.equipamentos.split(',').map((item, idx) => <li key={idx}>{item.trim()}</li>)}</ul>
+                  <ul>
+                    {sala.equipamentos.split(',').map((item, idx) => (
+                      <li key={idx}>{item.trim()}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {sala.em_manutencao && <div className="sala-manutencao-badge">🔧 Em manutenção</div>}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button className="edit-sala-btn" onClick={() => handleEditarSala(sala)}>Editar</button>
-                <button className="delete-sala-btn" onClick={() => handleDeletarSala(sala.id, sala.nome)}>Excluir</button>
+                <button className="edit-sala-btn" onClick={() => handleEditarSala(sala)}>
+                  Editar
+                </button>
+                <button className="delete-sala-btn" onClick={() => handleDeletarSala(sala.id, sala.nome)}>
+                  Excluir
+                </button>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Bloqueios de Manutenção */}
+      {/* ========== BLOQUEIOS DE MANUTENÇÃO ========== */}
       <section className="box">
         <h2>Bloqueios por Manutenção</h2>
         <div className="admin-sala-form">
           <select name="sala_id" value={novaManutencao.sala_id} onChange={handleChangeManutencao}>
             <option value="">Selecione a sala</option>
-            {salas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+            {salas.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nome}
+              </option>
+            ))}
           </select>
           <input type="date" name="data_inicio" placeholder="Data início" value={novaManutencao.data_inicio} onChange={handleChangeManutencao} />
           <input type="date" name="data_fim" placeholder="Data fim" value={novaManutencao.data_fim} onChange={handleChangeManutencao} />
@@ -436,33 +536,184 @@ function AdminPanel() {
         </div>
       </section>
 
-      {/* Gerenciar Usuários (apenas admin) */}
+      {/* ========== SOLICITAÇÕES DE RESERVA (layout igual Minhas Reservas) ========== */}
+      <section className="box minhas-reservas-box">
+        <div className="disponibilidade-header">
+          <div>
+            <h2>Solicitações de Reserva</h2>
+            <p className="disponibilidade-sub">Aprove ou rejeite as solicitações pendentes.</p>
+          </div>
+        </div>
+
+        <div className="modo-consulta" style={{ marginBottom: '1.5rem' }}>
+          <label className={`modo-radio ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`}>
+            <input
+              type="radio"
+              name="tabSolicitacoes"
+              value="pendentes"
+              checked={tabSolicitacoes === 'pendentes'}
+              onChange={() => setTabSolicitacoes('pendentes')}
+            />
+            <span>Pendentes ({solicitacoesPendentes.length})</span>
+          </label>
+          <label className={`modo-radio ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`}>
+            <input
+              type="radio"
+              name="tabSolicitacoes"
+              value="rejeitadas"
+              checked={tabSolicitacoes === 'rejeitadas'}
+              onChange={() => setTabSolicitacoes('rejeitadas')}
+            />
+            <span>Rejeitadas ({solicitacoesRejeitadas.length})</span>
+          </label>
+        </div>
+
+        <div className="reservas-lista">
+          {tabSolicitacoes === 'pendentes' &&
+            (solicitacoesPendentes.length === 0 ? (
+              <p className="sem-reservas">Nenhuma solicitação pendente.</p>
+            ) : (
+              solicitacoesPendentes.map((s) => {
+                const sala = salas.find((sl) => sl.id === s.sala_id);
+                const [ano, mes, dia] = s.data.split('-');
+                const dataObj = new Date(Date.UTC(ano, mes - 1, dia));
+                const diasSemana = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+                const diaSemana = diasSemana[dataObj.getUTCDay()];
+                const dataFormatada = `${dia}/${mes}/${ano}`;
+                return (
+                  <div className="reserva-card-minha" key={s.id}>
+                    <div className="reserva-card-header">
+                      <h3>{s.sala_nome}</h3>
+                      <span className="reserva-status status-pendente">PENDENTE</span>
+                    </div>
+                    <div className="reserva-card-info">
+                      <p>
+                        <strong>{dataFormatada}</strong> · {diaSemana} · {s.hora_inicio} às {s.hora_fim}
+                      </p>
+                      {sala && (
+                        <p className="sala-localizacao-card">
+                          Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}
+                        </p>
+                      )}
+                      <p className="reserva-titulo">{s.titulo}</p>
+                      <p className="reserva-pendente-msg">
+                        Solicitada por {s.responsavel} ({s.email}) · em {formatarData(s.data_criacao || s.data)}
+                      </p>
+                    </div>
+                    <div className="reserva-actions-minhas">
+                      <button className="edit-reserva-btn" onClick={() => handleAprovarSolicitacao(s.id)}>
+                        Aprovar
+                      </button>
+                      <button className="cancel-reserva-btn" onClick={() => handleRejeitarSolicitacao(s.id)}>
+                        Rejeitar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            ))}
+
+          {tabSolicitacoes === 'rejeitadas' &&
+            (solicitacoesRejeitadas.length === 0 ? (
+              <p className="sem-reservas">Nenhuma reserva rejeitada.</p>
+            ) : (
+              solicitacoesRejeitadas.map((s) => {
+                const sala = salas.find((sl) => sl.id === s.sala_id);
+                const [ano, mes, dia] = s.data.split('-');
+                const dataObj = new Date(Date.UTC(ano, mes - 1, dia));
+                const diasSemana = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+                const diaSemana = diasSemana[dataObj.getUTCDay()];
+                const dataFormatada = `${dia}/${mes}/${ano}`;
+                return (
+                  <div className="reserva-card-minha" key={s.id}>
+                    <div className="reserva-card-header">
+                      <h3>{s.sala_nome}</h3>
+                      <span className="reserva-status status-cancelada">REJEITADA</span>
+                    </div>
+                    <div className="reserva-card-info">
+                      <p>
+                        <strong>{dataFormatada}</strong> · {diaSemana} · {s.hora_inicio} às {s.hora_fim}
+                      </p>
+                      {sala && (
+                        <p className="sala-localizacao-card">
+                          Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}
+                        </p>
+                      )}
+                      <p className="reserva-titulo">{s.titulo}</p>
+                      <p className="reserva-rejeitada-msg">
+                        {/* CORREÇÃO: usando formatarDataHoraUTC */}
+                        Rejeitada por {s.aprovador} em {formatarDataHoraBrasilia(s.data_aprovacao)}
+                      </p>
+                    </div>
+                    <div className="reserva-actions-minhas">
+                      <button
+                        className="detalhes-reserva-btn"
+                        onClick={() =>
+                          alert(
+                            `Detalhes da reserva rejeitada:\nTítulo: ${s.titulo}\nSala: ${s.sala_nome}\nData: ${dataFormatada}\nHorário: ${s.hora_inicio} - ${s.hora_fim}`
+                          )
+                        }
+                      >
+                        Ver detalhes
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            ))}
+        </div>
+      </section>
+
+      {/* ========== GERENCIAR USUÁRIOS (apenas admin) ========== */}
       {currentUser.cargo === 'admin' && (
         <section className="box">
           <h2>Gerenciar Usuários</h2>
           <div className="users-table-container">
             <table className="users-table">
-              <thead><tr><th>Nome</th><th>E-mail</th><th>Cargo</th><th>Status</th><th>Ações</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>E-mail</th>
+                  <th>Cargo</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id}>
-                    <td>{u.nome}</td><td>{u.email}</td>
+                    <td>{u.nome}</td>
+                    <td>{u.email}</td>
                     <td>
                       <select value={u.cargo} onChange={(e) => handleUpdateUser(u.id, { cargo: e.target.value })}>
-                        <option value="aluno">Aluno</option><option value="professor">Professor</option>
-                        <option value="gerente">Gerente</option><option value="admin">Admin</option>
+                        <option value="aluno">Aluno</option>
+                        <option value="professor">Professor</option>
+                        <option value="gerente">Gerente</option>
+                        <option value="admin">Admin</option>
                       </select>
                     </td>
                     <td>{u.status}</td>
                     <td>
                       {u.status === 'pendente' && (
                         <>
-                          <button className="small-btn" onClick={() => handleApproveUser(u.id, u.cargo)}>Aprovar</button>
-                          <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Rejeitar</button>
+                          <button className="small-btn" onClick={() => handleApproveUser(u.id, u.cargo)}>
+                            Aprovar
+                          </button>
+                          <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>
+                            Rejeitar
+                          </button>
                         </>
                       )}
-                      {u.status === 'aprovado' && <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Bloquear</button>}
-                      {u.status === 'rejeitado' && <button className="small-btn" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>Reativar</button>}
+                      {u.status === 'aprovado' && (
+                        <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>
+                          Bloquear
+                        </button>
+                      )}
+                      {u.status === 'rejeitado' && (
+                        <button className="small-btn" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>
+                          Reativar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -473,44 +724,77 @@ function AdminPanel() {
         </section>
       )}
 
-      {/* Gerenciar Reservas */}
+      {/* ========== GERENCIAR RESERVAS (lista de reservas aprovadas) ========== */}
       <section className="box">
         <h2>Gerenciar Reservas</h2>
         <div className="reservas-grid">
-          {reservas.map((r) => (
-            <div className="reserva-card" key={reserva.id}>
-              <h3>{reserva.sala_nome} · {reserva.titulo}</h3>
-              {reserva.grupo_id && <p><strong>Grupo:</strong> {reserva.grupo_id.substring(0, 8)}...</p>}
-              <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
-              <p><strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}</p>
-              {sala && <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</p>}
-              <p><strong>Responsável:</strong> {reserva.responsavel}</p>
-              <p><strong>E-mail:</strong> {reserva.email}</p>
-              {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
-
-              {/* NOVAS LINHAS */}
-              {reserva.status === 'aprovada' && reserva.aprovador && (
-                <p><strong>Aprovado por:</strong> {reserva.aprovador} em {new Date(reserva.data_aprovacao).toLocaleString()}</p>
-              )}
-              {reserva.status === 'rejeitada' && reserva.aprovador && (
-                <p><strong>Rejeitado por:</strong> {reserva.aprovador} em {new Date(reserva.data_aprovacao).toLocaleString()}</p>
-              )}
-              {/* FIM DAS NOVAS LINHAS */}
-
-              <div className="reserva-actions">
-                <button className="edit-btn" onClick={() => handleEditarReserva(reserva)}>Editar</button>
-                {reserva.grupo_id && (
-                  <button className="cancel-group-btn" onClick={() => handleCancelarGrupo(reserva.grupo_id, false)}>Cancelar série</button>
+          {reservas.map((r) => {
+            const sala = salas.find((s) => s.id === r.sala_id);
+            return (
+              <div className="reserva-card" key={r.id}>
+                <h3>
+                  {r.sala_nome} · {r.titulo}
+                </h3>
+                {r.grupo_id && (
+                  <p>
+                    <strong>Grupo:</strong> {r.grupo_id.substring(0, 8)}...
+                  </p>
                 )}
-                <button className="cancel-btn" onClick={() => handleCancelarReserva(reserva.id, reserva.titulo)}>Cancelar reserva</button>
+                <p>
+                  <strong>Data:</strong> {formatarData(r.data)}
+                </p>
+                <p>
+                  <strong>Horário:</strong> {r.hora_inicio} - {r.hora_fim}
+                </p>
+                {sala && (
+                  <p>
+                    <strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}
+                  </p>
+                )}
+                <p>
+                  <strong>Responsável:</strong> {r.responsavel}
+                </p>
+                <p>
+                  <strong>E-mail:</strong> {r.email}
+                </p>
+                {r.descricao && (
+                  <p>
+                    <strong>Descrição:</strong> {r.descricao}
+                  </p>
+                )}
+                {r.status === 'aprovada' && r.aprovador && (
+                  <p>
+                    <strong>Aprovado por:</strong> {r.aprovador} em {new Date(r.data_aprovacao).toLocaleString()}
+                  </p>
+                )}
+                {r.status === 'rejeitada' && r.aprovador && (
+                  <p>
+                    <strong>Rejeitado por:</strong> {r.aprovador} em {new Date(r.data_aprovacao).toLocaleString()}
+                  </p>
+                )}
+                <div className="reserva-actions">
+                  <button className="edit-btn" onClick={() => handleEditarReserva(r)}>
+                    Editar
+                  </button>
+                  {r.grupo_id && (
+                    <button className="cancel-group-btn" onClick={() => handleDeletarGrupo(r.grupo_id)}>
+                      Cancelar série
+                    </button>
+                  )}
+                  <button className="cancel-btn" onClick={() => handleDeletarReserva(r.id, r.titulo)}>
+                    Cancelar reserva
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
       <footer className="admin-footer">
-        <Link to="/ReservaDeSalas" className="back-button">← Voltar ao sistema</Link>
+        <Link to="/ReservaDeSalas" className="back-button">
+          ← Voltar ao sistema
+        </Link>
       </footer>
     </div>
   );
