@@ -7,6 +7,7 @@ import {
   deleteSala,
   getReservas,
   deleteReserva,
+  updateReserva,
   deleteReservasByGrupo,
   getUsers,
   updateUser,
@@ -14,7 +15,6 @@ import {
   whoami,
 } from './api';
 
-// Função para gerar horários de 30 em 30 minutos (08:00 às 19:00)
 const generateTimeOptions = () => {
   const times = [];
   for (let i = 8; i < 19; i++) {
@@ -24,7 +24,6 @@ const generateTimeOptions = () => {
   return times;
 };
 
-// Componente do painel (após login)
 function AdminPanel() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
@@ -41,7 +40,6 @@ function AdminPanel() {
   const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
 
-  // Estados para manutenções
   const [manutencoes, setManutencoes] = useState([]);
   const [novaManutencao, setNovaManutencao] = useState({
     sala_id: '',
@@ -53,13 +51,22 @@ function AdminPanel() {
   });
   const horarios = generateTimeOptions();
 
+  // Edição de reserva
+  const [editandoReserva, setEditandoReserva] = useState(null);
+  const [editForm, setEditForm] = useState({
+    titulo: '',
+    descricao: '',
+    data: '',
+    hora_inicio: '',
+    hora_fim: '',
+  });
+
   const formatarData = (dataISO) => {
     if (!dataISO) return '';
     const partes = dataISO.split('-');
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
-  // Carregar dados
   const loadSalas = async () => {
     const data = await getSalas();
     const sorted = [...data].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
@@ -71,9 +78,7 @@ function AdminPanel() {
   };
   const loadManutencoes = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/manutencoes', {
-        credentials: 'include',
-      });
+      const res = await fetch('http://localhost:5000/api/manutencoes', { credentials: 'include' });
       const data = await res.json();
       setManutencoes(data);
     } catch (err) {
@@ -91,11 +96,8 @@ function AdminPanel() {
 
   useEffect(() => {
     whoami().then((u) => {
-      if (u && (u.cargo === 'admin' || u.cargo === 'gerente')) {
-        setCurrentUser(u);
-      } else {
-        navigate('/');
-      }
+      if (u && (u.cargo === 'admin' || u.cargo === 'gerente')) setCurrentUser(u);
+      else navigate('/');
     });
     loadSalas();
     loadReservas();
@@ -108,27 +110,24 @@ function AdminPanel() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ---------- CRUD de Salas ----------
+  // Salas
   const handleChangeSala = (e) => {
     const { name, value } = e.target;
     setNovaSala((prev) => ({ ...prev, [name]: value }));
   };
-
   const handleAdicionarSala = async () => {
     if (!novaSala.nome.trim()) {
       showToast('Informe o nome da sala', 'error');
       return;
     }
     const res = await createSala(novaSala);
-    if (res.erro) {
-      showToast(res.erro, 'error');
-    } else {
+    if (res.erro) showToast(res.erro, 'error');
+    else {
       setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
       await loadSalas();
       showToast('Sala criada com sucesso!');
     }
   };
-
   const handleEditarSala = (sala) => {
     setEditandoSala(sala);
     setNovaSala({
@@ -139,28 +138,24 @@ function AdminPanel() {
       equipamentos: sala.equipamentos || '',
     });
   };
-
   const handleCancelarEdicao = () => {
     setEditandoSala(null);
     setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
   };
-
   const handleUpdateSala = async () => {
     if (!novaSala.nome.trim()) {
       showToast('Informe o nome da sala', 'error');
       return;
     }
     const res = await updateSala(editandoSala.id, novaSala);
-    if (res.erro) {
-      showToast(res.erro, 'error');
-    } else {
+    if (res.erro) showToast(res.erro, 'error');
+    else {
       showToast(`Sala "${novaSala.nome}" atualizada!`, 'success');
       setEditandoSala(null);
       setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
       await loadSalas();
     }
   };
-
   const handleDeletarSala = async (id, nome) => {
     if (window.confirm(`Excluir a sala "${nome}"? Todas as reservas associadas também serão removidas.`)) {
       await deleteSala(id);
@@ -170,13 +165,12 @@ function AdminPanel() {
     }
   };
 
-  // ---------- Cancelamento de Reservas ----------
+  // Reservas
   const handleDeletarReserva = async (id, titulo) => {
     await deleteReserva(id);
     await loadReservas();
     showToast(`Reserva "${titulo}" cancelada!`);
   };
-
   const handleDeletarGrupo = async (grupoId) => {
     if (window.confirm('Cancelar TODAS as reservas deste grupo recorrente?')) {
       const res = await deleteReservasByGrupo(grupoId);
@@ -187,13 +181,39 @@ function AdminPanel() {
       }
     }
   };
+  const handleEditarReserva = (reserva) => {
+    setEditandoReserva(reserva);
+    setEditForm({
+      titulo: reserva.titulo,
+      descricao: reserva.descricao || '',
+      data: reserva.data,
+      hora_inicio: reserva.hora_inicio,
+      hora_fim: reserva.hora_fim,
+    });
+  };
+  const handleUpdateReserva = async () => {
+    if (!editandoReserva) return;
+    const payload = {
+      titulo: editForm.titulo,
+      descricao: editForm.descricao,
+      data: editForm.data,
+      hora_inicio: editForm.hora_inicio,
+      hora_fim: editForm.hora_fim,
+    };
+    const res = await updateReserva(editandoReserva.id, payload);
+    if (res.erro) showToast(res.erro, 'error');
+    else {
+      showToast('Reserva atualizada!', 'success');
+      setEditandoReserva(null);
+      await loadReservas();
+    }
+  };
 
-  // ---------- Gerenciamento de Manutenções ----------
+  // Manutenções
   const handleChangeManutencao = (e) => {
     const { name, value } = e.target;
     setNovaManutencao((prev) => ({ ...prev, [name]: value }));
   };
-
   const handleCriarManutencao = async () => {
     if (!novaManutencao.sala_id || !novaManutencao.data_inicio || !novaManutencao.data_fim || !novaManutencao.motivo) {
       showToast('Preencha todos os campos da manutenção', 'error');
@@ -207,9 +227,8 @@ function AdminPanel() {
         body: JSON.stringify(novaManutencao),
       });
       const data = await res.json();
-      if (!res.ok) {
-        showToast(data.erro || 'Erro ao criar bloqueio', 'error');
-      } else {
+      if (!res.ok) showToast(data.erro || 'Erro ao criar bloqueio', 'error');
+      else {
         showToast('Bloqueio criado com sucesso', 'success');
         setNovaManutencao({
           sala_id: '',
@@ -226,14 +245,10 @@ function AdminPanel() {
       showToast('Erro de conexão', 'error');
     }
   };
-
   const handleRemoverManutencao = async (id) => {
     if (window.confirm('Remover este bloqueio de manutenção?')) {
       try {
-        const res = await fetch(`http://localhost:5000/api/manutencoes/${id}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
+        const res = await fetch(`http://localhost:5000/api/manutencoes/${id}`, { method: 'DELETE', credentials: 'include' });
         if (res.ok) {
           showToast('Bloqueio removido', 'success');
           loadManutencoes();
@@ -248,22 +263,19 @@ function AdminPanel() {
     }
   };
 
-  // ---------- Gerenciamento de Usuários ----------
+  // Usuários (apenas admin)
   const handleUpdateUser = async (userId, data) => {
     const res = await updateUser(userId, data);
-    if (res.erro) {
-      showToast(res.erro, 'error');
-    } else {
+    if (res.erro) showToast(res.erro, 'error');
+    else {
       showToast('Usuário atualizado', 'success');
       loadUsers();
     }
   };
-
   const handleApproveUser = async (userId, cargo) => {
     const res = await approveUser(userId, cargo);
-    if (res.erro) {
-      showToast(res.erro, 'error');
-    } else {
+    if (res.erro) showToast(res.erro, 'error');
+    else {
       showToast('Usuário aprovado', 'success');
       loadUsers();
     }
@@ -274,6 +286,65 @@ function AdminPanel() {
   return (
     <div className="admin-container">
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
+
+      {/* Modal de edição de reserva */}
+      {editandoReserva && (
+        <div className="modal-overlay" onClick={() => setEditandoReserva(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Editar Reserva</h3>
+            <label>
+              Título:
+              <input
+                type="text"
+                value={editForm.titulo}
+                onChange={(e) => setEditForm({ ...editForm, titulo: e.target.value })}
+              />
+            </label>
+            <label>
+              Data:
+              <input
+                type="date"
+                value={editForm.data}
+                onChange={(e) => setEditForm({ ...editForm, data: e.target.value })}
+              />
+            </label>
+            <label>
+              Início:
+              <select
+                value={editForm.hora_inicio}
+                onChange={(e) => setEditForm({ ...editForm, hora_inicio: e.target.value })}
+              >
+                {horarios.map((h) => <option key={h}>{h}</option>)}
+              </select>
+            </label>
+            <label>
+              Fim:
+              <select
+                value={editForm.hora_fim}
+                onChange={(e) => setEditForm({ ...editForm, hora_fim: e.target.value })}
+              >
+                {horarios.filter((f) => {
+                  const inicioMin = parseInt(editForm.hora_inicio.split(':')[0]) * 60 + parseInt(editForm.hora_inicio.split(':')[1]);
+                  const fimMin = parseInt(f.split(':')[0]) * 60 + parseInt(f.split(':')[1]);
+                  return fimMin > inicioMin;
+                }).map((h) => <option key={h}>{h}</option>)}
+              </select>
+            </label>
+            <label>
+              Descrição:
+              <textarea
+                value={editForm.descricao}
+                onChange={(e) => setEditForm({ ...editForm, descricao: e.target.value })}
+                rows="2"
+              />
+            </label>
+            <div className="modal-buttons">
+              <button onClick={handleUpdateReserva}>Salvar</button>
+              <button onClick={() => setEditandoReserva(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <header className="admin-header">
         <div className="header-content">
@@ -337,9 +408,7 @@ function AdminPanel() {
         <div className="admin-sala-form">
           <select name="sala_id" value={novaManutencao.sala_id} onChange={handleChangeManutencao}>
             <option value="">Selecione a sala</option>
-            {salas.map((s) => (
-              <option key={s.id} value={s.id}>{s.nome}</option>
-            ))}
+            {salas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
           <input type="date" name="data_inicio" placeholder="Data início" value={novaManutencao.data_inicio} onChange={handleChangeManutencao} />
           <input type="date" name="data_fim" placeholder="Data fim" value={novaManutencao.data_fim} onChange={handleChangeManutencao} />
@@ -352,7 +421,6 @@ function AdminPanel() {
           <input name="motivo" placeholder="Motivo (ex.: reforma, manutenção elétrica)" value={novaManutencao.motivo} onChange={handleChangeManutencao} />
           <button onClick={handleCriarManutencao}>Bloquear período</button>
         </div>
-
         <div className="manutencoes-list">
           {manutencoes.map((m) => (
             <div key={m.id} className="manutencao-item">
@@ -368,82 +436,46 @@ function AdminPanel() {
         </div>
       </section>
 
-      {/* Gerenciamento de Usuários */}
-      <section className="box">
-        <h2>Gerenciar Usuários</h2>
-        <div className="users-table-container">
-          <table className="users-table">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>E-mail</th>
-                <th>Cargo</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.nome}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <select
-                      value={u.cargo}
-                      onChange={(e) => handleUpdateUser(u.id, { cargo: e.target.value })}
-                    >
-                      <option value="aluno">Aluno</option>
-                      <option value="professor">Professor</option>
-                      <option value="gerente">Gerente</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </td>
-                  <td>{u.status}</td>
-                  <td>
-                    {u.status === 'pendente' && (
-                      <>
-                        <button
-                          className="small-btn"
-                          onClick={() => handleApproveUser(u.id, u.cargo)}
-                        >
-                          Aprovar
-                        </button>
-                        <button
-                          className="small-btn danger"
-                          onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}
-                        >
-                          Rejeitar
-                        </button>
-                      </>
-                    )}
-                    {u.status === 'aprovado' && (
-                      <button
-                        className="small-btn danger"
-                        onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}
-                      >
-                        Bloquear
-                      </button>
-                    )}
-                    {u.status === 'rejeitado' && (
-                      <button
-                        className="small-btn"
-                        onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}
-                      >
-                        Reativar
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {users.length === 0 && <p>Nenhum usuário cadastrado.</p>}
-        </div>
-      </section>
+      {/* Gerenciar Usuários (apenas admin) */}
+      {currentUser.cargo === 'admin' && (
+        <section className="box">
+          <h2>Gerenciar Usuários</h2>
+          <div className="users-table-container">
+            <table className="users-table">
+              <thead><tr><th>Nome</th><th>E-mail</th><th>Cargo</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.nome}</td><td>{u.email}</td>
+                    <td>
+                      <select value={u.cargo} onChange={(e) => handleUpdateUser(u.id, { cargo: e.target.value })}>
+                        <option value="aluno">Aluno</option><option value="professor">Professor</option>
+                        <option value="gerente">Gerente</option><option value="admin">Admin</option>
+                      </select>
+                    </td>
+                    <td>{u.status}</td>
+                    <td>
+                      {u.status === 'pendente' && (
+                        <>
+                          <button className="small-btn" onClick={() => handleApproveUser(u.id, u.cargo)}>Aprovar</button>
+                          <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Rejeitar</button>
+                        </>
+                      )}
+                      {u.status === 'aprovado' && <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Bloquear</button>}
+                      {u.status === 'rejeitado' && <button className="small-btn" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>Reativar</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {users.length === 0 && <p>Nenhum usuário cadastrado.</p>}
+          </div>
+        </section>
+      )}
 
-      {/* Cancelar Reservas */}
+      {/* Gerenciar Reservas */}
       <section className="box">
-        <h2>Cancelar Reservas</h2>
+        <h2>Gerenciar Reservas</h2>
         <div className="reservas-grid">
           {reservas.map((r) => (
             <div className="reserva-card admin-card" key={r.id}>
@@ -459,7 +491,10 @@ function AdminPanel() {
               {r.responsavel && <p><strong>Responsável:</strong> {r.responsavel}</p>}
               {r.email && <p><strong>E-mail:</strong> {r.email}</p>}
               {r.descricao && <p><strong>Descrição:</strong> {r.descricao}</p>}
-              <button className="cancel-btn" onClick={() => handleDeletarReserva(r.id, r.titulo)}>Cancelar reserva</button>
+              <div className="reserva-actions">
+                <button className="edit-btn" onClick={() => handleEditarReserva(r)}>Editar</button>
+                <button className="cancel-btn" onClick={() => handleDeletarReserva(r.id, r.titulo)}>Cancelar reserva</button>
+              </div>
             </div>
           ))}
         </div>

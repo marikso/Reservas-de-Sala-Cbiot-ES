@@ -171,7 +171,6 @@ def create_reserva():
     if erro:
         return jsonify({'erro': erro}), 400
 
-    # Conflito com reservas normais
     conflito = Reserva.query.filter(
         and_(
             Reserva.sala_id == dados['sala_id'],
@@ -183,7 +182,6 @@ def create_reserva():
     if conflito:
         return jsonify({'erro': 'Conflito de horário: sala já reservada neste período'}), 400
 
-    # Verificar manutenção contínua
     manutencoes = Manutencao.query.filter(
         Manutencao.sala_id == dados['sala_id'],
         Manutencao.data_inicio <= data_res,
@@ -559,7 +557,6 @@ def auth_register():
     existing = User.query.filter_by(email=email).first()
     if existing:
         return jsonify({'erro': 'Email já cadastrado'}), 400
-    # Cargo temporário até aprovação pelo admin
     user = User(email=email, nome=nome, cargo='sem_cargo', status='pendente')
     user.set_password(senha)
     db.session.add(user)
@@ -575,15 +572,15 @@ def auth_logout():
 def auth_whoami():
     return jsonify(session.get('user') or {})
 
-# ---------- ROTAS DE GERENCIAMENTO DE USUÁRIOS (APENAS ADMIN/GERENTE) ----------
+# ---------- ROTAS DE GERENCIAMENTO DE USUÁRIOS (APENAS ADMIN) ----------
 @app.route('/api/users', methods=['GET'])
-@role_required(['admin', 'gerente'])   # mantém leitura para gerente (opcional)
+@role_required(['admin', 'gerente'])   # gerente pode visualizar, mas não editar
 def listar_usuarios():
     users = User.query.order_by(User.status, User.nome).all()
     return jsonify([u.to_dict() for u in users])
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
-@role_required(['admin'])   # apenas admin pode alterar cargos/status
+@role_required(['admin'])   # apenas admin pode alterar
 def atualizar_usuario(user_id):
     user = User.query.get_or_404(user_id)
     dados = request.get_json()
