@@ -231,9 +231,7 @@ def create_reservas_recorrentes():
     dados = request.get_json()
     user = session.get('user')
     is_externo = user and user.get('cargo') == 'usuario_externo'
-    if is_externo:
-        return jsonify({'erro': 'Usuários externos não podem criar reservas recorrentes'}), 400
-
+    # Liberado para usuários externos (cria pendente)
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
                     'data_inicio', 'data_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
@@ -263,6 +261,7 @@ def create_reservas_recorrentes():
     grupo_id = str(uuid.uuid4())
     reservas_criadas = []
     conflitos = []
+    status = 'pendente' if is_externo else 'aprovada'
 
     current_date = data_inicio
     while current_date <= data_fim:
@@ -298,7 +297,7 @@ def create_reservas_recorrentes():
                     email=dados.get('email', ''),
                     descricao=dados.get('descricao', ''),
                     grupo_id=grupo_id,
-                    status='aprovada'
+                    status=status
                 )
                 db.session.add(nova)
                 reservas_criadas.append(current_date.isoformat())
@@ -554,6 +553,88 @@ def salas_disponiveis_por_data_hora():
             continue
         disponiveis.append(sala.to_dict())
     return jsonify(disponiveis)
+
+# ---------- NOVAS ROTAS PARA VERIFICAÇÃO DE CONFLITOS ----------
+@app.route('/api/check-conflicts', methods=['POST'])
+def check_conflicts():
+    """Retorna lista de datas conflitantes para uma reserva recorrente (sem criar)"""
+    dados = request.get_json()
+    required = ['sala_id', 'data_inicio', 'data_fim', 'hora_inicio', 'hora_fim', 'dias_semana']
+    if not all(k in dados for k in required):
+        return jsonify({'erro': 'Dados incompletos'}), 400
+
+    try:
+        data_inicio = parse_date(dados['data_inicio'])
+        data_fim = parse_date(dados['data_fim'])
+        hora_ini = parse_time(dados['hora_inicio'])
+        hora_fim = parse_time(dados['hora_fim'])
+        dias_semana = dados['dias_semana']
+    except (ValueError, KeyError):
+        return jsonify({'erro': 'Formato inválido'}), 400
+
+    if any(d > 4 for d in dias_semana):
+        return jsonify({'erro': 'Recorrência não permitida em sábado/domingo'}), 400
+
+    conflitos = []
+    current_date = data_inicio
+    while current_date <= data_fim:
+        if current_date.weekday() in dias_semana:
+            # Verifica reserva aprovada/pendente
+            reserva = Reserva.query.filter(
+                and_(
+                    Reserva.sala_id == dados['sala_id'],
+                    Reserva.data == current_date,
+                    Reserva.hora_inicio < hora_fim,
+                    Reserva.hora_fim > hora_ini,
+                    Reserva.status.in_(['aprovada', 'pendente'])
+                )
+            ).first()
+            # Verifica manutenção
+            manut = Manutencao.query.filter(
+                Manutencao.sala_id == dados['sala_id'],
+                Manutencao.data_inicio <= current_date,
+                Manutencao.data_fim >= current_date,
+                Manutencao.hora_inicio < hora_fim,
+                Manutencao.hora_fim > hora_ini
+            ).first()
+            if reserva or manut:
+                data_formatada = current_date.strftime('%d/%m')
+                dia_semana = current_date.strftime('%A')
+                if reserva:
+                    motivo = f"já reservada por {reserva.responsavel}"
+                elif manut:
+                    motivo = f"em manutenção: {manut.motivo}"
+                else:
+                    motivo = "indisponível"
+                conflitos.append(f"{data_formatada} ({dia_semana}) — Sala {motivo}")
+        current_date += timedelta(days=1)
+
+    return jsonify({'conflicts': conflitos}), 200
+
+@app.route('/api/check-reserva-conflito', methods=['POST'])
+def check_reserva_conflito():
+    """Verifica se uma reserva simples (não recorrente) conflita com outra"""
+    dados = request.get_json()
+    try:
+        data_res = parse_date(dados['data'])
+        hora_ini = parse_time(dados['hora_inicio'])
+        hora_fim = parse_time(dados['hora_fim'])
+        sala_id = dados['sala_id']
+    except (ValueError, KeyError):
+        return jsonify({'erro': 'Dados inválidos'}), 400
+
+    conflito = Reserva.query.filter(
+        and_(
+            Reserva.sala_id == sala_id,
+            Reserva.data == data_res,
+            Reserva.hora_inicio < hora_fim,
+            Reserva.hora_fim > hora_ini,
+            Reserva.status.in_(['aprovada', 'pendente'])
+        )
+    ).first()
+    if conflito:
+        return jsonify({'conflito': True, 'titulo': conflito.titulo, 'responsavel': conflito.responsavel})
+    return jsonify({'conflito': False})
 
 # ---------- AUTENTICAÇÃO ----------
 @app.route('/api/auth/login', methods=['POST'])

@@ -915,3 +915,1232 @@ button.secondary:hover {
     grid-template-columns: 1fr;
   }
 }
+
+
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-container {
+  background: white;
+  border-radius: 12px;
+  max-width: 550px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 20px;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 15px;
+  font-size: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.form-group {
+  margin-bottom: 1rem;
+}
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+.form-row .form-group {
+  flex: 1;
+}
+.checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: normal;
+}
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+.modal-buttons button {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+.modal-buttons button[type="submit"] {
+  background: #2c7da0;
+  color: white;
+}
+.modal-buttons button[type="button"] {
+  background: #e0e0e0;
+}
+
+/* Garantia de fundo escuro para o modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-container {
+  background: white;
+  border-radius: 12px;
+  max-width: 550px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 20px;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 15px;
+  font-size: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.solicitar-reserva-btn {
+  background-color: #2c7da0;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* Modal Overlay e Container */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.modal-container {
+  background: white;
+  border-radius: 12px;
+  max-width: 550px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 15px;
+  font-size: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+}
+.modal-close:hover {
+  color: #000;
+}
+.aviso-pendencia {
+  background: #e6f7ff;
+  border-left: 4px solid #1890ff;
+  padding: 10px;
+  margin: 10px 0;
+  font-size: 14px;
+}
+.modal-field-group {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.modal-field {
+  flex: 1;
+  min-width: 150px;
+}
+.modal-field label {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 4px;
+}
+.modal-field select, 
+.modal-field input,
+.modal-field textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.modal-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.duracao {
+  font-size: 13px;
+  color: #555;
+  margin: 8px 0;
+}
+.modal-checkbox {
+  margin: 12px 0;
+}
+.modal-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: normal;
+}
+.dias-semana-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+}
+.dias-semana-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: normal;
+  font-size: 14px;
+}
+.info-ocorrencias {
+  font-weight: bold;
+  margin: 16px 0 8px;
+}
+.info-periodo {
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 16px;
+}
+.conflitos-box {
+  background: #fff2e8;
+  border-left: 4px solid #ff7a45;
+  padding: 10px;
+  margin: 16px 0;
+}
+.conflitos-box ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+/* ========== MODAL DE RESERVA (POP-UP) – TAMANHO 600x904 ========== */
+
+/* Overlay escuro que cobre toda a tela */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7); /* fundo escuro */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+/* Container do pop-up – DIMENSÕES FIXAS (600x904) */
+.modal-container {
+  background: white;
+  border-radius: 32px;
+  width: 600px;          /* largura fixa conforme Figma */
+  max-width: 90vw;       /* responsivo em telas menores */
+  height: 904px;         /* altura fixa */
+  max-height: 90vh;      /* adapta se tela for menor que 904px */
+  overflow-y: auto;      /* scroll interno se conteúdo ultrapassar */
+  padding: 28px 32px;
+  position: relative;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Botão de fechar (X) */
+.modal-close {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  font-size: 28px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9a7bb5;
+  transition: color 0.2s;
+  z-index: 10;
+}
+.modal-close:hover {
+  color: #5e2a8c;
+}
+
+/* Título do modal */
+.modal-container h2 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #4a1d6d;
+  padding-right: 24px; /* espaço para o X */
+}
+
+/* Aviso de pendência (usuários externos) */
+.aviso-pendencia {
+  background: #fff3e0;
+  border-left: 4px solid #ffa500;
+  padding: 12px 16px;
+  border-radius: 16px;
+  margin: 0 0 24px 0;
+  font-size: 0.9rem;
+  color: #b85c00;
+}
+
+/* Grupos de campo no modal */
+.form-group {
+  margin-bottom: 1.2rem;
+}
+.form-group label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  color: #5e2a8c;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.form-group input, 
+.form-group select, 
+.form-group textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #e2d4f0;
+  border-radius: 16px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: white;
+  transition: all 0.2s;
+}
+.form-group input:focus, 
+.form-group select:focus, 
+.form-group textarea:focus {
+  outline: none;
+  border-color: #8e44ad;
+  box-shadow: 0 0 0 3px rgba(142, 68, 173, 0.15);
+}
+
+/* Linha com dois campos lado a lado (INÍCIO e FIM) */
+.form-row {
+  display: flex;
+  gap: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+.form-row .form-group {
+  flex: 1;
+}
+
+/* Duração */
+.duracao {
+  text-align: right;
+  font-size: 0.8rem;
+  color: #8e44ad;
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+/* Checkbox "Solicitação recorrente" */
+.checkbox {
+  margin: 1.2rem 0;
+}
+.checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #2d1b42;
+  text-transform: none;
+  font-size: 0.95rem;
+}
+
+/* Informações de ocorrências (recorrente) */
+.info-ocorrencias {
+  background: #f0eaf8;
+  padding: 0.8rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  color: #5e2a8c;
+  text-align: center;
+}
+.info-periodo {
+  font-size: 0.85rem;
+  color: #7e5a9c;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+.info-conflitos {
+  font-size: 0.85rem;
+  color: #d9534f;
+  margin: 0.5rem 0;
+}
+
+/* Caixa de conflitos (quando houver) */
+.conflitos-box {
+  background: #fff2e8;
+  border-left: 4px solid #ff7a45;
+  padding: 12px;
+  margin: 16px 0;
+  border-radius: 16px;
+}
+.conflitos-box ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+/* Botões do modal */
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: auto;    /* empurra os botões para o fundo do modal */
+  padding-top: 1.5rem;
+}
+.modal-buttons button {
+  padding: 10px 24px;
+  border-radius: 40px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.modal-buttons button[type="button"] {
+  background: #f0eaf8;
+  color: #5e2a8c;
+}
+.modal-buttons button[type="button"]:hover {
+  background: #e2d4f0;
+}
+.modal-buttons button[type="submit"] {
+  background: #8e44ad;
+  color: white;
+}
+.modal-buttons button[type="submit"]:hover {
+  background: #6a2e8a;
+  transform: translateY(-2px);
+}
+.modal-buttons button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsividade para telas menores que 904px */
+@media (max-height: 920px) {
+  .modal-container {
+    height: auto;
+    max-height: 90vh;
+  }
+}
+@media (max-width: 640px) {
+  .modal-container {
+    width: 95vw;
+    padding: 20px;
+  }
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+  .modal-buttons {
+    flex-direction: column;
+  }
+  .modal-buttons button {
+    width: 100%;
+  }
+}
+
+/* ========== FORÇAR FUNDO DO MODAL ========== */
+/* ============================================
+   MODAL DE RESERVA - VERSÃO DEFINITIVA (ROXO)
+   ============================================ */
+
+/* ============================================
+   MODAL DE RESERVA - VERSÃO LARGA E OTIMIZADA
+   ============================================ */
+/* ============================================
+   MODAL DE RESERVA - VERSÃO LARGA (850px) E BOTÕES LAVANDA
+   ============================================ */
+
+.reserva-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  font-family: 'Inter', sans-serif;
+}
+
+.reserva-container {
+  background: white;
+  width: 850px;               /* MAIS LARGO */
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 32px;
+  padding: 32px 40px;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Cabeçalho */
+.reserva-header h2 {
+  font-size: 28px;
+  margin: 0 0 8px 0;
+  color: #4a1d6d;
+}
+.reserva-header p {
+  color: #5e5e6f;
+  margin-bottom: 20px;
+}
+
+/* Alerta de pendência */
+.reserva-alert-warning {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  font-size: 14px;
+  color: #b85c00;
+}
+
+/* Formulário geral */
+.reserva-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Bloco cinza unificado */
+.reserva-gray-group {
+  background: #f8fafc;
+  padding: 28px;
+  border-radius: 24px;
+  border: 1px solid #e9e0f5;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Linha com dois campos */
+.reserva-row {
+  display: flex;
+  gap: 24px;
+  width: 100%;
+}
+
+/* Cada campo */
+.reserva-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.reserva-field label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #6f4f8f;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.reserva-field input,
+.reserva-field select,
+.reserva-field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e2d4f0;
+  border-radius: 16px;
+  font-size: 15px;
+  background: white;
+  font-family: inherit;
+  transition: 0.2s;
+}
+.reserva-field input:focus,
+.reserva-field select:focus,
+.reserva-field textarea:focus {
+  outline: none;
+  border-color: #8e44ad;
+  box-shadow: 0 0 0 3px rgba(142, 68, 173, 0.15);
+}
+
+/* Seção de horários (INÍCIO e FIM) */
+.reserva-time-section {
+  display: flex;
+  gap: 24px;
+}
+.reserva-time-column {
+  flex: 1;
+}
+.reserva-time-column label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #6f4f8f;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 8px;
+}
+.reserva-time-column select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e2d4f0;
+  border-radius: 16px;
+  background: white;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+/* Seção recorrente */
+.reserva-recorrente-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 24px;
+  background: #ffffff;
+}
+
+/* Checkbox horizontal principal */
+.reserva-checkbox-horizontal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.reserva-checkbox-horizontal input {
+  display: none;
+}
+.reserva-custom-box {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #c4b5d7;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+}
+.reserva-checkbox-horizontal input:checked + .reserva-custom-box {
+  background: #8e44ad;
+  border-color: #8e44ad;
+}
+.reserva-custom-box:after {
+  content: "✓";
+  color: white;
+  font-size: 14px;
+  display: none;
+}
+.reserva-checkbox-horizontal input:checked + .reserva-custom-box:after {
+  display: block;
+}
+.reserva-label-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2d1b42;
+}
+.reserva-badge-purple {
+  background: #f0eaf8;
+  color: #5e2a8c;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 30px;
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+/* Dias da semana como botões (sem checkbox) */
+.reserva-dias-semana {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+.reserva-dia-botao {
+  background: #f8fafc;
+  border: 1px solid #e2d4f0;
+  border-radius: 40px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2d1b42;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.reserva-dia-botao:hover {
+  background: #f0eaf8;
+  transform: translateY(-1px);
+}
+.reserva-dia-botao.active {
+  background: #d9c5f0;   /* lavanda / roxo claro */
+  border-color: #8e44ad;
+  color: #4a1d6d;
+  font-weight: 600;
+}
+
+/* Informações de ocorrências */
+.reserva-info-box {
+  background: #f0eaf8;
+  padding: 16px;
+  border-radius: 20px;
+  margin-top: 20px;
+  text-align: center;
+}
+.reserva-info-box p {
+  margin: 4px 0;
+  font-weight: 600;
+  color: #4a1d6d;
+}
+.reserva-small-text {
+  font-size: 0.8rem;
+  color: #7e5a9c;
+  font-weight: normal;
+}
+
+/* Rodapé com botões */
+.reserva-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #ede5f5;
+}
+.btn-cancel-flat {
+  background: transparent;
+  border: none;
+  font-weight: 600;
+  color: #6f4f8f;
+  cursor: pointer;
+  padding: 10px 20px;
+  border-radius: 40px;
+  transition: 0.2s;
+}
+.btn-cancel-flat:hover {
+  background: #f0eaf8;
+}
+.btn-submit-purple {
+  background: #8e44ad;
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 40px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-submit-purple:hover {
+  background: #6a2e8a;
+  transform: translateY(-2px);
+}
+
+/* Responsividade */
+@media (max-width: 900px) {
+  .reserva-container {
+    width: 95vw;
+    padding: 24px;
+  }
+  .reserva-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .reserva-time-section {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .reserva-footer-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .btn-cancel-flat,
+  .btn-submit-purple {
+    width: 100%;
+    text-align: center;
+  }
+}/* ============================================
+   MODAL DE RESERVA - VERSÃO LARGA (850px) E BOTÕES LAVANDA
+   ============================================ */
+
+.reserva-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  font-family: 'Inter', sans-serif;
+}
+
+.reserva-container {
+  background: white;
+  width: 850px;               /* MAIS LARGO */
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 32px;
+  padding: 32px 40px;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Cabeçalho */
+.reserva-header h2 {
+  font-size: 28px;
+  margin: 0 0 8px 0;
+  color: #4a1d6d;
+}
+.reserva-header p {
+  color: #5e5e6f;
+  margin-bottom: 20px;
+}
+
+/* Alerta de pendência */
+.reserva-alert-warning {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  font-size: 14px;
+  color: #b85c00;
+}
+
+/* Formulário geral */
+.reserva-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Bloco cinza unificado */
+.reserva-gray-group {
+  background: #f8fafc;
+  padding: 28px;
+  border-radius: 24px;
+  border: 1px solid #e9e0f5;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Linha com dois campos */
+.reserva-row {
+  display: flex;
+  gap: 24px;
+  width: 100%;
+}
+
+/* Cada campo */
+.reserva-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.reserva-field label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #6f4f8f;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.reserva-field input,
+.reserva-field select,
+.reserva-field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e2d4f0;
+  border-radius: 16px;
+  font-size: 15px;
+  background: white;
+  font-family: inherit;
+  transition: 0.2s;
+}
+.reserva-field input:focus,
+.reserva-field select:focus,
+.reserva-field textarea:focus {
+  outline: none;
+  border-color: #8e44ad;
+  box-shadow: 0 0 0 3px rgba(142, 68, 173, 0.15);
+}
+
+/* Seção de horários (INÍCIO e FIM) */
+.reserva-time-section {
+  display: flex;
+  gap: 24px;
+}
+.reserva-time-column {
+  flex: 1;
+}
+.reserva-time-column label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #6f4f8f;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 8px;
+}
+.reserva-time-column select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e2d4f0;
+  border-radius: 16px;
+  background: white;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+/* Seção recorrente */
+.reserva-recorrente-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 24px;
+  background: #ffffff;
+}
+
+/* Checkbox horizontal principal */
+.reserva-checkbox-horizontal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.reserva-checkbox-horizontal input {
+  display: none;
+}
+.reserva-custom-box {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #c4b5d7;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+}
+.reserva-checkbox-horizontal input:checked + .reserva-custom-box {
+  background: #8e44ad;
+  border-color: #8e44ad;
+}
+.reserva-custom-box:after {
+  content: "✓";
+  color: white;
+  font-size: 14px;
+  display: none;
+}
+.reserva-checkbox-horizontal input:checked + .reserva-custom-box:after {
+  display: block;
+}
+.reserva-label-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2d1b42;
+}
+.reserva-badge-purple {
+  background: #f0eaf8;
+  color: #5e2a8c;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 30px;
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+/* Dias da semana como botões (sem checkbox) */
+.reserva-dias-semana {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+.reserva-dia-botao {
+  background: #f8fafc;
+  border: 1px solid #e2d4f0;
+  border-radius: 40px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2d1b42;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.reserva-dia-botao:hover {
+  background: #f0eaf8;
+  transform: translateY(-1px);
+}
+.reserva-dia-botao.active {
+  background: #d9c5f0;   /* lavanda / roxo claro */
+  border-color: #8e44ad;
+  color: #4a1d6d;
+  font-weight: 600;
+}
+
+/* Informações de ocorrências */
+.reserva-info-box {
+  background: #f0eaf8;
+  padding: 16px;
+  border-radius: 20px;
+  margin-top: 20px;
+  text-align: center;
+}
+.reserva-info-box p {
+  margin: 4px 0;
+  font-weight: 600;
+  color: #4a1d6d;
+}
+.reserva-small-text {
+  font-size: 0.8rem;
+  color: #7e5a9c;
+  font-weight: normal;
+}
+
+/* Rodapé com botões */
+.reserva-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #ede5f5;
+}
+.btn-cancel-flat {
+  background: transparent;
+  border: none;
+  font-weight: 600;
+  color: #6f4f8f;
+  cursor: pointer;
+  padding: 10px 20px;
+  border-radius: 40px;
+  transition: 0.2s;
+}
+.btn-cancel-flat:hover {
+  background: #f0eaf8;
+}
+.btn-submit-purple {
+  background: #8e44ad;
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 40px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-submit-purple:hover {
+  background: #6a2e8a;
+  transform: translateY(-2px);
+}
+
+/* Responsividade */
+@media (max-width: 900px) {
+  .reserva-container {
+    width: 95vw;
+    padding: 24px;
+  }
+  .reserva-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .reserva-time-section {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .reserva-footer-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .btn-cancel-flat,
+  .btn-submit-purple {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Aumenta espaçamento entre checkbox e conteúdo expandido */
+.reserva-checkbox-horizontal {
+  margin-bottom: 20px;
+}
+
+/* Remove qualquer margem extra indesejada */
+.reserva-recorrente-expanded {
+  margin-top: 0;
+  padding-top: 8px;
+}
+
+/* Mensagens de erro/sucesso dentro do modal */
+.reserva-message {
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+.reserva-message.error {
+  background: #fee2e2;
+  color: #991b1b;
+  border-left: 4px solid #dc2626;
+}
+.reserva-message.success {
+  background: #dcfce7;
+  color: #166534;
+  border-left: 4px solid #22c55e;
+}
+
+/* Aviso de conflito – sem emoji, centralizado */
+.reserva-conflict-warning {
+  background: #fff8e7;
+  border: 1px solid #f5d371;
+  border-radius: 24px;
+  padding: 24px 20px;
+  margin-bottom: 28px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.reserva-conflict-warning strong {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #b45309;
+  margin-bottom: 12px;
+  letter-spacing: -0.2px;
+}
+
+.reserva-conflict-warning p {
+  color: #92400e;
+  font-size: 0.9rem;
+  margin: 8px 0;
+}
+
+.reserva-conflict-warning ul {
+  display: inline-block;
+  text-align: left;
+  margin: 12px auto;
+  padding-left: 24px;
+  list-style: disc;
+  color: #b45309;
+  background: #fffdf5;
+  padding: 8px 20px;
+  border-radius: 40px;
+  font-weight: 500;
+}
+
+.reserva-conflict-warning ul li {
+  margin: 4px 0;
+  font-size: 0.85rem;
+}
+
+.reserva-conflict-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.btn-proceed {
+  background: #8e44ad;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 40px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-proceed:hover {
+  background: #6a2e8a;
+  transform: translateY(-1px);
+}
+
+.btn-cancel-conflict {
+  background: #f1f3f5;
+  color: #4a1d6d;
+  border: 1px solid #e2d4f0;
+  padding: 10px 24px;
+  border-radius: 40px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-cancel-conflict:hover {
+  background: #e9ecef;
+}
+
+.reserva-info-horario {
+  margin-top: 16px;
+  padding: 8px 12px;
+  background: #f3e8ff;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #5e2a8c;
+  border: 1px solid #e2d4f0;
+}
