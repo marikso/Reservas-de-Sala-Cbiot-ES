@@ -2144,3 +2144,685 @@ button.secondary:hover {
   color: #5e2a8c;
   border: 1px solid #e2d4f0;
 }
+
+/* ===== CONSULTA DE DISPONIBILIDADE – NOVO DESIGN ===== */
+.disponibilidade-box {
+  padding: 1.8rem;
+}
+
+.disponibilidade-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.disponibilidade-header h2 {
+  margin: 0;
+}
+
+.modo-consulta {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  background: #f8fafc;
+  padding: 0.75rem 1rem;
+  border-radius: 60px;
+  width: fit-content;
+}
+.modo-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+.modo-radio input {
+  width: auto;
+  margin: 0;
+}
+
+.consulta-sala, .consulta-data-hora {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 2rem;
+  background: #f1f5f9;
+  padding: 1.25rem;
+  border-radius: 20px;
+}
+.consulta-field {
+  flex: 1;
+  min-width: 150px;
+}
+.consulta-field label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #6f4f8f;
+  margin-bottom: 0.25rem;
+}
+.consulta-field select, .consulta-field input {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+}
+/* Botões principais - unificados na cor roxa */
+.consulta-btn,
+.solicitar-reserva-btn {
+  background: #8e44ad;
+  color: white;
+  border: none;
+  padding: 0.7rem 1.8rem;
+  border-radius: 40px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.consulta-btn:hover,
+.solicitar-reserva-btn:hover {
+  background: #6a2e8a;
+  transform: translateY(-2px);
+}
+
+.resultado-disponibilidade {
+  margin-top: 2rem;
+  border-top: 1px solid #e9e0f5;
+  padding-top: 1.5rem;
+}
+.sala-info-header {
+  margin-bottom: 1rem;
+}
+.sala-info-header h3 {
+  font-size: 1.4rem;
+  color: #4a1d6d;
+  margin-bottom: 0.25rem;
+}
+.sala-info-detalhes {
+  font-size: 0.85rem;
+  color: #5e5e6f;
+}
+.horario-titulo {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2d1b42;
+  margin: 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2d4f0;
+}
+
+/* Grade de horários (cards) - substitui o antigo .grid-list se desejar */
+.horarios-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.75rem;
+}
+.horario-card {
+  background: white;
+  border-radius: 40px;
+  padding: 0.6rem 0.25rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.horario-inicio {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.horario-status {
+  font-size: 0.65rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.status-disponivel {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+.status-disponivel:hover {
+  background: #bbf7d0;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+  cursor: pointer;
+}
+.status-reservado {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #991b1b;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+.status-manutencao {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #475569;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.salas-disponiveis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.sala-card-horario {
+  background: #f8fafc;
+  border-radius: 20px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: 0.2s;
+  border: 1px solid #e2d4f0;
+}
+.sala-card-horario:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.08);
+  background: white;
+}
+.sem-resultados {
+  text-align: center;
+  padding: 2rem;
+  color: #7e5a9c;
+}
+
+@media (max-width: 768px) {
+  .horarios-grade {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+  .consulta-sala, .consulta-data-hora {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .consulta-btn {
+    width: 100%;
+  }
+}
+
+/* ===== CONSULTA DE DISPONIBILIDADE – LAYOUT LARGO E CORES ===== */
+.main-content {
+  max-width: 1400px !important;
+  margin: 0 auto;
+  padding: 2rem;
+}
+.box {
+  max-width: 100%;
+}
+.disponibilidade-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.disponibilidade-header h2 {
+  font-size: 1.8rem;
+  margin: 0;
+}
+.disponibilidade-sub {
+  color: #5a6e7c;
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+.modo-consulta {
+  display: flex;
+  gap: 1.5rem;
+  background: #f8fafc;
+  padding: 0.5rem 1rem;
+  border-radius: 40px;
+  width: fit-content;
+  margin-bottom: 1.5rem;
+}
+.consulta-sala, .consulta-data-hora {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  background: #f1f5f9;
+  padding: 1.2rem 1.5rem;
+  border-radius: 24px;
+  margin-bottom: 2rem;
+}
+.consulta-field {
+  flex: 1;
+  min-width: 180px;
+}
+.consulta-field label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #6f4f8f;
+  margin-bottom: 0.25rem;
+}
+.consulta-btn {
+  background: #8e44ad;
+  color: white;
+  border: none;
+  padding: 0.7rem 1.8rem;
+  border-radius: 40px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.consulta-btn:hover {
+  background: #6a2e8a;
+  transform: translateY(-2px);
+}
+.resultado-disponibilidade {
+  margin-top: 1.5rem;
+  border-top: 1px solid #e9e0f5;
+  padding-top: 1.5rem;
+}
+.sala-info-header h3 {
+  font-size: 1.6rem;
+  color: #2c3e50;
+  margin-bottom: 0.25rem;
+}
+.sala-info-detalhes {
+  font-size: 0.9rem;
+  color: #5a6e7c;
+}
+.sala-mensagem {
+  background: #fef9e3;
+  padding: 0.5rem 1rem;
+  border-radius: 30px;
+  font-size: 0.8rem;
+  color: #b85c00;
+  margin: 0.75rem 0;
+  display: inline-block;
+}
+.horario-titulo {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2d1b42;
+  margin: 1rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2d4f0;
+}
+.horarios-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.85rem;
+}
+.horario-card {
+  background: white;
+  border-radius: 16px;
+  padding: 0.7rem 0.25rem;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.horario-inicio {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.horario-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 5px;
+  text-transform: uppercase;
+}
+.status-disponivel {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #166534;
+  cursor: pointer;
+}
+.status-disponivel:hover {
+  background: #bbf7d0;
+  transform: translateY(-3px);
+}
+.status-reservado {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #991b1b;
+  cursor: not-allowed;
+}
+.status-manutencao {
+  background: #f1f3f4;
+  border-color: #dee2e6;
+  color: #495057;
+  cursor: not-allowed;
+}
+.disponibilidade-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e9e0f5;
+  font-size: 0.8rem;
+}
+.legenda-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.legenda-cor {
+  width: 20px;
+  height: 20px;
+  border-radius: 8px;
+}
+.legenda-cor.disponivel { background: #dcfce7; border: 1px solid #bbf7d0; }
+.legenda-cor.reservado { background: #fee2e2; border: 1px solid #fecaca; }
+.legenda-cor.manutencao { background: #f1f3f4; border: 1px solid #dee2e6; }
+.legenda-cor.selecionado { background: #d9c5f0; border: 1px solid #b794d4; }
+
+/* Cabeçalho simplificado da consulta */
+.disponibilidade-header-simplificado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+.disponibilidade-header-simplificado h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
+  color: #1e2a3a;
+}
+.disponibilidade-header-simplificado .disponibilidade-sub {
+  font-size: 0.85rem;
+  color: #5a6e7c;
+  margin: 0;
+}
+.disponibilidade-header-simplificado .solicitar-reserva-btn {
+  background-color: #8e44ad;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+/* Estado "Selecionado" na grade de horários (mesmo tom da legenda) */
+.status-selecionado {
+  background: #d9c5f0 !important;
+  border-color: #b794d4 !important;
+  color: #3c1e5c !important;
+}
+
+/* Legenda - garantia da cor selecionado */
+.legenda-cor.selecionado {
+  background: #d9c5f0;
+  border: 1px solid #b794d4;
+}
+
+/* Remove limites de largura do main content e das boxes */
+.main-content {
+  padding: 1rem 1.5rem !important;
+  width: 100% !important;
+  max-width: none !important;
+  overflow-x: auto;
+}
+
+/* A box ocupa 100% da largura, mas mantém os espaçamentos internos */
+.box {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* A grade de horários se ajusta ao novo espaço, mantendo cards proporcionais */
+.horarios-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Para telas muito grandes, os cards podem ficar um pouco maiores, mas não exagerados */
+@media (min-width: 1600px) {
+  .horarios-grade {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+}
+
+/* Mantém a sidebar na largura original e o layout sem margens laterais */
+.app-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* ===== BOTÕES DE MODO ESTILIZADOS ===== */
+.modo-consulta {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  background: transparent;
+  padding: 0;
+}
+.modo-radio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  border-radius: 60px;
+  padding: 0.5rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+.modo-radio input {
+  display: none;
+}
+.modo-radio span {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #334155;
+}
+.modo-radio.active {
+  background: #8e44ad;
+  border-color: #8e44ad;
+}
+.modo-radio.active span {
+  color: white;
+}
+.modo-radio:hover:not(.active) {
+  background: #e2e8f0;
+}
+
+/* ===== CARDS DE HORÁRIO MAIORES ===== */
+.horarios-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+}
+.horario-card {
+  background: white;
+  border-radius: 20px;
+  padding: 1rem 0.5rem;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+.horario-inicio {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.horario-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Cores (mantidas) */
+.status-disponivel {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+.status-disponivel:hover {
+  background: #bbf7d0;
+  transform: translateY(-2px);
+  cursor: pointer;
+}
+.status-reservado {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #991b1b;
+  cursor: not-allowed;
+}
+.status-manutencao {
+  background: #f1f3f4;
+  border-color: #dee2e6;
+  color: #495057;
+  cursor: not-allowed;
+}
+.status-selecionado {
+  background: #d9c5f0;
+  border-color: #b794d4;
+  color: #3c1e5c;
+}
+
+/* Layout principal: sidebar fixa na esquerda, conteúdo flexível */
+.app-layout {
+  display: flex;  /* muda de grid para flex */
+  min-height: 100vh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;  /* impede que sidebar encolha */
+  background: linear-gradient(180deg, #2e0f5c 0%, #4d1c8b 100%);
+  padding: 1.5rem;
+  color: #f5f3ff;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh; /* sidebar ocupa toda altura da viewport */
+  overflow-y: auto; /* permite rolagem interna se muitos itens */
+}
+
+.main-content {
+  flex: 1;  /* ocupa o restante do espaço */
+  padding: 1rem 1.5rem;
+  background: #f5f7fc;
+  overflow-y: auto; /* permite rolagem vertical apenas quando necessário */
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+/* Remove altura fixa e overflow desnecessário de elementos internos */
+.box {
+  max-width: 100%;
+  margin-bottom: 1.5rem;
+  overflow-x: auto; /* apenas se houver tabelas muito largas */
+}
+
+/* Grade de horários responsiva, sem rolagem horizontal */
+.horarios-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Tabela de usuários pode rolar horizontalmente se necessário */
+.users-table-container {
+  overflow-x: auto;
+}
+
+/* Ajusta a consulta de disponibilidade para não forçar largura fixa */
+.consulta-sala, .consulta-data-hora {
+  flex-wrap: wrap;
+}
+
+/* ===== CARTÕES DE SALAS NO MODO DATA/HORA ===== */
+.salas-disponiveis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.2rem;
+  margin-top: 1rem;
+}
+
+.sala-card-horario {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 1rem;
+  border: 1px solid #e9e0f5;
+  transition: all 0.2s;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sala-card-horario:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  border-color: #c2a8e0;
+}
+
+.sala-card-horario .sala-nome {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #4a1d6d; /* roxo escuro */
+  margin-bottom: 0.25rem;
+}
+
+.sala-card-horario .sala-localizacao {
+  font-size: 0.8rem;
+  color: #6f4f8f; /* roxo médio */
+  margin-bottom: 0.25rem;
+}
+
+.sala-card-horario .sala-info {
+  font-size: 0.85rem;
+  color: #2d1b42;
+}
+
+.sala-card-horario .sala-equipamentos {
+  font-size: 0.75rem;
+  color: #7e5a9c;
+  margin-top: 0.25rem;
+}
+
+.sala-card-horario .small-btn {
+  background: #8e44ad;
+  color: white;
+  border: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 40px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  width: fit-content;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.sala-card-horario .small-btn:hover {
+  background: #6a2e8a;
+  transform: translateY(-1px);
+}

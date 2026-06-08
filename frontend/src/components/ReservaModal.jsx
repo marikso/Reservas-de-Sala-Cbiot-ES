@@ -9,35 +9,6 @@ const InfoIcon = ({ color = "#10b981", size = 20 }) => (
   </svg>
 );
 
-// Funções auxiliares de horário
-const timeToMinutes = (timeStr) => {
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
-};
-const minutesToTime = (minutes) => {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-};
-const generateAllStartTimes = () => {
-  const times = [];
-  let mins = 8 * 60;
-  while (mins < 19 * 60) {
-    times.push(minutesToTime(mins));
-    mins += 30;
-  }
-  return times;
-};
-const generateAllEndTimes = () => {
-  const times = [];
-  let mins = 8 * 60 + 30;
-  while (mins <= 19 * 60) {
-    times.push(minutesToTime(mins));
-    mins += 30;
-  }
-  return times;
-};
-
 const normalizeTime = (timeStr) => {
   if (!timeStr) return '';
   if (/^\d{2}:\d{2}$/.test(timeStr)) return timeStr;
@@ -52,7 +23,7 @@ const formatDate = (isoDate) => {
   return `${day}/${month}/${year}`;
 };
 
-const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole }) => {
+const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialData }) => {
   const isExterno = userRole === 'externo';
   const [form, setForm] = useState({
     sala_id: '',
@@ -72,7 +43,20 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole }) => {
   const [horariosLivres, setHorariosLivres] = useState([]);
   const [horariosFimPossiveis, setHorariosFimPossiveis] = useState([]);
 
-  // Limpa estado ao abrir/fechar
+  // Quando o modal abre ou initialData muda, atualiza o formulário com os dados recebidos
+  useEffect(() => {
+    if (isOpen && initialData) {
+      setForm({
+        sala_id: initialData.sala_id || '',
+        titulo: initialData.titulo || '',
+        data: initialData.data || '',
+        hora_inicio: initialData.hora_inicio || '',
+        hora_fim: initialData.hora_fim || '',
+      });
+    }
+  }, [isOpen, initialData]);
+
+  // Limpa mensagens e estado de conflito ao abrir
   useEffect(() => {
     if (isOpen) {
       setErrorMessage('');
@@ -111,7 +95,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole }) => {
     }
   }, [form.sala_id, form.data, recorrente]);
 
-  // Calcula horários de fim possíveis (apenas para não recorrente, pois recorrente usa lista completa)
+  // Calcula horários de fim possíveis (apenas para não recorrente)
   useEffect(() => {
     if (recorrente) {
       setHorariosFimPossiveis([]);
@@ -186,7 +170,6 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole }) => {
     if (recorrente && (!form.data || !dataFim || diasSelecionados.length === 0)) {
       setErrorMessage('Preencha data de início, data final e pelo menos um dia da semana.'); setLoading(false); return;
     }
-    // Validação de sábado/domingo apenas para não recorrente (recorrente já trata dias da semana)
     if (!recorrente && form.data) {
       const dataObj = new Date(form.data);
       if (dataObj.getDay() === 0 || dataObj.getDay() === 6) {
@@ -267,19 +250,11 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole }) => {
     }, 2000);
   };
 
-  // Regras de desabilitação dos horários
   const isHorarioDisabled = recorrente 
     ? !form.sala_id 
     : !form.sala_id || !form.data || horariosLivres.length === 0;
 
   const diasTexto = diasSelecionados.map(v => diasSemana.find(d => d.value === v)?.label).join(', ');
-
-  // Opções de início (recorrente usa todos; não recorrente usa livres)
-  const inicioOptions = recorrente ? generateAllStartTimes() : horariosLivres;
-  // Opções de fim (recorrente usa todos filtrados; não recorrente usa os calculados)
-  const fimOptions = recorrente 
-    ? generateAllEndTimes().filter(fim => timeToMinutes(fim) > timeToMinutes(form.hora_inicio))
-    : horariosFimPossiveis;
 
   return (
     <div className="reserva-overlay" onClick={onClose}>
@@ -355,10 +330,8 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole }) => {
                     onChange={(e) => setForm({ ...form, hora_inicio: e.target.value, hora_fim: '' })}
                     disabled={isHorarioDisabled}
                   >
-                    <option value="" disabled>
-                      {!form.sala_id ? 'Selecione uma sala' : (recorrente ? 'Selecione o horário de início' : 'Selecione o horário de início')}
-                    </option>
-                    {inicioOptions.map(time => (
+                    <option value="" disabled>Selecione o horário de início</option>
+                    {(recorrente ? generateAllStartTimes() : horariosLivres).map(time => (
                       <option key={time} value={time}>{time}</option>
                     ))}
                   </select>
@@ -368,12 +341,10 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole }) => {
                   <select
                     value={form.hora_fim}
                     onChange={(e) => setForm({ ...form, hora_fim: e.target.value })}
-                    disabled={!form.hora_inicio || fimOptions.length === 0}
+                    disabled={!form.hora_inicio || (recorrente ? false : horariosFimPossiveis.length === 0)}
                   >
-                    <option value="" disabled>
-                      {!form.hora_inicio ? 'Selecione o início primeiro' : 'Selecione o horário de fim'}
-                    </option>
-                    {fimOptions.map(time => (
+                    <option value="" disabled>Selecione o horário de fim</option>
+                    {(recorrente ? generateAllEndTimes().filter(t => timeToMinutes(t) > timeToMinutes(form.hora_inicio)) : horariosFimPossiveis).map(time => (
                       <option key={time} value={time}>{time}</option>
                     ))}
                   </select>
@@ -444,6 +415,35 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole }) => {
       </div>
     </div>
   );
+};
+
+// Funções auxiliares que faltavam dentro do escopo do componente
+const timeToMinutes = (timeStr) => {
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+};
+const minutesToTime = (minutes) => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+const generateAllStartTimes = () => {
+  const times = [];
+  let mins = 8 * 60;
+  while (mins < 19 * 60) {
+    times.push(minutesToTime(mins));
+    mins += 30;
+  }
+  return times;
+};
+const generateAllEndTimes = () => {
+  const times = [];
+  let mins = 8 * 60 + 30;
+  while (mins <= 19 * 60) {
+    times.push(minutesToTime(mins));
+    mins += 30;
+  }
+  return times;
 };
 
 export default ReservaModal;
