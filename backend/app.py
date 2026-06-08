@@ -829,8 +829,6 @@ def criar_manutencao():
         return jsonify({'erro': 'Formato inválido'}), 400
     if hora_ini.minute not in (0,30) or hora_fim.minute not in (0,30):
         return jsonify({'erro': 'Horários devem ser em hora cheia ou meia hora'}), 400
-    if hora_ini >= hora_fim:
-        return jsonify({'erro': 'Início deve ser anterior ao fim'}), 400
     if hora_ini < time(8,0) or hora_fim > time(19,0):
         return jsonify({'erro': 'Fora do horário comercial (08:00-19:00)'}), 400
     conflito = Manutencao.query.filter(

@@ -2759,3 +2759,194 @@ body {
     padding: 0.7rem 0 !important;
   }
 }
+
+/* Abas do admin */
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e9e0f5;
+  padding-bottom: 0.5rem;
+}
+.admin-tab {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 40px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #6f4f8f;
+}
+.admin-tab.active {
+  background: #8e44ad;
+  color: white;
+}
+/* Cards de métricas */
+.relatorio-metricas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.metrica-card {
+  background: #f8fafc;
+  border-radius: 20px;
+  padding: 1rem;
+  text-align: center;
+  flex: 1;
+  min-width: 120px;
+  border: 1px solid #e9e0f5;
+}
+.metrica-card h3 {
+  font-size: 0.8rem;
+  color: #6f4f8f;
+  margin-bottom: 0.5rem;
+}
+.metrica-card p {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2d1b42;
+}
+.relatorio-graficos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin: 1rem 0;
+}
+.grafico {
+  flex: 1;
+  min-width: 250px;
+}
+.grafico canvas {
+  max-width: 100%;
+  height: auto;
+}
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+.ranking-table th, .ranking-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+/* Abas do admin */
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e9e0f5;
+  padding-bottom: 0.5rem;
+}
+.admin-tab {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 40px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #6f4f8f;
+  transition: 0.2s;
+}
+.admin-tab.active {
+  background: #8e44ad;
+  color: white;
+}
+.admin-tab:hover:not(.active) {
+  background: #f0eaf8;
+}
+
+/* Métricas relatórios */
+.metrica-card {
+  background: #f8fafc;
+  border-radius: 20px;
+  padding: 1rem;
+  text-align: center;
+  flex: 1;
+  min-width: 120px;
+  border: 1px solid #e9e0f5;
+}
+.metrica-card h3 {
+  font-size: 0.8rem;
+  color: #6f4f8f;
+  margin-bottom: 0.5rem;
+}
+.metrica-card p {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2d1b42;
+}
+
+/* Ranking table */
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+.ranking-table th, .ranking-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.metrica-card {
+  background: #f8fafc;
+  border-radius: 20px;
+  padding: 1rem;
+  text-align: center;
+  flex: 1;
+  min-width: 120px;
+  border: 1px solid #e9e0f5;
+}
+.metrica-card h3 {
+  font-size: 0.8rem;
+  color: #6f4f8f;
+  margin-bottom: 0.5rem;
+}
+.metrica-card p {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2d1b42;
+}
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ranking-table th, .ranking-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.metrica-card {
+  background: #f8fafc;
+  border-radius: 20px;
+  padding: 1rem;
+  text-align: center;
+  flex: 1;
+  min-width: 120px;
+  border: 1px solid #e9e0f5;
+}
+.metrica-card h3 {
+  font-size: 0.8rem;
+  color: #6f4f8f;
+  margin-bottom: 0.5rem;
+}
+.metrica-card p {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2d1b42;
+}
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ranking-table th, .ranking-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
