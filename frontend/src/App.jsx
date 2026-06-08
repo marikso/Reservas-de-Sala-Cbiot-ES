@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getSalas,
+  createSala,
+  updateSala,
+  deleteSala,
   getReservas,
   createReserva,
   createReservaRecorrente,
@@ -10,6 +13,9 @@ import {
   deleteReserva,
   deleteUserGrupo,
   updateReserva,
+  getUsers,
+  updateUser,
+  approveUser,
   whoami,
   authLogout,
 } from './api';
@@ -50,6 +56,9 @@ function App() {
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [allReservas, setAllReservas] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [solicitacoes, setSolicitacoes] = useState([]);
+  const [rejeitadas, setRejeitadas] = useState([]);
   const [disponibilidade, setDisponibilidade] = useState(null);
   const [form, setForm] = useState({
     sala_id: '',
@@ -69,7 +78,10 @@ function App() {
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dataFim, setDataFim] = useState('');
 
-  // Estados para consulta de disponibilidade (usados na view separada)
+  // Estado para controle da aba na view de solicitações
+  const [tabSolicitacoes, setTabSolicitacoes] = useState('pendentes');
+
+  // Estados para consulta de disponibilidade
   const [modoDisponibilidade, setModoDisponibilidade] = useState('sala');
   const [disponibilidadeDataHora, setDisponibilidadeDataHora] = useState(null);
   const [dataConsulta, setDataConsulta] = useState('');
@@ -86,8 +98,21 @@ function App() {
     hora_fim: '',
   });
 
+  // Estados para gerenciamento de salas (admin)
+  const [novaSala, setNovaSala] = useState({
+    nome: '',
+    bloco: '',
+    andar: '',
+    capacidade: '',
+    equipamentos: '',
+  });
+  const [editandoSala, setEditandoSala] = useState(null);
+
   // Estado para controlar a view ativa do sidebar
   const [activeView, setActiveView] = useState('inicio');
+
+  // Estado para cargos selecionados na aprovação de usuários
+  const [selectedCargo, setSelectedCargo] = useState({});
 
   const dataSelecionada = !!form.data;
 
@@ -107,6 +132,30 @@ function App() {
     const hoje = new Date().toISOString().slice(0, 10);
     const todas = data.filter((r) => r.data >= hoje);
     setAllReservas(todas);
+  };
+  const loadUsers = async () => {
+    if (currentUser?.cargo === 'admin') {
+      const data = await getUsers();
+      setUsers(data);
+    }
+  };
+  const loadSolicitacoes = async () => {
+    if (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') {
+      const res = await fetch('http://localhost:5000/api/solicitacoes', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setSolicitacoes(data);
+      }
+    }
+  };
+  const loadRejeitadas = async () => {
+    if (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') {
+      const res = await fetch('http://localhost:5000/api/solicitacoes/rejeitadas', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setRejeitadas(data);
+      }
+    }
   };
 
   useEffect(() => {
@@ -132,6 +181,11 @@ function App() {
       loadReservas();
       if (currentUser.cargo === 'admin' || currentUser.cargo === 'gerente') {
         loadAllReservas();
+        loadSolicitacoes();
+        loadRejeitadas();
+      }
+      if (currentUser.cargo === 'admin') {
+        loadUsers();
       }
     }
   }, [currentUser]);
@@ -143,7 +197,7 @@ function App() {
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
-  // ========== LÓGICA DE HORÁRIOS DISPONÍVEIS (para o formulário) ==========
+  // ========== LÓGICA DE HORÁRIOS DISPONÍVEIS (formulário) ==========
   const reservasIntervalos = useMemo(
     () =>
       reservasDoDia.map((r) => ({
@@ -219,6 +273,7 @@ function App() {
     navigate('/');
   };
 
+  // Cancelar reserva individual
   const handleCancelarReserva = async (id, titulo) => {
     if (window.confirm(`Cancelar a reserva "${titulo}"?`)) {
       const res = await deleteReserva(id);
@@ -231,6 +286,7 @@ function App() {
     }
   };
 
+  // Cancelar série recorrente (usuário comum ou admin/gerente)
   const handleCancelarGrupo = async (grupoId, isOwner = false) => {
     if (window.confirm('Cancelar TODAS as reservas desta série recorrente?')) {
       let res;
@@ -248,6 +304,7 @@ function App() {
     }
   };
 
+  // Editar reserva (admin/gerente)
   const handleEditarReserva = (reserva) => {
     setEditandoReserva(reserva);
     setEditForm({
@@ -346,14 +403,18 @@ function App() {
       setDiasSelecionados([]);
       setRecorrente(false);
     } else {
-      showToast('Reserva criada com sucesso!', 'success');
+      if (response.mensagem && response.mensagem.includes('Solicitação enviada')) {
+        showToast('Solicitação enviada. Aguarde aprovação.', 'info');
+      } else {
+        showToast('Reserva criada com sucesso!', 'success');
+      }
       setForm((prev) => ({ ...prev, titulo: '', descricao: '' }));
       await loadReservas();
       if (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') await loadAllReservas();
     }
   };
 
-  // ========== DISPONIBILIDADE (usado na view separada) ==========
+  // ========== DISPONIBILIDADE (para view separada) ==========
   const handleDisponibilidade = async () => {
     if (!form.sala_id || !form.data) {
       showToast('Escolha sala e data para ver disponibilidade', 'error');
@@ -396,6 +457,113 @@ function App() {
     }
   };
 
+  // ========== GERENCIAMENTO DE SALAS (admin) ==========
+  const handleChangeSala = (e) => {
+    const { name, value } = e.target;
+    setNovaSala((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleAdicionarSala = async () => {
+    if (!novaSala.nome.trim()) {
+      showToast('Informe o nome da sala', 'error');
+      return;
+    }
+    const res = await createSala(novaSala);
+    if (res.erro) showToast(res.erro, 'error');
+    else {
+      setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
+      await loadSalas();
+      showToast('Sala criada com sucesso!');
+    }
+  };
+
+  const handleEditarSala = (sala) => {
+    setEditandoSala(sala);
+    setNovaSala({
+      nome: sala.nome,
+      bloco: sala.bloco || '',
+      andar: sala.andar || '',
+      capacidade: sala.capacidade || '',
+      equipamentos: sala.equipamentos || '',
+    });
+  };
+
+  const handleCancelarEdicaoSala = () => {
+    setEditandoSala(null);
+    setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
+  };
+
+  const handleUpdateSala = async () => {
+    if (!novaSala.nome.trim()) {
+      showToast('Informe o nome da sala', 'error');
+      return;
+    }
+    const res = await updateSala(editandoSala.id, novaSala);
+    if (res.erro) showToast(res.erro, 'error');
+    else {
+      showToast(`Sala "${novaSala.nome}" atualizada!`, 'success');
+      setEditandoSala(null);
+      setNovaSala({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
+      await loadSalas();
+    }
+  };
+
+  const handleDeletarSala = async (id, nome) => {
+    if (window.confirm(`Excluir a sala "${nome}"? Todas as reservas associadas também serão removidas.`)) {
+      await deleteSala(id);
+      await loadSalas();
+      await loadAllReservas();
+      showToast(`Sala "${nome}" excluída!`);
+    }
+  };
+
+  // ========== GERENCIAMENTO DE USUÁRIOS (admin) ==========
+  const handleUpdateUser = async (userId, data) => {
+    const res = await updateUser(userId, data);
+    if (res.erro) showToast(res.erro, 'error');
+    else {
+      showToast('Usuário atualizado', 'success');
+      loadUsers();
+    }
+  };
+
+  const handleApproveUser = async (userId, cargo) => {
+    const res = await approveUser(userId, cargo);
+    if (res.erro) showToast(res.erro, 'error');
+    else {
+      showToast('Usuário aprovado', 'success');
+      loadUsers();
+    }
+  };
+
+  // ========== SOLICITAÇÕES DE RESERVA (admin/gerente) ==========
+  const handleAprovarSolicitacao = async (id) => {
+    const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/aprovar`, { method: 'POST', credentials: 'include' });
+    if (res.ok) {
+      showToast('Reserva aprovada!', 'success');
+      loadSolicitacoes();
+      loadAllReservas();
+    } else {
+      const err = await res.json();
+      showToast(err.erro || 'Erro ao aprovar', 'error');
+    }
+  };
+
+  const handleRejeitarSolicitacao = async (id) => {
+    if (window.confirm('Rejeitar esta solicitação?')) {
+      const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/rejeitar`, { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        showToast('Solicitação rejeitada', 'success');
+        loadSolicitacoes();
+        loadRejeitadas();
+      } else {
+        const err = await res.json();
+        showToast(err.erro || 'Erro ao rejeitar', 'error');
+      }
+    }
+  };
+
+  // ========== ORDENAÇÃO DAS SALAS ==========
   const salasOrdenadas = useMemo(() => {
     return [...salas].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
   }, [salas]);
@@ -407,10 +575,10 @@ function App() {
 
   // ========== RENDERIZAÇÃO DAS VIEWS ==========
   const renderMainContent = () => {
+    // VIEW INÍCIO
     if (activeView === 'inicio') {
       return (
         <>
-          {/* Mapa de Salas */}
           <section className="box mapa-salas">
             <h2>🗺️ Mapa das Salas</h2>
             <div className="salas-grid-mapa">
@@ -439,7 +607,6 @@ function App() {
             </div>
           </section>
 
-          {/* Formulário de reserva */}
           <section className="box" id="form-reserva">
             <h2>📝 Fazer reserva</h2>
             <form onSubmit={handleSubmitReserva} className="form-grid">
@@ -544,8 +711,10 @@ function App() {
           </section>
         </>
       );
-    } else if (activeView === 'minhas-reservas') {
-      // ... (mesmo código anterior)
+    }
+
+    // MINHAS RESERVAS
+    if (activeView === 'minhas-reservas') {
       return (
         <section className="box">
           <h2>📋 Minhas Reservas</h2>
@@ -561,9 +730,12 @@ function App() {
                   <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
                   <p><strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}</p>
                   {sala && <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</p>}
-                  <p><strong>Responsável:</strong> {reserva.responsavel}</p>
+                  <p><strong>Solicitante:</strong> {reserva.responsavel}</p>
                   <p><strong>E-mail:</strong> {reserva.email}</p>
                   {reserva.descricao && <p>{reserva.descricao}</p>}
+                  {reserva.status === 'aprovada' && reserva.aprovador && (
+                    <p><strong>Aprovado por:</strong> {reserva.aprovador} em {new Date(reserva.data_aprovacao).toLocaleString()}</p>
+                  )}
                   <div className="reserva-actions">
                     {(currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') && (
                       <button className="edit-btn" onClick={() => handleEditarReserva(reserva)}>Editar</button>
@@ -579,10 +751,13 @@ function App() {
           </div>
         </section>
       );
-    } else if (activeView === 'admin-reservas' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
+    }
+
+    // GERENCIAR RESERVAS (admin/gerente) – todas as reservas aprovadas
+    if (activeView === 'admin-reservas' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       return (
         <section className="box">
-          <h2>📋 Todas as Reservas</h2>
+          <h2>📋 Gerenciar Reservas</h2>
           {allReservas.length === 0 && <p>Nenhuma reserva futura encontrada.</p>}
           <div className="reservas-grid">
             {allReservas.map((reserva) => {
@@ -594,9 +769,12 @@ function App() {
                   <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
                   <p><strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}</p>
                   {sala && <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</p>}
-                  <p><strong>Responsável:</strong> {reserva.responsavel}</p>
+                  <p><strong>Solicitante:</strong> {reserva.responsavel}</p>
                   <p><strong>E-mail:</strong> {reserva.email}</p>
                   {reserva.descricao && <p>{reserva.descricao}</p>}
+                  {reserva.status === 'aprovada' && reserva.aprovador && (
+                    <p><strong>Aprovado por:</strong> {reserva.aprovador} em {new Date(reserva.data_aprovacao).toLocaleString()}</p>
+                  )}
                   <div className="reserva-actions">
                     <button className="edit-btn" onClick={() => handleEditarReserva(reserva)}>Editar</button>
                     {reserva.grupo_id && (
@@ -610,7 +788,10 @@ function App() {
           </div>
         </section>
       );
-    } else if (activeView === 'consultar-disponibilidade') {
+    }
+
+    // CONSULTAR DISPONIBILIDADE
+    if (activeView === 'consultar-disponibilidade') {
       return (
         <section className="box">
           <h2>🔍 Consultar disponibilidade</h2>
@@ -681,9 +862,176 @@ function App() {
           )}
         </section>
       );
-    } else if (activeView === 'solicitacoes' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
-      return <div className="box">Funcionalidade de aprovação de usuários em desenvolvimento.</div>;
-    } else if (activeView === 'meus-dados') {
+    }
+
+    // GERENCIAR SALAS (admin)
+    if (activeView === 'gerenciar-salas' && currentUser?.cargo === 'admin') {
+      return (
+        <section className="box">
+          <h2>📋 Gerenciar Salas</h2>
+          <div className="admin-sala-form">
+            <input name="nome" placeholder="Nome da sala (obrigatório)" value={novaSala.nome} onChange={handleChangeSala} />
+            <input name="bloco" placeholder="Bloco (ex: 43431)" value={novaSala.bloco} onChange={handleChangeSala} />
+            <select name="andar" value={novaSala.andar} onChange={handleChangeSala}>
+              <option value="">Selecione o andar</option>
+              <option value="1° andar">1° andar</option>
+              <option value="2° andar">2° andar</option>
+            </select>
+            <input name="capacidade" placeholder="Capacidade (pessoas)" type="number" value={novaSala.capacidade} onChange={handleChangeSala} />
+            <textarea name="equipamentos" placeholder="Equipamentos (separados por vírgula)" value={novaSala.equipamentos} onChange={handleChangeSala} rows="2" />
+            {editandoSala ? (
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button onClick={handleUpdateSala}>Salvar alterações</button>
+                <button onClick={handleCancelarEdicaoSala} className="secondary">Cancelar</button>
+              </div>
+            ) : (
+              <button onClick={handleAdicionarSala}>Adicionar sala</button>
+            )}
+          </div>
+
+          <div className="salas-grid-mapa">
+            {salas.map((sala) => (
+              <div key={sala.id} className="sala-card-mapa">
+                <div className="sala-nome">{sala.nome}</div>
+                <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</div>
+                <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'} pessoas</div>
+                {sala.equipamentos && (
+                  <div className="sala-equipamentos">
+                    <strong>📋 Equipamentos:</strong>
+                    <ul>{sala.equipamentos.split(',').map((item, idx) => <li key={idx}>{item.trim()}</li>)}</ul>
+                  </div>
+                )}
+                {sala.em_manutencao && <div className="sala-manutencao-badge">🔧 Em manutenção</div>}
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button className="edit-sala-btn" onClick={() => handleEditarSala(sala)}>Editar</button>
+                  <button className="delete-sala-btn" onClick={() => handleDeletarSala(sala.id, sala.nome)}>Excluir</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    // GERENCIAR USUÁRIOS (admin)
+    if (activeView === 'gerenciar-usuarios' && currentUser?.cargo === 'admin') {
+      return (
+        <section className="box">
+          <h2>👥 Gerenciar Usuários</h2>
+          <div className="users-table-container">
+            <table className="users-table">
+              <thead>
+                <tr><th>Nome</th><th>E-mail</th><th>Cargo</th><th>Status</th><th>Ações</th></tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.nome}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <select value={u.cargo} onChange={(e) => handleUpdateUser(u.id, { cargo: e.target.value })}>
+                        <option value="admin">Admin</option>
+                        <option value="gerente">Gerente</option>
+                        <option value="usuario_comum">Usuário comum</option>
+                        <option value="usuario_externo">Usuário externo</option>
+                      </select>
+                    </td>
+                    <td>{u.status}</td>
+                    <td>
+                      {u.status === 'pendente' && (
+                        <>
+                          <button className="small-btn" onClick={() => handleApproveUser(u.id, u.cargo)}>Aprovar</button>
+                          <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Rejeitar</button>
+                        </>
+                      )}
+                      {u.status === 'aprovado' && (
+                        <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Bloquear</button>
+                      )}
+                      {u.status === 'rejeitado' && (
+                        <button className="small-btn" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>Reativar</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {users.length === 0 && <p>Nenhum usuário cadastrado.</p>}
+          </div>
+        </section>
+      );
+    }
+
+    // SOLICITAÇÕES DE RESERVA (admin/gerente) com abas Pendentes / Rejeitadas
+    // O estado tabSolicitacoes foi definido no topo do componente
+    if (activeView === 'solicitacoes-reserva' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
+      return (
+        <section className="box">
+          <h2>📋 Solicitações de Reserva</h2>
+          <div className="modo-consulta" style={{ marginBottom: '1rem' }}>
+            <button
+              className={`small-btn ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`}
+              onClick={() => setTabSolicitacoes('pendentes')}
+            >Pendentes</button>
+            <button
+              className={`small-btn ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`}
+              onClick={() => setTabSolicitacoes('rejeitadas')}
+            >Rejeitadas</button>
+          </div>
+
+          {tabSolicitacoes === 'pendentes' && (
+            <>
+              {solicitacoes.length === 0 && <p>Nenhuma solicitação pendente.</p>}
+              <div className="reservas-grid">
+                {solicitacoes.map((s) => {
+                  const sala = salas.find(sl => sl.id === s.sala_id);
+                  return (
+                    <div className="reserva-card admin-card" key={s.id}>
+                      <h3>{s.sala_nome} · {s.titulo}</h3>
+                      <p><strong>Solicitante:</strong> {s.responsavel}</p>
+                      <p><strong>E-mail:</strong> {s.email}</p>
+                      <p><strong>Data:</strong> {formatarData(s.data)}</p>
+                      <p><strong>Horário:</strong> {s.hora_inicio} – {s.hora_fim}</p>
+                      {sala && <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || '?'}</p>}
+                      {s.descricao && <p><strong>Descrição:</strong> {s.descricao}</p>}
+                      <div className="reserva-actions">
+                        <button className="edit-btn" onClick={() => handleAprovarSolicitacao(s.id)}>Aprovar</button>
+                        <button className="cancel-btn" onClick={() => handleRejeitarSolicitacao(s.id)}>Rejeitar</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {tabSolicitacoes === 'rejeitadas' && (
+            <>
+              {rejeitadas.length === 0 && <p>Nenhuma reserva rejeitada.</p>}
+              <div className="reservas-grid">
+                {rejeitadas.map((s) => {
+                  const sala = salas.find(sl => sl.id === s.sala_id);
+                  return (
+                    <div className="reserva-card admin-card" key={s.id}>
+                      <h3>{s.sala_nome} · {s.titulo}</h3>
+                      <p><strong>Solicitante:</strong> {s.responsavel}</p>
+                      <p><strong>E-mail:</strong> {s.email}</p>
+                      <p><strong>Data:</strong> {formatarData(s.data)}</p>
+                      <p><strong>Horário:</strong> {s.hora_inicio} – {s.hora_fim}</p>
+                      {sala && <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || '?'}</p>}
+                      {s.descricao && <p><strong>Descrição:</strong> {s.descricao}</p>}
+                      <p><strong>Rejeitado por:</strong> {s.aprovador} em {new Date(s.data_aprovacao).toLocaleString()}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </section>
+      );
+    }
+
+    // MEUS DADOS
+    if (activeView === 'meus-dados') {
       return (
         <section className="box user-card-box">
           <div className="user-card">
@@ -694,15 +1042,16 @@ function App() {
           </div>
         </section>
       );
-    } else {
-      return <div>Selecione uma opção no menu.</div>;
     }
+
+    return <div>Selecione uma opção no menu.</div>;
   };
 
   return (
     <div className="app-layout">
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
 
+      {/* Modal de edição de reserva */}
       {editandoReserva && (
         <div className="modal-overlay" onClick={() => setEditandoReserva(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -724,6 +1073,7 @@ function App() {
         </div>
       )}
 
+      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-brand">
           <img src="/CBiot_logo.jpg" alt="CBiot" className="logo-sidebar" />
@@ -735,13 +1085,29 @@ function App() {
           <button className={`sidebar-item ${activeView === 'consultar-disponibilidade' ? 'active' : ''}`} onClick={() => setActiveView('consultar-disponibilidade')}>Consultar disponibilidade</button>
           <button className={`sidebar-item ${activeView === 'minhas-reservas' ? 'active' : ''}`} onClick={() => setActiveView('minhas-reservas')}>Minhas reservas</button>
         </div>
+
         {(currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') && (
           <div className="sidebar-section">
             <div className="sidebar-section-title">ADMINISTRATIVO</div>
-            <button className={`sidebar-item ${activeView === 'solicitacoes' ? 'active' : ''}`} onClick={() => setActiveView('solicitacoes')}>Solicitações</button>
-            <button className={`sidebar-item ${activeView === 'admin-reservas' ? 'active' : ''}`} onClick={() => setActiveView('admin-reservas')}>Reservas</button>
+            <button className={`sidebar-item ${activeView === 'solicitacoes-reserva' ? 'active' : ''}`} onClick={() => setActiveView('solicitacoes-reserva')}>
+              Solicitações de Reserva
+            </button>
+            <button className={`sidebar-item ${activeView === 'admin-reservas' ? 'active' : ''}`} onClick={() => setActiveView('admin-reservas')}>
+              Gerenciar Reservas
+            </button>
+            {currentUser?.cargo === 'admin' && (
+              <button className={`sidebar-item ${activeView === 'gerenciar-salas' ? 'active' : ''}`} onClick={() => setActiveView('gerenciar-salas')}>
+                Gerenciar Salas
+              </button>
+            )}
+            {currentUser?.cargo === 'admin' && (
+              <button className={`sidebar-item ${activeView === 'gerenciar-usuarios' ? 'active' : ''}`} onClick={() => setActiveView('gerenciar-usuarios')}>
+                Gerenciar Usuários
+              </button>
+            )}
           </div>
         )}
+
         <div className="sidebar-section">
           <div className="sidebar-section-title">CONTA</div>
           <button className={`sidebar-item ${activeView === 'meus-dados' ? 'active' : ''}`} onClick={() => setActiveView('meus-dados')}>Meus Dados</button>
@@ -753,6 +1119,7 @@ function App() {
         </div>
       </aside>
 
+      {/* Conteúdo principal */}
       <main className="main-content">
         <div className="page-header">
           <div><h1>Reservas</h1><p>Bem-vindo de volta, {currentUser?.nome}!</p></div>

@@ -478,22 +478,31 @@ function AdminPanel() {
         <h2>Gerenciar Reservas</h2>
         <div className="reservas-grid">
           {reservas.map((r) => (
-            <div className="reserva-card admin-card" key={r.id}>
-              <h3>{r.sala_nome} · {r.titulo}</h3>
-              {r.grupo_id && (
-                <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.5rem' }}>
-                  Grupo: {r.grupo_id.substring(0, 8)}...
-                  <button className="cancel-group-btn" onClick={() => handleDeletarGrupo(r.grupo_id)}>Cancelar todas</button>
-                </p>
+            <div className="reserva-card" key={reserva.id}>
+              <h3>{reserva.sala_nome} · {reserva.titulo}</h3>
+              {reserva.grupo_id && <p><strong>Grupo:</strong> {reserva.grupo_id.substring(0, 8)}...</p>}
+              <p><strong>Data:</strong> {formatarData(reserva.data)}</p>
+              <p><strong>Horário:</strong> {reserva.hora_inicio} - {reserva.hora_fim}</p>
+              {sala && <p><strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</p>}
+              <p><strong>Responsável:</strong> {reserva.responsavel}</p>
+              <p><strong>E-mail:</strong> {reserva.email}</p>
+              {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
+
+              {/* NOVAS LINHAS */}
+              {reserva.status === 'aprovada' && reserva.aprovador && (
+                <p><strong>Aprovado por:</strong> {reserva.aprovador} em {new Date(reserva.data_aprovacao).toLocaleString()}</p>
               )}
-              <p><strong>Data:</strong> {formatarData(r.data)}</p>
-              <p><strong>Horário:</strong> {r.hora_inicio} – {r.hora_fim}</p>
-              {r.responsavel && <p><strong>Responsável:</strong> {r.responsavel}</p>}
-              {r.email && <p><strong>E-mail:</strong> {r.email}</p>}
-              {r.descricao && <p><strong>Descrição:</strong> {r.descricao}</p>}
+              {reserva.status === 'rejeitada' && reserva.aprovador && (
+                <p><strong>Rejeitado por:</strong> {reserva.aprovador} em {new Date(reserva.data_aprovacao).toLocaleString()}</p>
+              )}
+              {/* FIM DAS NOVAS LINHAS */}
+
               <div className="reserva-actions">
-                <button className="edit-btn" onClick={() => handleEditarReserva(r)}>Editar</button>
-                <button className="cancel-btn" onClick={() => handleDeletarReserva(r.id, r.titulo)}>Cancelar reserva</button>
+                <button className="edit-btn" onClick={() => handleEditarReserva(reserva)}>Editar</button>
+                {reserva.grupo_id && (
+                  <button className="cancel-group-btn" onClick={() => handleCancelarGrupo(reserva.grupo_id, false)}>Cancelar série</button>
+                )}
+                <button className="cancel-btn" onClick={() => handleCancelarReserva(reserva.id, reserva.titulo)}>Cancelar reserva</button>
               </div>
             </div>
           ))}
@@ -501,7 +510,7 @@ function AdminPanel() {
       </section>
 
       <footer className="admin-footer">
-        <Link to="/app" className="back-button">← Voltar ao sistema</Link>
+        <Link to="/ReservaDeSalas" className="back-button">← Voltar ao sistema</Link>
       </footer>
     </div>
   );
