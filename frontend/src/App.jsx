@@ -20,7 +20,7 @@ import {
   authLogout,
 } from './api';
 
-import ReservaModal from './components/ReservaModal'; 
+import ReservaModal from './components/ReservaModal';
 
 // ========== FUNÇÕES AUXILIARES DE HORÁRIO (30 minutos) ==========
 const timeToMinutes = (timeStr) => {
@@ -108,6 +108,19 @@ function App() {
 
   const [activeView, setActiveView] = useState('inicio');
   const [selectedCargo, setSelectedCargo] = useState({});
+
+  // Estados para seleção de intervalo na consulta de disponibilidade
+  const [selectedStart, setSelectedStart] = useState(null);
+  const [selectedEnd, setSelectedEnd] = useState(null);
+
+  // Estado para armazenar dados da reserva a ser preenchida no modal
+  const [reservaData, setReservaData] = useState({
+    sala_id: '',
+    data: '',
+    hora_inicio: '',
+    hora_fim: '',
+    titulo: '',
+  });
 
   // Estado para o modal de reserva
   const [modalReservaAberto, setModalReservaAberto] = useState(false);
@@ -328,6 +341,9 @@ function App() {
       showToast('Escolha sala e data para ver disponibilidade', 'error');
       return;
     }
+    // Reset selection when fetching new availability
+    setSelectedStart(null);
+    setSelectedEnd(null);
     const response = await getDisponibilidade(form.sala_id, form.data);
     if (response.erro) {
       showToast(response.erro, 'error');
@@ -477,7 +493,7 @@ function App() {
 
   // ========== RENDERIZAÇÃO DAS VIEWS ==========
   const renderMainContent = () => {
-    // VIEW INÍCIO (sem o formulário de reserva)
+    // VIEW INÍCIO
     if (activeView === 'inicio') {
       return (
         <>
@@ -597,69 +613,209 @@ function App() {
     // CONSULTAR DISPONIBILIDADE
     if (activeView === 'consultar-disponibilidade') {
       return (
-        <section className="box">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2>🔍 Consultar disponibilidade</h2>
-            <button className="solicitar-reserva-btn" onClick={() => setModalReservaAberto(true)}>
-              + Solicitar Reserva
-            </button>
+        <section className="box disponibilidade-box">
+          <div className="disponibilidade-header">
+            <div>
+              <h2>Consultar disponibilidade</h2>
+              <p className="disponibilidade-sub">Clique em um horário disponível para solicitar reserva · blocos de 30 min.</p>
+            </div>
           </div>
+
           <div className="modo-consulta">
-            <label><input type="radio" value="sala" checked={modoDisponibilidade === 'sala'} onChange={() => setModoDisponibilidade('sala')} /> Por sala e data</label>
-            <label><input type="radio" value="data_hora" checked={modoDisponibilidade === 'data_hora'} onChange={() => setModoDisponibilidade('data_hora')} /> Por data e hora (intervalo)</label>
+            <label className={`modo-radio ${modoDisponibilidade === 'sala' ? 'active' : ''}`}>
+              <input type="radio" value="sala" checked={modoDisponibilidade === 'sala'} onChange={() => setModoDisponibilidade('sala')} />
+              <span>Por sala e data</span>
+            </label>
+            <label className={`modo-radio ${modoDisponibilidade === 'data_hora' ? 'active' : ''}`}>
+              <input type="radio" value="data_hora" checked={modoDisponibilidade === 'data_hora'} onChange={() => setModoDisponibilidade('data_hora')} />
+              <span>Por data e hora (intervalo)</span>
+            </label>
           </div>
+
           {modoDisponibilidade === 'sala' ? (
             <div className="consulta-sala">
-              <label>Sala: <select value={form.sala_id} onChange={(e) => setForm((prev) => ({ ...prev, sala_id: e.target.value }))}>
-                <option value="">Selecione</option>{salas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-              </select></label>
-              <label>Data: <input type="date" value={form.data} onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))} /></label>
-              <button onClick={handleDisponibilidade}>Ver disponibilidade</button>
+              <div className="consulta-field">
+                <label>SALA</label>
+                <select value={form.sala_id} onChange={(e) => setForm((prev) => ({ ...prev, sala_id: e.target.value }))}>
+                  <option value="">Selecione uma sala</option>
+                  {salas.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="consulta-field">
+                <label>DATA</label>
+                <input type="date" value={form.data} onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))} />
+              </div>
+              <button className="consulta-btn" onClick={handleDisponibilidade}>Ver disponibilidade</button>
             </div>
           ) : (
             <div className="consulta-data-hora">
-              <label>Data: <input type="date" value={dataConsulta} onChange={(e) => setDataConsulta(e.target.value)} /></label>
-              <label>Início: <select value={horaConsulta} onChange={(e) => setHoraConsulta(e.target.value)}>{todosInicios.map((h) => <option key={h}>{h}</option>)}</select></label>
-              <label>Fim: <select value={horaFimConsulta} onChange={(e) => setHoraFimConsulta(e.target.value)}>
-                {todosFins.filter((f) => timeToMinutes(f) > timeToMinutes(horaConsulta)).map((h) => <option key={h}>{h}</option>)}
-              </select></label>
-              <button onClick={handleConsultarDisponibilidadeDataHora}>Buscar salas disponíveis</button>
+              <div className="consulta-field">
+                <label>Data</label>
+                <input type="date" value={dataConsulta} onChange={(e) => setDataConsulta(e.target.value)} />
+              </div>
+              <div className="consulta-field">
+                <label>Início</label>
+                <select value={horaConsulta} onChange={(e) => setHoraConsulta(e.target.value)}>
+                  {todosInicios.map((h) => <option key={h}>{h}</option>)}
+                </select>
+              </div>
+              <div className="consulta-field">
+                <label>Fim</label>
+                <select value={horaFimConsulta} onChange={(e) => setHoraFimConsulta(e.target.value)}>
+                  {todosFins.filter((f) => timeToMinutes(f) > timeToMinutes(horaConsulta)).map((h) => <option key={h}>{h}</option>)}
+                </select>
+              </div>
+              <button className="consulta-btn" onClick={handleConsultarDisponibilidadeDataHora}>Buscar salas disponíveis</button>
             </div>
           )}
+
           {modoDisponibilidade === 'sala' && disponibilidade && (
             <div className="resultado-disponibilidade">
-              <h3>Horários disponíveis - {disponibilidade.sala_nome} ({formatarData(disponibilidade.data)})</h3>
-              <ul className="grid-list">
-                {disponibilidade.horarios.map((item) => (
-                  <li key={`${item.hora_inicio}-${item.hora_fim}`} className={item.ocupado ? (item.titulo?.startsWith('Manutenção') ? 'manutencao' : 'ocupado') : 'livre'}
-                    onClick={() => {
-                      if (!item.ocupado) {
-                        // Preenche o formulário antigo? Não usamos mais, mas pode apenas abrir o modal
-                        setModalReservaAberto(true);
-                        showToast(`Horário ${item.hora_inicio} - ${item.hora_fim} selecionado. Use o botão Solicitar Reserva.`, 'info');
+              {(() => {
+                const salaSelecionada = salas.find(s => Number(s.id) === Number(form.sala_id));
+                return (
+                  <div className="sala-info-header">
+                    <h3>{salaSelecionada?.nome || disponibilidade.sala_nome}</h3>
+                    <p className="sala-info-detalhes">
+                      Capacidade: {salaSelecionada?.capacidade || '?'} pessoas
+                      {salaSelecionada?.andar && ` · Andar: ${salaSelecionada.andar}`}
+                    </p>
+                    {salaSelecionada?.equipamentos && (
+                      <p className="sala-info-detalhes">
+                        Equipamentos: {salaSelecionada.equipamentos}
+                      </p>
+                    )}
+                    <p className="sala-mensagem">🔑 Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</p>
+                  </div>
+                );
+              })()}
+              <p className="horario-titulo">Horários · 08:00 às 19:00 · blocos de 30 min</p>
+              <div className="horarios-grade">
+                {disponibilidade.horarios.map((item, idx) => {
+                  let statusClass = '';
+                  let statusText = '';
+                  let isSelected = false;
+
+                  if (item.ocupado) {
+                    if (item.titulo?.startsWith('Manutenção')) {
+                      statusClass = 'status-manutencao';
+                      statusText = 'MANUTENÇÃO';
+                    } else {
+                      statusClass = 'status-reservado';
+                      statusText = 'RESERVADO';
+                    }
+                  } else {
+                    statusClass = 'status-disponivel';
+                    statusText = 'DISPONÍVEL';
+                    // Check if this time is within selected interval
+                    if (selectedStart && selectedEnd) {
+                      const startTime = selectedStart.hora_inicio;
+                      const endTime = selectedEnd.hora_inicio;
+                      if (item.hora_inicio >= startTime && item.hora_inicio <= endTime) {
+                        isSelected = true;
                       }
-                    }} style={item.ocupado ? {} : { cursor: 'pointer' }}>
-                    <strong>{item.hora_inicio}</strong> - {item.hora_fim} <strong>{item.ocupado ? item.titulo : ' Livre'}</strong>
-                  </li>
-                ))}
-              </ul>
+                    } else if (selectedStart && !selectedEnd && item.hora_inicio === selectedStart.hora_inicio) {
+                      isSelected = true;
+                    }
+                  }
+
+                  if (isSelected && !item.ocupado) {
+                    statusClass = 'status-selecionado';
+                    statusText = 'SELECIONADO';
+                  }
+
+                  return (
+                    <div
+                      key={`${item.hora_inicio}-${item.hora_fim}`}
+                      className={`horario-card ${statusClass}`}
+                      onClick={() => {
+                        if (item.ocupado) return;
+                        if (!selectedStart) {
+                          setSelectedStart(item);
+                          setSelectedEnd(null);
+                        } else if (!selectedEnd) {
+                          if (item.hora_inicio > selectedStart.hora_inicio) {
+                            setSelectedEnd(item);
+                          } else {
+                            setSelectedStart(item);
+                            setSelectedEnd(null);
+                          }
+                        } else {
+                          setSelectedStart(item);
+                          setSelectedEnd(null);
+                        }
+                      }}
+                    >
+                      <span className="horario-inicio">{item.hora_inicio}</span>
+                      <span className="horario-status">{statusText}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="disponibilidade-legenda">
+                <div className="legenda-item"><span className="legenda-cor disponivel"></span> Disponível</div>
+                <div className="legenda-item"><span className="legenda-cor reservado"></span> Reservado</div>
+                <div className="legenda-item"><span className="legenda-cor manutencao"></span> Manutenção</div>
+                <div className="legenda-item"><span className="legenda-cor selecionado"></span> Selecionado</div>
+              </div>
+              <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
+                <button
+                  className="solicitar-reserva-btn"
+                  onClick={() => {
+                    if (selectedStart && selectedEnd) {
+                      setReservaData({
+                        sala_id: form.sala_id,
+                        data: form.data,
+                        hora_inicio: selectedStart.hora_inicio,
+                        hora_fim: selectedEnd.hora_fim,
+                        titulo: '',
+                      });
+                      setModalReservaAberto(true);
+                    } else if (selectedStart && !selectedEnd) {
+                      const endItem = disponibilidade.horarios.find(h => h.hora_inicio === selectedStart.hora_inicio);
+                      setReservaData({
+                        sala_id: form.sala_id,
+                        data: form.data,
+                        hora_inicio: selectedStart.hora_inicio,
+                        hora_fim: endItem ? endItem.hora_fim : add30min(selectedStart.hora_inicio),
+                        titulo: '',
+                      });
+                      setModalReservaAberto(true);
+                    } else {
+                      alert('Selecione um intervalo de horários (clique no início e depois no fim).');
+                    }
+                  }}
+                >
+                  + Solicitar Reserva
+                </button>
+              </div>
             </div>
           )}
+
           {modoDisponibilidade === 'data_hora' && disponibilidadeDataHora && (
             <div className="resultado-disponibilidade">
               <h3>Salas disponíveis em {formatarData(dataConsulta)} das {horaConsulta} às {horaFimConsulta}</h3>
-              {disponibilidadeDataHora.length === 0 ? <p>Nenhuma sala disponível nesse horário.</p> : (
+              {disponibilidadeDataHora.length === 0 ? (
+                <p className="sem-resultados">Nenhuma sala disponível nesse horário.</p>
+              ) : (
                 <div className="salas-disponiveis-grid">
                   {disponibilidadeDataHora.map((sala) => (
-                    <div key={sala.id} className="sala-card-mapa" onClick={() => {
-                      // Abrir modal pré-preenchido? Simplesmente abre
+                    <div key={sala.id} className="sala-card-horario" onClick={() => {
+                      setReservaData({
+                        sala_id: sala.id,
+                        data: dataConsulta,
+                        hora_inicio: horaConsulta,
+                        hora_fim: horaFimConsulta,
+                        titulo: '',
+                      });
                       setModalReservaAberto(true);
-                      showToast(`Sala ${sala.nome} selecionada. Use o botão Solicitar Reserva.`, 'info');
                     }}>
                       <div className="sala-nome">{sala.nome}</div>
                       <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || '?'}</div>
                       <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'}</div>
-                      {sala.equipamentos && <div className="sala-equipamentos">📋 {sala.equipamentos.substring(0, 50)}...</div>}
+                      {sala.equipamentos && <div className="sala-equipamentos">📋 {sala.equipamentos}</div>}
                       <button className="small-btn">Selecionar</button>
                     </div>
                   ))}
@@ -886,6 +1042,7 @@ function App() {
         salas={salas}
         currentUser={currentUser}
         userRole={currentUser.cargo === 'usuario_externo' ? 'externo' : 'interno'}
+        initialData={reservaData}
       />
 
       {/* Sidebar */}
@@ -935,10 +1092,6 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <div className="page-header">
-          <div><h1>Reservas</h1><p>Bem-vindo de volta, {currentUser?.nome}!</p></div>
-          <div className="page-header-actions"><span>{currentUser?.email}</span></div>
-        </div>
         {renderMainContent()}
       </main>
     </div>
