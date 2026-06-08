@@ -1,0 +1,589 @@
+.reserva-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  font-family: 'Inter', sans-serif;
+}
+
+.reserva-container {
+  background: white;
+  width: 650px;
+  border-radius: 16px;
+  padding: 40px;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+
+.reserva-close-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  border: none;
+  background: #f1f5f9;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 20px;
+  color: #64748b;
+}
+
+.reserva-header h2 {
+  font-size: 28px;
+  margin: 0 0 8px 0;
+  color: #1e293b;
+}
+
+.reserva-alert-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  border-radius: 8px;
+  margin: 20px 0;
+  font-size: 14px;
+}
+
+.reserva-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.reserva-gray-group {
+  background: #f8fafc;
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* O segredo para alinhar a largura está aqui */
+.reserva-row {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+}
+
+.reserva-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1; /* Força os campos lado a lado a dividirem a largura 50/50 */
+}
+
+.reserva-field label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+.reserva-field input, 
+.reserva-field select, 
+.reserva-field textarea {
+  width: 100%; /* Garante que o input estique até o final da div */
+  box-sizing: border-box; /* Impede que o padding quebre o limite da caixa */
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 15px;
+  background: white;
+}
+
+/* RECORRÊNCIA E CHECKBOX */
+.reserva-recorrente-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  background: #ffffff;
+}
+
+.reserva-checkbox-horizontal {
+  display: flex;
+  align-items: center; /* Alinhamento vertical centralizado */
+  gap: 12px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.reserva-checkbox-horizontal input {
+  display: none;
+}
+
+.reserva-custom-box {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #cbd5e1;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0; /* Impede o quadrado de encolher */
+}
+
+.reserva-checkbox-horizontal input:checked + .reserva-custom-box {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.reserva-custom-box:after {
+  content: "✓";
+  color: white;
+  font-size: 14px;
+  display: none;
+}
+
+.reserva-checkbox-horizontal input:checked + .reserva-custom-box:after {
+  display: block;
+}
+
+.reserva-label-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #334155;
+  flex-grow: 1;
+  line-height: 1; /* Alinha o texto perfeitamente na horizontal com o checkmark */
+}
+
+.reserva-badge-blue {
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.reserva-recorrente-expanded {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* FOOTER OPOSTO */
+.reserva-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.btn-cancel-flat {
+  background: transparent;
+  border: none;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.btn-submit-purple {
+  background: #7c4dff;
+  color: white;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-submit-purple:hover {
+  background: #651fff;
+}
+
+/* ===== MODAL DE RESERVA – VERSÃO CORRIGIDA (ROXO) ===== */
+.reserva-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  font-family: 'Inter', sans-serif;
+}
+
+.reserva-container {
+  background: white;
+  width: 650px;
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 24px;
+  padding: 32px 36px;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+  overflow-y: auto;
+}
+
+.reserva-close-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  border: none;
+  background: #f1f5f9;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 20px;
+  color: #64748b;
+  transition: 0.2s;
+}
+.reserva-close-btn:hover {
+  background: #e2e8f0;
+}
+
+.reserva-header h2 {
+  font-size: 28px;
+  margin: 0 0 8px 0;
+  color: #4a1d6d; /* roxo escuro */
+}
+
+.reserva-header p {
+  color: #5e5e6f;
+  margin-bottom: 0;
+}
+
+.reserva-alert-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-left: 4px solid #f59e0b;
+  background: #fffbeb;
+  border-radius: 12px;
+  margin: 20px 0;
+  font-size: 14px;
+  color: #b85c00;
+}
+
+.reserva-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Bloco cinza unificado (agora com finalidade dentro) */
+.reserva-gray-group {
+  background: #f8fafc;
+  padding: 24px;
+  border-radius: 20px;
+  border: 1px solid #e9e0f5;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.reserva-row {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+}
+
+.reserva-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.reserva-field label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #6f4f8f;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.reserva-field input,
+.reserva-field select,
+.reserva-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #e2d4f0;
+  border-radius: 14px;
+  font-size: 15px;
+  background: white;
+  font-family: inherit;
+  transition: 0.2s;
+}
+
+.reserva-field input:focus,
+.reserva-field select:focus,
+.reserva-field textarea:focus {
+  outline: none;
+  border-color: #8e44ad;
+  box-shadow: 0 0 0 3px rgba(142, 68, 173, 0.15);
+}
+
+/* Seção de recorrência */
+.reserva-recorrente-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 20px;
+  background: #ffffff;
+}
+
+/* Checkbox horizontal – lado a lado garantido */
+.reserva-checkbox-horizontal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.reserva-checkbox-horizontal input {
+  display: none;
+}
+
+.reserva-custom-box {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #c4b5d7;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: white;
+}
+
+.reserva-checkbox-horizontal input:checked + .reserva-custom-box {
+  background: #8e44ad;
+  border-color: #8e44ad;
+}
+
+.reserva-custom-box:after {
+  content: "✓";
+  color: white;
+  font-size: 14px;
+  display: none;
+}
+
+.reserva-checkbox-horizontal input:checked + .reserva-custom-box:after {
+  display: block;
+}
+
+.reserva-label-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2d1b42;
+  line-height: 1.2;
+}
+
+.reserva-badge-purple {
+  background: #f0eaf8;
+  color: #5e2a8c;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 30px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.reserva-recorrente-expanded {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #ede5f5;
+}
+
+.reserva-info-box {
+  background: #f0eaf8;
+  padding: 12px 16px;
+  border-radius: 16px;
+  margin-top: 16px;
+  text-align: center;
+}
+
+.reserva-info-box p {
+  margin: 4px 0;
+  font-weight: 600;
+  color: #4a1d6d;
+}
+
+.reserva-small-text {
+  font-size: 0.75rem;
+  color: #7e5a9c;
+  font-weight: normal;
+}
+
+/* Rodapé com botões opostos */
+.reserva-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.btn-cancel-flat {
+  background: transparent;
+  border: none;
+  font-weight: 600;
+  color: #6f4f8f;
+  cursor: pointer;
+  padding: 10px 16px;
+  border-radius: 40px;
+  transition: 0.2s;
+}
+.btn-cancel-flat:hover {
+  background: #f0eaf8;
+}
+
+.btn-submit-purple {
+  background: #8e44ad;
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 40px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-submit-purple:hover {
+  background: #6a2e8a;
+  transform: translateY(-2px);
+}
+.btn-submit-purple:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsividade */
+@media (max-width: 640px) {
+  .reserva-container {
+    padding: 24px;
+  }
+  .reserva-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .reserva-footer-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .btn-cancel-flat,
+  .btn-submit-purple {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Layout dos horários (lado a lado) */
+.reserva-time-section {
+  display: flex;
+  gap: 24px;
+  margin: 8px 0;
+}
+.reserva-time-column {
+  flex: 1;
+}
+.reserva-time-column label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #6f4f8f;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 10px;
+}
+.reserva-time-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.reserva-time-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 40px;
+  padding: 8px 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #334155;
+  text-align: center;
+}
+.reserva-time-btn.active {
+  background: #8e44ad;
+  color: white;
+  border-color: #8e44ad;
+}
+.reserva-time-btn:hover:not(.active) {
+  background: #e2e8f0;
+  transform: translateY(-2px);
+}
+.reserva-no-times {
+  font-size: 0.8rem;
+  color: #dc2626;
+  background: #fee2e2;
+  padding: 8px;
+  border-radius: 12px;
+  text-align: center;
+}
+@media (max-width: 640px) {
+  .reserva-time-section {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .reserva-time-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Estilização dos selects de horário */
+/* Seção de horários com selects */
+.reserva-time-section {
+  display: flex;
+  gap: 24px;
+  margin: 8px 0;
+}
+.reserva-time-column {
+  flex: 1;
+}
+.reserva-time-column label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #6f4f8f;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 8px;
+}
+.reserva-time-column select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e2d4f0;
+  border-radius: 14px;
+  background-color: white;
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%236f4f8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+.reserva-time-column select:focus {
+  outline: none;
+  border-color: #8e44ad;
+  box-shadow: 0 0 0 3px rgba(142, 68, 173, 0.15);
+}
+.reserva-select-disabled {
+  background-color: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}

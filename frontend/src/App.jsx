@@ -20,6 +20,8 @@ import {
   authLogout,
 } from './api';
 
+import ReservaModal from './components/ReservaModal'; 
+
 // ========== FUNÇÕES AUXILIARES DE HORÁRIO (30 minutos) ==========
 const timeToMinutes = (timeStr) => {
   const [h, m] = timeStr.split(':').map(Number);
@@ -78,17 +80,14 @@ function App() {
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dataFim, setDataFim] = useState('');
 
-  // Estado para controle da aba na view de solicitações
   const [tabSolicitacoes, setTabSolicitacoes] = useState('pendentes');
 
-  // Estados para consulta de disponibilidade
   const [modoDisponibilidade, setModoDisponibilidade] = useState('sala');
   const [disponibilidadeDataHora, setDisponibilidadeDataHora] = useState(null);
   const [dataConsulta, setDataConsulta] = useState('');
   const [horaConsulta, setHoraConsulta] = useState('08:00');
   const [horaFimConsulta, setHoraFimConsulta] = useState('08:30');
 
-  // Estados para edição de reserva
   const [editandoReserva, setEditandoReserva] = useState(null);
   const [editForm, setEditForm] = useState({
     titulo: '',
@@ -98,7 +97,6 @@ function App() {
     hora_fim: '',
   });
 
-  // Estados para gerenciamento de salas (admin)
   const [novaSala, setNovaSala] = useState({
     nome: '',
     bloco: '',
@@ -108,11 +106,11 @@ function App() {
   });
   const [editandoSala, setEditandoSala] = useState(null);
 
-  // Estado para controlar a view ativa do sidebar
   const [activeView, setActiveView] = useState('inicio');
-
-  // Estado para cargos selecionados na aprovação de usuários
   const [selectedCargo, setSelectedCargo] = useState({});
+
+  // Estado para o modal de reserva
+  const [modalReservaAberto, setModalReservaAberto] = useState(false);
 
   const dataSelecionada = !!form.data;
 
@@ -190,7 +188,6 @@ function App() {
     }
   }, [currentUser]);
 
-  // ========== AUXILIARES ==========
   const formatarData = (dataISO) => {
     if (!dataISO) return '';
     const partes = dataISO.split('-');
@@ -254,13 +251,6 @@ function App() {
     }
   }, [horasInicioDisponiveis, form.hora_inicio, dataSelecionada, recorrente]);
 
-  // ========== MANIPULAÇÃO DE RESERVAS ==========
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    if (name === 'responsavel' || name === 'email') return;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -273,7 +263,6 @@ function App() {
     navigate('/');
   };
 
-  // Cancelar reserva individual
   const handleCancelarReserva = async (id, titulo) => {
     if (window.confirm(`Cancelar a reserva "${titulo}"?`)) {
       const res = await deleteReserva(id);
@@ -286,7 +275,6 @@ function App() {
     }
   };
 
-  // Cancelar série recorrente (usuário comum ou admin/gerente)
   const handleCancelarGrupo = async (grupoId, isOwner = false) => {
     if (window.confirm('Cancelar TODAS as reservas desta série recorrente?')) {
       let res;
@@ -304,7 +292,6 @@ function App() {
     }
   };
 
-  // Editar reserva (admin/gerente)
   const handleEditarReserva = (reserva) => {
     setEditandoReserva(reserva);
     setEditForm({
@@ -332,85 +319,6 @@ function App() {
       setEditandoReserva(null);
       if (activeView === 'minhas-reservas') await loadReservas();
       else if (activeView === 'admin-reservas') await loadAllReservas();
-    }
-  };
-
-  const handleSubmitReserva = async (e) => {
-    e.preventDefault();
-    if (!form.sala_id) {
-      showToast('Escolha uma sala antes de reservar', 'error');
-      return;
-    }
-    if (!recorrente && !form.data) {
-      showToast('Selecione uma data', 'error');
-      return;
-    }
-    if (recorrente && (!dataFim || diasSelecionados.length === 0)) {
-      showToast('Informe a data final e pelo menos um dia da semana', 'error');
-      return;
-    }
-
-    let response;
-    if (recorrente) {
-      const payload = {
-        sala_id: form.sala_id,
-        titulo: form.titulo,
-        hora_inicio: form.hora_inicio,
-        hora_fim: form.hora_fim,
-        dias_semana: diasSelecionados,
-        data_inicio: form.data,
-        data_fim: dataFim,
-        responsavel: form.responsavel,
-        email: form.email,
-        descricao: form.descricao,
-      };
-      response = await createReservaRecorrente(payload);
-    } else {
-      response = await createReserva(form);
-    }
-
-    if (response.erro) {
-      showToast(response.erro, 'error');
-      return;
-    }
-
-    if (recorrente) {
-      if (response.conflitos && response.conflitos.length > 0) {
-        const conflitosStr = response.conflitos.join(', ');
-        const userConfirmed = window.confirm(
-          `Existem conflitos nas seguintes datas: ${conflitosStr}\n\nDeseja criar as reservas apenas para as datas disponíveis?`
-        );
-        if (!userConfirmed) {
-          if (response.grupo_id) {
-            await deleteReservasByGrupo(response.grupo_id);
-            showToast('Operação cancelada.', 'info');
-          } else {
-            showToast('Nenhuma reserva foi criada.', 'error');
-          }
-          if (activeView === 'minhas-reservas') await loadReservas();
-          else if (activeView === 'admin-reservas') await loadAllReservas();
-          return;
-        } else {
-          showToast(`${response.reservas_criadas.length} reservas criadas.`, 'success');
-        }
-      } else {
-        showToast(response.mensagem, 'success');
-      }
-      await loadReservas();
-      if (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') await loadAllReservas();
-      setForm((prev) => ({ ...prev, titulo: '', descricao: '' }));
-      setDataFim('');
-      setDiasSelecionados([]);
-      setRecorrente(false);
-    } else {
-      if (response.mensagem && response.mensagem.includes('Solicitação enviada')) {
-        showToast('Solicitação enviada. Aguarde aprovação.', 'info');
-      } else {
-        showToast('Reserva criada com sucesso!', 'success');
-      }
-      setForm((prev) => ({ ...prev, titulo: '', descricao: '' }));
-      await loadReservas();
-      if (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') await loadAllReservas();
     }
   };
 
@@ -517,7 +425,6 @@ function App() {
     }
   };
 
-  // ========== GERENCIAMENTO DE USUÁRIOS (admin) ==========
   const handleUpdateUser = async (userId, data) => {
     const res = await updateUser(userId, data);
     if (res.erro) showToast(res.erro, 'error');
@@ -536,7 +443,6 @@ function App() {
     }
   };
 
-  // ========== SOLICITAÇÕES DE RESERVA (admin/gerente) ==========
   const handleAprovarSolicitacao = async (id) => {
     const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/aprovar`, { method: 'POST', credentials: 'include' });
     if (res.ok) {
@@ -563,24 +469,25 @@ function App() {
     }
   };
 
-  // ========== ORDENAÇÃO DAS SALAS ==========
   const salasOrdenadas = useMemo(() => {
     return [...salas].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
   }, [salas]);
-
-  const selectsDisabled = !dataSelecionada && !recorrente;
-  const camposTextDisabled = !dataSelecionada && !recorrente;
 
   if (!currentUser) return <div>Carregando...</div>;
 
   // ========== RENDERIZAÇÃO DAS VIEWS ==========
   const renderMainContent = () => {
-    // VIEW INÍCIO
+    // VIEW INÍCIO (sem o formulário de reserva)
     if (activeView === 'inicio') {
       return (
         <>
           <section className="box mapa-salas">
-            <h2>🗺️ Mapa das Salas</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2>🗺️ Mapa das Salas</h2>
+              <button className="solicitar-reserva-btn" onClick={() => setModalReservaAberto(true)}>
+                + Solicitar Reserva
+              </button>
+            </div>
             <div className="salas-grid-mapa">
               {salasOrdenadas.map((sala) => (
                 <div
@@ -605,109 +512,6 @@ function App() {
                 </div>
               ))}
             </div>
-          </section>
-
-          <section className="box" id="form-reserva">
-            <h2>📝 Fazer reserva</h2>
-            <form onSubmit={handleSubmitReserva} className="form-grid">
-              <label>
-                Sala *
-                <select name="sala_id" value={form.sala_id} onChange={handleChange} required>
-                  <option value="">Selecione uma sala</option>
-                  {salasOrdenadas.map((sala) => (
-                    <option key={sala.id} value={sala.id}>{sala.nome}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Data *
-                <input type="date" name="data" value={form.data} onChange={handleChange} required={!recorrente} disabled={recorrente} />
-              </label>
-              <label>
-                Início *
-                <select name="hora_inicio" value={form.hora_inicio} onChange={handleChange} required disabled={selectsDisabled}>
-                  {horasInicioDisponiveis.length > 0 ? (
-                    horasInicioDisponiveis.map((h) => <option key={h}>{h}</option>)
-                  ) : (
-                    <option value="" disabled>Nenhum horário disponível</option>
-                  )}
-                </select>
-              </label>
-              <label>
-                Fim *
-                <select name="hora_fim" value={form.hora_fim} onChange={handleChange} required disabled={selectsDisabled}>
-                  {horasFimDisponiveis.length > 0 ? (
-                    horasFimDisponiveis.map((h) => <option key={h}>{h}</option>)
-                  ) : (
-                    <option value="" disabled>Nenhum horário disponível</option>
-                  )}
-                </select>
-              </label>
-              <label>
-                Título *
-                <input type="text" name="titulo" value={form.titulo} onChange={handleChange} required disabled={camposTextDisabled} />
-              </label>
-              <label>
-                Responsável *
-                <input type="text" name="responsavel" value={form.responsavel} required disabled />
-              </label>
-              <label>
-                E-mail *
-                <input type="email" name="email" value={form.email} required disabled />
-              </label>
-              <label>
-                Descrição
-                <textarea name="descricao" value={form.descricao} onChange={handleChange} rows="3" disabled={camposTextDisabled} />
-              </label>
-              <div className="full-width">
-                <label style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                  <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
-                  Reserva recorrente (mesmo horário todas as semanas)
-                </label>
-              </div>
-              {recorrente && (
-                <>
-                  <label className="full-width">
-                    Dias da semana (segunda a sexta):
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                      {[
-                        { label: 'Segunda', value: 0 },
-                        { label: 'Terça', value: 1 },
-                        { label: 'Quarta', value: 2 },
-                        { label: 'Quinta', value: 3 },
-                        { label: 'Sexta', value: 4 },
-                      ].map((day) => (
-                        <label key={day.value} style={{ flexDirection: 'row', alignItems: 'center', gap: '0.3rem' }}>
-                          <input
-                            type="checkbox"
-                            value={day.value}
-                            checked={diasSelecionados.includes(day.value)}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value);
-                              if (e.target.checked) {
-                                setDiasSelecionados([...diasSelecionados, val]);
-                              } else {
-                                setDiasSelecionados(diasSelecionados.filter((d) => d !== val));
-                              }
-                            }}
-                          />
-                          {day.label}
-                        </label>
-                      ))}
-                    </div>
-                  </label>
-                  <label>
-                    Data final (repetir até):
-                    <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} required />
-                  </label>
-                </>
-              )}
-              <div className="actions">
-                <button type="submit" disabled={(!dataSelecionada && !recorrente) || (dataSelecionada && horasInicioDisponiveis.length === 0)}>
-                  Reservar
-                </button>
-              </div>
-            </form>
           </section>
         </>
       );
@@ -753,7 +557,7 @@ function App() {
       );
     }
 
-    // GERENCIAR RESERVAS (admin/gerente) – todas as reservas aprovadas
+    // GERENCIAR RESERVAS (admin/gerente)
     if (activeView === 'admin-reservas' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       return (
         <section className="box">
@@ -794,7 +598,12 @@ function App() {
     if (activeView === 'consultar-disponibilidade') {
       return (
         <section className="box">
-          <h2>🔍 Consultar disponibilidade</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>🔍 Consultar disponibilidade</h2>
+            <button className="solicitar-reserva-btn" onClick={() => setModalReservaAberto(true)}>
+              + Solicitar Reserva
+            </button>
+          </div>
           <div className="modo-consulta">
             <label><input type="radio" value="sala" checked={modoDisponibilidade === 'sala'} onChange={() => setModoDisponibilidade('sala')} /> Por sala e data</label>
             <label><input type="radio" value="data_hora" checked={modoDisponibilidade === 'data_hora'} onChange={() => setModoDisponibilidade('data_hora')} /> Por data e hora (intervalo)</label>
@@ -825,10 +634,9 @@ function App() {
                   <li key={`${item.hora_inicio}-${item.hora_fim}`} className={item.ocupado ? (item.titulo?.startsWith('Manutenção') ? 'manutencao' : 'ocupado') : 'livre'}
                     onClick={() => {
                       if (!item.ocupado) {
-                        setForm((prev) => ({ ...prev, sala_id: form.sala_id, data: form.data, hora_inicio: item.hora_inicio, hora_fim: item.hora_fim }));
-                        setActiveView('inicio');
-                        document.getElementById('form-reserva')?.scrollIntoView({ behavior: 'smooth' });
-                        showToast(`Horário ${item.hora_inicio} - ${item.hora_fim} selecionado`, 'info');
+                        // Preenche o formulário antigo? Não usamos mais, mas pode apenas abrir o modal
+                        setModalReservaAberto(true);
+                        showToast(`Horário ${item.hora_inicio} - ${item.hora_fim} selecionado. Use o botão Solicitar Reserva.`, 'info');
                       }
                     }} style={item.ocupado ? {} : { cursor: 'pointer' }}>
                     <strong>{item.hora_inicio}</strong> - {item.hora_fim} <strong>{item.ocupado ? item.titulo : ' Livre'}</strong>
@@ -844,10 +652,9 @@ function App() {
                 <div className="salas-disponiveis-grid">
                   {disponibilidadeDataHora.map((sala) => (
                     <div key={sala.id} className="sala-card-mapa" onClick={() => {
-                      setForm({ sala_id: sala.id, titulo: form.titulo, data: dataConsulta, hora_inicio: horaConsulta, hora_fim: horaFimConsulta, responsavel: form.responsavel, email: form.email, descricao: form.descricao });
-                      setActiveView('inicio');
-                      document.getElementById('form-reserva')?.scrollIntoView({ behavior: 'smooth' });
-                      showToast('Formulário preenchido com a sala e horário selecionados', 'info');
+                      // Abrir modal pré-preenchido? Simplesmente abre
+                      setModalReservaAberto(true);
+                      showToast(`Sala ${sala.nome} selecionada. Use o botão Solicitar Reserva.`, 'info');
                     }}>
                       <div className="sala-nome">{sala.nome}</div>
                       <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || '?'}</div>
@@ -961,8 +768,7 @@ function App() {
       );
     }
 
-    // SOLICITAÇÕES DE RESERVA (admin/gerente) com abas Pendentes / Rejeitadas
-    // O estado tabSolicitacoes foi definido no topo do componente
+    // SOLICITAÇÕES DE RESERVA (admin/gerente)
     if (activeView === 'solicitacoes-reserva' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       return (
         <section className="box">
@@ -1073,6 +879,15 @@ function App() {
         </div>
       )}
 
+      {/* Modal de solicitação de reserva */}
+      <ReservaModal
+        isOpen={modalReservaAberto}
+        onClose={() => setModalReservaAberto(false)}
+        salas={salas}
+        currentUser={currentUser}
+        userRole={currentUser.cargo === 'usuario_externo' ? 'externo' : 'interno'}
+      />
+
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-brand">
@@ -1119,7 +934,6 @@ function App() {
         </div>
       </aside>
 
-      {/* Conteúdo principal */}
       <main className="main-content">
         <div className="page-header">
           <div><h1>Reservas</h1><p>Bem-vindo de volta, {currentUser?.nome}!</p></div>
