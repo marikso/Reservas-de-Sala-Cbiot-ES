@@ -559,7 +559,8 @@ def auth_register():
     existing = User.query.filter_by(email=email).first()
     if existing:
         return jsonify({'erro': 'Email já cadastrado'}), 400
-    user = User(email=email, nome=nome, cargo='aluno', status='pendente')
+    # Cargo temporário até aprovação pelo admin
+    user = User(email=email, nome=nome, cargo='sem_cargo', status='pendente')
     user.set_password(senha)
     db.session.add(user)
     db.session.commit()
@@ -576,13 +577,13 @@ def auth_whoami():
 
 # ---------- ROTAS DE GERENCIAMENTO DE USUÁRIOS (APENAS ADMIN/GERENTE) ----------
 @app.route('/api/users', methods=['GET'])
-@role_required(['admin', 'gerente'])
+@role_required(['admin', 'gerente'])   # mantém leitura para gerente (opcional)
 def listar_usuarios():
     users = User.query.order_by(User.status, User.nome).all()
     return jsonify([u.to_dict() for u in users])
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
-@role_required(['admin', 'gerente'])
+@role_required(['admin'])   # apenas admin pode alterar cargos/status
 def atualizar_usuario(user_id):
     user = User.query.get_or_404(user_id)
     dados = request.get_json()
@@ -594,7 +595,7 @@ def atualizar_usuario(user_id):
     return jsonify(user.to_dict())
 
 @app.route('/api/users/<int:user_id>/approve', methods=['POST'])
-@role_required(['admin', 'gerente'])
+@role_required(['admin'])   # apenas admin pode aprovar
 def aprovar_usuario(user_id):
     user = User.query.get_or_404(user_id)
     cargo = request.json.get('cargo', 'aluno')
