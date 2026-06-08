@@ -4,7 +4,7 @@ from flask_session import Session
 from config import Config
 from database import db
 from models import Sala, Reserva, Manutencao, User
-from datetime import datetime, time, date, timedelta
+from datetime import datetime, time, date, timedelta, timezone
 from sqlalchemy import and_
 from functools import wraps
 import uuid
@@ -60,7 +60,7 @@ def handle_exception(e):
         resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return resp
 
-# ---------- DECORATORS DE PERMISSÃO ----------
+# ---------- DECORATORS ----------
 def role_required(allowed_roles):
     def decorator(f):
         @wraps(f)
@@ -119,6 +119,9 @@ def formatReserva(row):
         'email': row.email,
         'descricao': row.descricao,
         'grupo_id': row.grupo_id,
+        'status': row.status,
+        'aprovador': row.aprovador,
+        'data_aprovacao': row.data_aprovacao.isoformat() if row.data_aprovacao else None,
     }
 
 # ---------- ROTAS PÚBLICAS ----------
@@ -143,7 +146,7 @@ def get_salas():
 def get_reservas():
     sala_id = request.args.get('sala_id', type=int)
     data_str = request.args.get('data')
-    query = Reserva.query
+    query = Reserva.query.filter(Reserva.status == 'aprovada')
     if sala_id:
         query = query.filter_by(sala_id=sala_id)
     if data_str:
@@ -157,6 +160,8 @@ def get_reservas():
 @app.route('/api/reservas', methods=['POST'])
 def create_reserva():
     dados = request.get_json()
+    user = session.get('user')
+    is_externo = user and user.get('cargo') == 'usuario_externo'
     obrigatorios = ['sala_id', 'titulo', 'data', 'hora_inicio', 'hora_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
         return jsonify({'erro': 'Campos obrigatórios faltando'}), 400
@@ -171,13 +176,14 @@ def create_reserva():
     if erro:
         return jsonify({'erro': erro}), 400
 
-    # Conflito com reservas normais
+    # Conflito com reservas aprovadas ou pendentes
     conflito = Reserva.query.filter(
         and_(
             Reserva.sala_id == dados['sala_id'],
             Reserva.data == data_res,
             Reserva.hora_inicio < hora_fim,
-            Reserva.hora_fim > hora_ini
+            Reserva.hora_fim > hora_ini,
+            Reserva.status.in_(['aprovada', 'pendente'])
         )
     ).first()
     if conflito:
@@ -201,6 +207,7 @@ def create_reserva():
         if hora_ini < fim_manut and hora_fim > inicio_manut:
             return jsonify({'erro': f'Sala em manutenção no período: {m.motivo}'}), 400
 
+    status = 'pendente' if is_externo else 'aprovada'
     nova = Reserva(
         sala_id=dados['sala_id'],
         titulo=dados['titulo'],
@@ -210,15 +217,23 @@ def create_reserva():
         responsavel=dados['responsavel'],
         email=dados.get('email', ''),
         descricao=dados.get('descricao', ''),
-        grupo_id=None
+        grupo_id=None,
+        status=status
     )
     db.session.add(nova)
     db.session.commit()
+    if is_externo:
+        return jsonify({'mensagem': 'Solicitação enviada. Aguarde aprovação.'}), 201
     return jsonify(formatReserva(nova)), 201
 
 @app.route('/api/reservas/recorrente', methods=['POST'])
 def create_reservas_recorrentes():
     dados = request.get_json()
+    user = session.get('user')
+    is_externo = user and user.get('cargo') == 'usuario_externo'
+    if is_externo:
+        return jsonify({'erro': 'Usuários externos não podem criar reservas recorrentes'}), 400
+
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
                     'data_inicio', 'data_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
@@ -259,7 +274,8 @@ def create_reservas_recorrentes():
                     Reserva.sala_id == dados['sala_id'],
                     Reserva.data == current_date,
                     Reserva.hora_inicio < hora_fim,
-                    Reserva.hora_fim > hora_ini
+                    Reserva.hora_fim > hora_ini,
+                    Reserva.status.in_(['aprovada', 'pendente'])
                 )
             ).first()
             manut = Manutencao.query.filter(
@@ -281,7 +297,8 @@ def create_reservas_recorrentes():
                     responsavel=dados['responsavel'],
                     email=dados.get('email', ''),
                     descricao=dados.get('descricao', ''),
-                    grupo_id=grupo_id
+                    grupo_id=grupo_id,
+                    status='aprovada'
                 )
                 db.session.add(nova)
                 reservas_criadas.append(current_date.isoformat())
@@ -302,7 +319,6 @@ def get_reservas_by_grupo(grupo_id):
         return jsonify({'erro': 'Grupo não encontrado'}), 404
     return jsonify([formatReserva(r) for r in reservas])
 
-# Admin/gerente cancelar grupo
 @app.route('/api/reservas/grupo/<grupo_id>', methods=['DELETE'])
 @role_required(['admin', 'gerente'])
 def delete_reservas_by_grupo(grupo_id):
@@ -314,7 +330,6 @@ def delete_reservas_by_grupo(grupo_id):
     db.session.commit()
     return jsonify({'mensagem': f'{len(reservas)} reservas canceladas do grupo'})
 
-# Usuário comum cancelar seu próprio grupo recorrente
 @app.route('/api/reservas/grupo/<grupo_id>/user', methods=['DELETE'])
 def delete_user_grupo(grupo_id):
     user = session.get('user')
@@ -337,6 +352,8 @@ def update_reserva(reserva_id):
     user = session.get('user')
     if not user or (user.get('cargo') not in ['admin', 'gerente'] and reserva.email != user.get('email')):
         return jsonify({'erro': 'Acesso não autorizado'}), 401
+    if reserva.status != 'aprovada':
+        return jsonify({'erro': 'Só é possível editar reservas já aprovadas'}), 400
 
     dados = request.get_json()
     titulo = dados.get('titulo')
@@ -368,7 +385,8 @@ def update_reserva(reserva_id):
                 Reserva.data == nova_data,
                 Reserva.hora_inicio < nova_hora_fim,
                 Reserva.hora_fim > nova_hora_ini,
-                Reserva.id != reserva_id
+                Reserva.id != reserva_id,
+                Reserva.status.in_(['aprovada', 'pendente'])
             )
         ).first()
         if conflito:
@@ -420,7 +438,11 @@ def disponibilidade():
         return jsonify({'erro': 'Formato de data inválido'}), 400
 
     sala = Sala.query.get_or_404(sala_id)
-    reservas = Reserva.query.filter_by(sala_id=sala_id, data=data_res).all()
+    reservas = Reserva.query.filter(
+        Reserva.sala_id == sala_id,
+        Reserva.data == data_res,
+        Reserva.status.in_(['aprovada', 'pendente'])
+    ).all()
     manutencoes = Manutencao.query.filter(
         Manutencao.sala_id == sala_id,
         Manutencao.data_inicio <= data_res,
@@ -460,7 +482,7 @@ def disponibilidade():
                 r_fim = r.hora_fim.hour*60 + r.hora_fim.minute
                 if bloco_inicio < r_fim and bloco_fim > r_ini:
                     ocupado = True
-                    titulo = 'Reservado'
+                    titulo = 'Reservado' if r.status == 'aprovada' else 'Solicitado (pendente)'
                     break
 
         horarios.append({
@@ -505,7 +527,8 @@ def salas_disponiveis_por_data_hora():
             Reserva.sala_id == sala.id,
             Reserva.data == data_res,
             Reserva.hora_inicio < hora_fim,
-            Reserva.hora_fim > hora_ini
+            Reserva.hora_fim > hora_ini,
+            Reserva.status.in_(['aprovada', 'pendente'])
         ).first()
         if reserva:
             continue
@@ -559,8 +582,7 @@ def auth_register():
     existing = User.query.filter_by(email=email).first()
     if existing:
         return jsonify({'erro': 'Email já cadastrado'}), 400
-    # Cargo temporário até aprovação pelo admin
-    user = User(email=email, nome=nome, cargo='sem_cargo', status='pendente')
+    user = User(email=email, nome=nome, cargo='usuario_externo', status='pendente')
     user.set_password(senha)
     db.session.add(user)
     db.session.commit()
@@ -575,15 +597,15 @@ def auth_logout():
 def auth_whoami():
     return jsonify(session.get('user') or {})
 
-# ---------- ROTAS DE GERENCIAMENTO DE USUÁRIOS (APENAS ADMIN/GERENTE) ----------
+# ---------- ROTAS DE GERENCIAMENTO DE USUÁRIOS ----------
 @app.route('/api/users', methods=['GET'])
-@role_required(['admin', 'gerente'])   # mantém leitura para gerente (opcional)
+@role_required(['admin', 'gerente'])
 def listar_usuarios():
     users = User.query.order_by(User.status, User.nome).all()
     return jsonify([u.to_dict() for u in users])
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
-@role_required(['admin'])   # apenas admin pode alterar cargos/status
+@role_required(['admin'])
 def atualizar_usuario(user_id):
     user = User.query.get_or_404(user_id)
     dados = request.get_json()
@@ -595,14 +617,58 @@ def atualizar_usuario(user_id):
     return jsonify(user.to_dict())
 
 @app.route('/api/users/<int:user_id>/approve', methods=['POST'])
-@role_required(['admin'])   # apenas admin pode aprovar
+@role_required(['admin', 'gerente'])
 def aprovar_usuario(user_id):
     user = User.query.get_or_404(user_id)
-    cargo = request.json.get('cargo', 'aluno')
+    cargo = request.json.get('cargo')
+    if session.get('user').get('cargo') == 'gerente':
+        cargo = 'usuario_comum'
+    else:
+        if not cargo:
+            cargo = 'aluno'
     user.cargo = cargo
     user.status = 'aprovado'
     db.session.commit()
     return jsonify(user.to_dict())
+
+# ---------- ROTAS DE SOLICITAÇÕES DE RESERVA ----------
+@app.route('/api/solicitacoes', methods=['GET'])
+@role_required(['admin', 'gerente'])
+def listar_solicitacoes():
+    solicitacoes = Reserva.query.filter_by(status='pendente').order_by(Reserva.data, Reserva.hora_inicio).all()
+    return jsonify([formatReserva(r) for r in solicitacoes])
+
+@app.route('/api/solicitacoes/rejeitadas', methods=['GET'])
+@role_required(['admin', 'gerente'])
+def listar_rejeitadas():
+    rejeitadas = Reserva.query.filter_by(status='rejeitada').order_by(Reserva.data, Reserva.hora_inicio).all()
+    return jsonify([formatReserva(r) for r in rejeitadas])
+
+@app.route('/api/solicitacoes/<int:solicitacao_id>/aprovar', methods=['POST'])
+@role_required(['admin', 'gerente'])
+def aprovar_solicitacao(solicitacao_id):
+    reserva = Reserva.query.get_or_404(solicitacao_id)
+    if reserva.status != 'pendente':
+        return jsonify({'erro': 'Solicitação não está pendente'}), 400
+    reserva.status = 'aprovada'
+    user = session.get('user')
+    reserva.aprovador = user.get('nome') or user.get('email')
+    reserva.data_aprovacao = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'mensagem': 'Reserva aprovada', 'aprovador': reserva.aprovador, 'data_aprovacao': reserva.data_aprovacao.isoformat()})
+
+@app.route('/api/solicitacoes/<int:solicitacao_id>/rejeitar', methods=['POST'])
+@role_required(['admin', 'gerente'])
+def rejeitar_solicitacao(solicitacao_id):
+    reserva = Reserva.query.get_or_404(solicitacao_id)
+    if reserva.status != 'pendente':
+        return jsonify({'erro': 'Solicitação não está pendente'}), 400
+    reserva.status = 'rejeitada'
+    user = session.get('user')
+    reserva.aprovador = user.get('nome') or user.get('email')
+    reserva.data_aprovacao = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'mensagem': 'Solicitação rejeitada', 'aprovador': reserva.aprovador, 'data_aprovacao': reserva.data_aprovacao.isoformat()})
 
 # ---------- ROTAS ADMINISTRATIVAS (SALAS, MANUTENÇÕES) ----------
 @app.route('/api/salas', methods=['POST'])
@@ -704,7 +770,7 @@ def deletar_manutencao(manutencao_id):
     db.session.commit()
     return jsonify({'mensagem': 'Bloqueio removido'})
 
-# ---------- ROTA ADMIN LEGACY (SENHA ÚNICA) – OPCIONAL ----------
+# ---------- ROTA ADMIN LEGACY ----------
 @app.route('/api/admin/login', methods=['POST'])
 def admin_login():
     dados = request.get_json()

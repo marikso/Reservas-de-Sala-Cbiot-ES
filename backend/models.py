@@ -12,7 +12,6 @@ class Sala(db.Model):
     equipamentos = db.Column(db.Text)
     avisos = db.Column(db.Text)
 
-    # Relacionamentos
     reservas = db.relationship('Reserva', backref='sala', cascade='all, delete-orphan')
     manutencoes = db.relationship('Manutencao', backref='sala', cascade='all, delete-orphan')
 
@@ -35,11 +34,14 @@ class Reserva(db.Model):
     data = db.Column(db.Date, nullable=False)
     hora_inicio = db.Column(db.Time, nullable=False)
     hora_fim = db.Column(db.Time, nullable=False)
-    responsavel = db.Column(db.String(100), nullable=False)
+    responsavel = db.Column(db.String(100), nullable=False)   # solicitante
     email = db.Column(db.String(100))
     descricao = db.Column(db.Text)
     criada_em = db.Column(db.DateTime, default=datetime.utcnow)
     grupo_id = db.Column(db.String(36), nullable=True, index=True)
+    status = db.Column(db.String(20), nullable=False, default='aprovada')  # pendente, aprovada, rejeitada
+    aprovador = db.Column(db.String(100), nullable=True)       # quem aprovou/rejeitou
+    data_aprovacao = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self):
         return {
@@ -54,6 +56,9 @@ class Reserva(db.Model):
             'email': self.email,
             'descricao': self.descricao,
             'grupo_id': self.grupo_id,
+            'status': self.status,
+            'aprovador': self.aprovador,
+            'data_aprovacao': self.data_aprovacao.isoformat() if self.data_aprovacao else None,
         }
 
 class Manutencao(db.Model):
@@ -79,15 +84,14 @@ class Manutencao(db.Model):
             'motivo': self.motivo,
         }
 
-
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(150), unique=True, nullable=False)
     nome = db.Column(db.String(150), nullable=False)
-    cargo = db.Column(db.String(50), nullable=False)  # ex: aluno, professor, gerente, admin
+    cargo = db.Column(db.String(50), nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='pendente')  # pendente, aprovado, rejeitado
+    status = db.Column(db.String(20), nullable=False, default='pendente')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
