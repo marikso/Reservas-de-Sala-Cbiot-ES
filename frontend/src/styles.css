@@ -2641,3 +2641,121 @@ body {
   background: #fecaca;
   transform: translateY(-2px);
 }
+
+/*mmmmm*/
+.reserva-card-minha {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 1rem 1.2rem;
+  border: 1px solid #e9e0f5;
+  transition: 0.2s;
+  margin-bottom: 1rem;
+}
+.reserva-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.reserva-status {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 30px;
+}
+.status-confirmada { background: #dcfce7; color: #166534; }
+.status-pendente { background: #fff3e0; color: #b85c00; }
+.status-cancelada { background: #fee2e2; color: #991b1b; }
+.reserva-card-info p {
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+}
+.reserva-actions-minhas {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  justify-content: flex-end;
+}
+.edit-reserva-btn, .cancel-reserva-btn, .cancel-group-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 30px;
+  cursor: pointer;
+}
+.edit-reserva-btn { color: #8e44ad; }
+.cancel-reserva-btn { color: #dc2626; }
+.cancel-group-btn { color: #b85c00; background: #fff3e0; }
+
+/* Botões maiores e mais espaçosos */
+.edit-reserva-btn,
+.cancel-reserva-btn,
+.edit-btn,
+.cancel-btn {
+  font-size: 1rem !important;        /* texto maior */
+  font-weight: 600 !important;
+  padding: 0.8rem 1.8rem !important; /* mais área de clique */
+  border-radius: 40px !important;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 140px;                 /* largura mínima para uniformidade */
+}
+
+.edit-reserva-btn,
+.edit-btn {
+  background: #f0eaf8 !important;
+  color: #5e2a8c !important;
+  border: 1px solid #d9c5f0 !important;
+}
+.edit-reserva-btn:hover,
+.edit-btn:hover {
+  background: #e2d4f0 !important;
+  transform: translateY(-2px);
+}
+
+.cancel-reserva-btn,
+.cancel-btn {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fecaca !important;
+}
+.cancel-reserva-btn:hover,
+.cancel-btn:hover {
+  background: #fecaca !important;
+  transform: translateY(-2px);
+}
+
+/* Botão "Cancelar série" (grupo recorrente) */
+.cancel-group-btn {
+  background: #fff3e0 !important;
+  color: #b85c00 !important;
+  border: 1px solid #ffd699 !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  padding: 0.7rem 1.2rem !important;
+  border-radius: 40px !important;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.cancel-group-btn:hover {
+  background: #ffe0b3 !important;
+  transform: translateY(-2px);
+}
+
+/* Responsividade: em telas pequenas, os botões ocupam toda a largura */
+@media (max-width: 640px) {
+  .reserva-actions-minhas {
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+  .edit-reserva-btn,
+  .cancel-reserva-btn,
+  .cancel-group-btn {
+    width: 100%;
+    text-align: center;
+    padding: 0.7rem 0 !important;
+  }
+}

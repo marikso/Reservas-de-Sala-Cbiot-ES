@@ -15,6 +15,7 @@ import {
   whoami,
 } from './api';
 
+// Geração de opções de horário (08:00 às 19:00 com intervalos de 30 min)
 const generateTimeOptions = () => {
   const times = [];
   for (let i = 8; i < 19; i++) {
@@ -25,16 +26,11 @@ const generateTimeOptions = () => {
 };
 
 function AdminPanel() {
+  // ========== ESTADOS ==========
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [users, setUsers] = useState([]);
-  const [novaSala, setNovaSala] = useState({
-    nome: '',
-    bloco: '',
-    andar: '',
-    capacidade: '',
-    equipamentos: '',
-  });
+  const [novaSala, setNovaSala] = useState({ nome: '', bloco: '', andar: '', capacidade: '', equipamentos: '' });
   const [editandoSala, setEditandoSala] = useState(null);
   const [toast, setToast] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -66,31 +62,30 @@ function AdminPanel() {
     hora_fim: '',
   });
 
+  // ========== FUNÇÕES AUXILIARES ==========
   const formatarData = (dataISO) => {
     if (!dataISO) return '';
     const partes = dataISO.split('-');
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
-  // NOVA FUNÇÃO para exibir data/hora UTC corretamente
-  const formatarDataHoraBrasilia = (isoString) => {
+  const formatarDataHoraUTC = (isoString) => {
     if (!isoString) return '';
-    // Converte a string ISO para objeto Date
     const data = new Date(isoString);
-    // Ajusta para UTC-3 (Brasília)
-    const offsetBrasilia = -3 * 60; // minutos
-    const localTime = data.getTime() + (data.getTimezoneOffset() * 60000);
-    const brasiliaTime = new Date(localTime + (offsetBrasilia * 60000));
-
-    const dia = brasiliaTime.getUTCDate().toString().padStart(2, '0');
-    const mes = (brasiliaTime.getUTCMonth() + 1).toString().padStart(2, '0');
-    const ano = brasiliaTime.getUTCFullYear();
-    const horas = brasiliaTime.getUTCHours().toString().padStart(2, '0');
-    const minutos = brasiliaTime.getUTCMinutes().toString().padStart(2, '0');
+    const dia = data.getUTCDate().toString().padStart(2, '0');
+    const mes = (data.getUTCMonth() + 1).toString().padStart(2, '0');
+    const ano = data.getUTCFullYear();
+    const horas = data.getUTCHours().toString().padStart(2, '0');
+    const minutos = data.getUTCMinutes().toString().padStart(2, '0');
     return `${dia}/${mes}/${ano}, ${horas}:${minutos}`;
   };
 
-  // Carregar dados
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // ========== CARREGAMENTO DE DADOS ==========
   const loadSalas = async () => {
     const data = await getSalas();
     const sorted = [...data].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
@@ -153,12 +148,7 @@ function AdminPanel() {
     loadSolicitacoesRejeitadas();
   }, []);
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  // ========== SALAS ==========
+  // ========== GERENCIAR SALAS ==========
   const handleChangeSala = (e) => {
     const { name, value } = e.target;
     setNovaSala((prev) => ({ ...prev, [name]: value }));
@@ -178,13 +168,7 @@ function AdminPanel() {
   };
   const handleEditarSala = (sala) => {
     setEditandoSala(sala);
-    setNovaSala({
-      nome: sala.nome,
-      bloco: sala.bloco || '',
-      andar: sala.andar || '',
-      capacidade: sala.capacidade || '',
-      equipamentos: sala.equipamentos || '',
-    });
+    setNovaSala({ ...sala });
   };
   const handleCancelarEdicao = () => {
     setEditandoSala(null);
@@ -213,7 +197,7 @@ function AdminPanel() {
     }
   };
 
-  // ========== RESERVAS ==========
+  // ========== GERENCIAR RESERVAS (admin) ==========
   const handleDeletarReserva = async (id, titulo) => {
     await deleteReserva(id);
     await loadReservas();
@@ -362,8 +346,73 @@ function AdminPanel() {
     }
   };
 
+  // ========== RENDERIZAÇÃO DE CARD DE RESERVA (mesmo visual de "Minhas Reservas") ==========
+  const renderReservaCard = (r) => {
+    const sala = salas.find((s) => s.id === r.sala_id);
+    const [ano, mes, dia] = r.data.split('-');
+    const dataObj = new Date(Date.UTC(ano, mes - 1, dia));
+    const diasSemana = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    const diaSemana = diasSemana[dataObj.getUTCDay()];
+    const dataFormatada = `${dia}/${mes}/${ano}`;
+
+    let statusClass = '';
+    let statusTexto = '';
+    if (r.status === 'aprovada') {
+      statusClass = 'status-confirmada';
+      statusTexto = 'CONFIRMADA';
+    } else if (r.status === 'pendente') {
+      statusClass = 'status-pendente';
+      statusTexto = 'PENDENTE';
+    } else {
+      statusClass = 'status-cancelada';
+      statusTexto = r.status === 'rejeitada' ? 'REJEITADA' : 'CANCELADA';
+    }
+
+    return (
+      <div className="reserva-card-minha" key={r.id}>
+        <div className="reserva-card-header">
+          <h3>{r.sala_nome}</h3>
+          <span className={`reserva-status ${statusClass}`}>{statusTexto}</span>
+        </div>
+        <div className="reserva-card-info">
+          <p>
+            <strong>{dataFormatada}</strong> · {diaSemana} · {r.hora_inicio} às {r.hora_fim}
+          </p>
+          {sala && (
+            <p className="sala-localizacao-card">
+              Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}
+            </p>
+          )}
+          <p className="reserva-titulo">{r.titulo}</p>
+          {r.descricao && <p>Descrição: {r.descricao}</p>}
+          <p>Solicitante: {r.responsavel} ({r.email})</p>
+          {r.status === 'aprovada' && r.aprovador && (
+            <p>Aprovada por {r.aprovador} em {formatarDataHoraUTC(r.data_aprovacao)}</p>
+          )}
+          {r.status === 'rejeitada' && r.aprovador && (
+            <p>Rejeitada por {r.aprovador} em {formatarDataHoraUTC(r.data_aprovacao)}</p>
+          )}
+        </div>
+        <div className="reserva-actions-minhas">
+          <button className="edit-reserva-btn" onClick={() => handleEditarReserva(r)}>
+            Editar solicitação
+          </button>
+          {r.grupo_id && (
+            <button className="cancel-group-btn" onClick={() => handleDeletarGrupo(r.grupo_id)}>
+              Cancelar série
+            </button>
+          )}
+          <button className="cancel-reserva-btn" onClick={() => handleDeletarReserva(r.id, r.titulo)}>
+            Cancelar solicitação
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   if (!currentUser) return <div>Verificando permissões...</div>;
 
+  // ========== RENDER PRINCIPAL ==========
   return (
     <div className="admin-container">
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
@@ -443,7 +492,7 @@ function AdminPanel() {
         </div>
       </header>
 
-      {/* ========== GERENCIAR SALAS ========== */}
+      {/* ========== 1. GERENCIAR SALAS ========== */}
       <section className="box">
         <h2>Gerenciar Salas</h2>
         <div className="admin-sala-form">
@@ -498,7 +547,7 @@ function AdminPanel() {
         </div>
       </section>
 
-      {/* ========== BLOQUEIOS DE MANUTENÇÃO ========== */}
+      {/* ========== 2. BLOQUEIOS DE MANUTENÇÃO ========== */}
       <section className="box">
         <h2>Bloqueios por Manutenção</h2>
         <div className="admin-sala-form">
@@ -536,7 +585,7 @@ function AdminPanel() {
         </div>
       </section>
 
-      {/* ========== SOLICITAÇÕES DE RESERVA (layout igual Minhas Reservas) ========== */}
+      {/* ========== 3. SOLICITAÇÕES DE RESERVA (layout igual Minhas Reservas) ========== */}
       <section className="box minhas-reservas-box">
         <div className="disponibilidade-header">
           <div>
@@ -641,8 +690,7 @@ function AdminPanel() {
                       )}
                       <p className="reserva-titulo">{s.titulo}</p>
                       <p className="reserva-rejeitada-msg">
-                        {/* CORREÇÃO: usando formatarDataHoraUTC */}
-                        Rejeitada por {s.aprovador} em {formatarDataHoraBrasilia(s.data_aprovacao)}
+                        Rejeitada por {s.aprovador} em {formatarDataHoraUTC(s.data_aprovacao)}
                       </p>
                     </div>
                     <div className="reserva-actions-minhas">
@@ -664,7 +712,7 @@ function AdminPanel() {
         </div>
       </section>
 
-      {/* ========== GERENCIAR USUÁRIOS (apenas admin) ========== */}
+      {/* ========== 4. GERENCIAR USUÁRIOS (apenas admin) ========== */}
       {currentUser.cargo === 'admin' && (
         <section className="box">
           <h2>Gerenciar Usuários</h2>
@@ -724,70 +772,20 @@ function AdminPanel() {
         </section>
       )}
 
-      {/* ========== GERENCIAR RESERVAS (lista de reservas aprovadas) ========== */}
-      <section className="box">
-        <h2>Gerenciar Reservas</h2>
-        <div className="reservas-grid">
-          {reservas.map((r) => {
-            const sala = salas.find((s) => s.id === r.sala_id);
-            return (
-              <div className="reserva-card" key={r.id}>
-                <h3>
-                  {r.sala_nome} · {r.titulo}
-                </h3>
-                {r.grupo_id && (
-                  <p>
-                    <strong>Grupo:</strong> {r.grupo_id.substring(0, 8)}...
-                  </p>
-                )}
-                <p>
-                  <strong>Data:</strong> {formatarData(r.data)}
-                </p>
-                <p>
-                  <strong>Horário:</strong> {r.hora_inicio} - {r.hora_fim}
-                </p>
-                {sala && (
-                  <p>
-                    <strong>Localização:</strong> Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}
-                  </p>
-                )}
-                <p>
-                  <strong>Responsável:</strong> {r.responsavel}
-                </p>
-                <p>
-                  <strong>E-mail:</strong> {r.email}
-                </p>
-                {r.descricao && (
-                  <p>
-                    <strong>Descrição:</strong> {r.descricao}
-                  </p>
-                )}
-                {r.status === 'aprovada' && r.aprovador && (
-                  <p>
-                    <strong>Aprovado por:</strong> {r.aprovador} em {new Date(r.data_aprovacao).toLocaleString()}
-                  </p>
-                )}
-                {r.status === 'rejeitada' && r.aprovador && (
-                  <p>
-                    <strong>Rejeitado por:</strong> {r.aprovador} em {new Date(r.data_aprovacao).toLocaleString()}
-                  </p>
-                )}
-                <div className="reserva-actions">
-                  <button className="edit-btn" onClick={() => handleEditarReserva(r)}>
-                    Editar
-                  </button>
-                  {r.grupo_id && (
-                    <button className="cancel-group-btn" onClick={() => handleDeletarGrupo(r.grupo_id)}>
-                      Cancelar série
-                    </button>
-                  )}
-                  <button className="cancel-btn" onClick={() => handleDeletarReserva(r.id, r.titulo)}>
-                    Cancelar reserva
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+      {/* ========== 5. GERENCIAR RESERVAS (layout estilo Minhas Reservas) ========== */}
+      <section className="box minhas-reservas-box">
+        <div className="disponibilidade-header">
+          <div>
+            <h2>Gerenciar Reservas</h2>
+            <p className="disponibilidade-sub">Todas as reservas futuras (aprovadas, pendentes e recorrentes).</p>
+          </div>
+        </div>
+        <div className="reservas-lista">
+          {reservas.length === 0 ? (
+            <p className="sem-reservas">Nenhuma reserva encontrada.</p>
+          ) : (
+            reservas.map(renderReservaCard)
+          )}
         </div>
       </section>
 
