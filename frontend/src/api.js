@@ -55,3 +55,6 @@ export function updateReserva(reservaId, data) {
     body: JSON.stringify(data),
   });
 }
+export function getMinhasSolicitacoes() {
+  return request('/api/minhas-solicitacoes');
+}

@@ -28,6 +28,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
   const [form, setForm] = useState({
     sala_id: '',
     titulo: '',
+    descricao: '',      // ← descrição separada
     data: '',
     hora_inicio: '',
     hora_fim: '',
@@ -43,12 +44,12 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
   const [horariosLivres, setHorariosLivres] = useState([]);
   const [horariosFimPossiveis, setHorariosFimPossiveis] = useState([]);
 
-  // Quando o modal abre ou initialData muda, atualiza o formulário com os dados recebidos
   useEffect(() => {
     if (isOpen && initialData) {
       setForm({
         sala_id: initialData.sala_id || '',
         titulo: initialData.titulo || '',
+        descricao: '',
         data: initialData.data || '',
         hora_inicio: initialData.hora_inicio || '',
         hora_fim: initialData.hora_fim || '',
@@ -56,7 +57,6 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     }
   }, [isOpen, initialData]);
 
-  // Limpa mensagens e estado de conflito ao abrir
   useEffect(() => {
     if (isOpen) {
       setErrorMessage('');
@@ -65,7 +65,6 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     }
   }, [isOpen]);
 
-  // Busca disponibilidade (apenas quando não recorrente e com sala/data)
   useEffect(() => {
     if (!recorrente && form.sala_id && form.data) {
       getDisponibilidade(form.sala_id, form.data).then((res) => {
@@ -95,7 +94,6 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     }
   }, [form.sala_id, form.data, recorrente]);
 
-  // Calcula horários de fim possíveis (apenas para não recorrente)
   useEffect(() => {
     if (recorrente) {
       setHorariosFimPossiveis([]);
@@ -163,19 +161,24 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     setLoading(true);
 
     if (!form.sala_id) { setErrorMessage('Selecione uma sala.'); setLoading(false); return; }
-    if (!form.titulo.trim()) { setErrorMessage('Preencha a finalidade.'); setLoading(false); return; }
+    if (!form.titulo.trim()) { setErrorMessage('Preencha o título.'); setLoading(false); return; }
     if (!recorrente && (!form.data || !form.hora_inicio || !form.hora_fim)) {
-      setErrorMessage('Selecione data, início e fim.'); setLoading(false); return;
-    }
-    if (recorrente && (!form.data || !dataFim || diasSelecionados.length === 0)) {
-      setErrorMessage('Preencha data de início, data final e pelo menos um dia da semana.'); setLoading(false); return;
-    }
-    if (!recorrente && form.data) {
-      const dataObj = new Date(form.data);
-      if (dataObj.getDay() === 0 || dataObj.getDay() === 6) {
-        setErrorMessage('Reservas não são permitidas aos sábados e domingos.'); setLoading(false); return;
+          setErrorMessage('Selecione data, início e fim.'); setLoading(false); return;
       }
-    }
+      if (recorrente && (!form.data || !dataFim || diasSelecionados.length === 0)) {
+          setErrorMessage('Preencha data de início, data final e pelo menos um dia da semana.'); setLoading(false); return;
+      }
+      if (!recorrente && form.data) {
+          // Parse da data no formato YYYY-MM-DD sem fuso horário
+          const [ano, mes, dia] = form.data.split('-').map(Number);
+          const dataUTC = new Date(Date.UTC(ano, mes - 1, dia));
+          const diaSemana = dataUTC.getUTCDay(); // 0 = domingo, 6 = sábado
+          if (diaSemana === 0 || diaSemana === 6) {
+              setErrorMessage('Reservas não são permitidas aos sábados e domingos.');
+              setLoading(false);
+              return;
+          }
+      }
 
     let response;
     if (recorrente) {
@@ -189,7 +192,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
         data_fim: dataFim,
         responsavel: currentUser?.nome,
         email: currentUser?.email,
-        descricao: '',
+        descricao: form.descricao || '',
       };
       response = await createReservaRecorrente(payload);
     } else {
@@ -201,7 +204,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
         hora_fim: form.hora_fim,
         responsavel: currentUser?.nome,
         email: currentUser?.email,
-        descricao: '',
+        descricao: form.descricao || '',
       });
     }
 
@@ -255,6 +258,35 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     : !form.sala_id || !form.data || horariosLivres.length === 0;
 
   const diasTexto = diasSelecionados.map(v => diasSemana.find(d => d.value === v)?.label).join(', ');
+
+  // Funções auxiliares de horário
+  const timeToMinutes = (timeStr) => {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const minutesToTime = (minutes) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+  const generateAllStartTimes = () => {
+    const times = [];
+    let mins = 8 * 60;
+    while (mins < 19 * 60) {
+      times.push(minutesToTime(mins));
+      mins += 30;
+    }
+    return times;
+  };
+  const generateAllEndTimes = () => {
+    const times = [];
+    let mins = 8 * 60 + 30;
+    while (mins <= 19 * 60) {
+      times.push(minutesToTime(mins));
+      mins += 30;
+    }
+    return times;
+  };
 
   return (
     <div className="reserva-overlay" onClick={onClose}>
@@ -351,14 +383,26 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
                 </div>
               </div>
 
+              {/* Campo TÍTULO (novo) */}
               <div className="reserva-field">
-                <label>FINALIDADE</label>
-                <textarea
-                  placeholder="Reunião do grupo de pesquisa"
-                  rows={3}
+                <label>TÍTULO</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Reunião do grupo de pesquisa"
                   value={form.titulo}
                   onChange={(e) => setForm({ ...form, titulo: e.target.value })}
                   required
+                />
+              </div>
+
+              {/* Campo DESCRIÇÃO (antiga FINALIDADE) */}
+              <div className="reserva-field">
+                <label>DESCRIÇÃO</label>
+                <textarea
+                  placeholder="Detalhes adicionais sobre a reserva"
+                  rows={3}
+                  value={form.descricao}
+                  onChange={(e) => setForm({ ...form, descricao: e.target.value })}
                 />
               </div>
             </div>
@@ -415,35 +459,6 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
       </div>
     </div>
   );
-};
-
-// Funções auxiliares que faltavam dentro do escopo do componente
-const timeToMinutes = (timeStr) => {
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
-};
-const minutesToTime = (minutes) => {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-};
-const generateAllStartTimes = () => {
-  const times = [];
-  let mins = 8 * 60;
-  while (mins < 19 * 60) {
-    times.push(minutesToTime(mins));
-    mins += 30;
-  }
-  return times;
-};
-const generateAllEndTimes = () => {
-  const times = [];
-  let mins = 8 * 60 + 30;
-  while (mins <= 19 * 60) {
-    times.push(minutesToTime(mins));
-    mins += 30;
-  }
-  return times;
 };
 
 export default ReservaModal;

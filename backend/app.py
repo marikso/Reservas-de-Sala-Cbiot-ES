@@ -719,6 +719,15 @@ def listar_solicitacoes():
     solicitacoes = Reserva.query.filter_by(status='pendente').order_by(Reserva.data, Reserva.hora_inicio).all()
     return jsonify([formatReserva(r) for r in solicitacoes])
 
+@app.route('/api/minhas-solicitacoes', methods=['GET'])
+def minhas_solicitacoes():
+    user = session.get('user')
+    if not user:
+        return jsonify({'erro': 'Não autenticado'}), 401
+    email = user.get('email')
+    solicitacoes = Reserva.query.filter_by(email=email, status='pendente').order_by(Reserva.data, Reserva.hora_inicio).all()
+    return jsonify([formatReserva(r) for r in solicitacoes])
+
 @app.route('/api/solicitacoes/rejeitadas', methods=['GET'])
 @role_required(['admin', 'gerente'])
 def listar_rejeitadas():
