@@ -110,6 +110,10 @@ function App() {
 
   const [activeView, setActiveView] = useState('inicio');
   const [selectedCargo, setSelectedCargo] = useState({});
+  const [formSalaAberto, setFormSalaAberto] = useState(false);
+  const [formManutAberto, setFormManutAberto] = useState(false);
+  const [alterandoPapelUser, setAlterandoPapelUser] = useState(null);
+  const [novoPapelSelecionado, setNovoPapelSelecionado] = useState('');
 
   // Estados para seleção de intervalo na consulta de disponibilidade
   const [selectedStart, setSelectedStart] = useState(null);
@@ -564,6 +568,17 @@ function App() {
       }
     }
   };
+  const handleLiberarSala = async (salaId) => {
+    const ativos = manutencoes.filter(m => m.sala_id === salaId);
+    for (const m of ativos) {
+      try {
+        await fetch(`http://localhost:5000/api/manutencoes/${m.id}`, { method: 'DELETE', credentials: 'include' });
+      } catch {}
+    }
+    await loadManutencoes();
+    await loadSalas();
+    showToast('Sala liberada para uso', 'success');
+  };
 
   const handleUpdateUser = async (userId, data) => {
     const res = await updateUser(userId, data);
@@ -695,41 +710,69 @@ function App() {
   const renderMainContent = () => {
     // VIEW INÍCIO
     if (activeView === 'inicio') {
-      return (
-        <>
-          <section className="box mapa-salas">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2>🗺️ Mapa das Salas</h2>
-              <button className="solicitar-reserva-btn" onClick={() => setModalReservaAberto(true)}>+ Solicitar Reserva</button>
-            </div>
-            <div className="salas-grid-mapa">
-              {salasOrdenadas.map((sala) => (
-                <div
-                  key={sala.id}
-                  className={`sala-card-mapa ${form.sala_id == sala.id ? 'selecionada' : ''} ${sala.em_manutencao ? 'manutencao' : ''}`}
-                  onClick={() => setForm((prev) => ({ ...prev, sala_id: sala.id }))}
-                >
-                  <div className="sala-nome">{sala.nome}</div>
-                  <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</div>
-                  <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'} pessoas</div>
-                  {sala.equipamentos && (
-                    <div className="sala-equipamentos">
-                      <strong>📋 Equipamentos:</strong>
-                      <ul>
-                        {sala.equipamentos.split(',').map((item, idx) => (
-                          <li key={idx}>{item.trim()}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {sala.em_manutencao && <div className="sala-manutencao-badge">🔧 Em manutenção</div>}
+  const salaSelecionada = !!form.sala_id;
+
+  return (
+    <section
+      className="box mapa-salas-prototipo"
+      onClick={() => setForm((prev) => ({ ...prev, sala_id: '' }))}
+    >
+      <div className="gs-header">
+        <div>
+          <h2 className="gs-titulo">Mapa das Salas</h2>
+          <p className="gs-subtitulo">Clique em uma sala para iniciar uma solicitação de reserva.</p>
+        </div>
+        <button
+          className={`btn-solicitar-reserva-inicio ${salaSelecionada ? 'ativo' : 'inativo'}`}
+          disabled={!salaSelecionada}
+          onClick={(e) => { e.stopPropagation(); setModalReservaAberto(true); }}
+        >
+          + Solicitar Reserva
+        </button>
+      </div>
+
+      <div className="salas-grid-mapa">
+        {salasOrdenadas.map((sala) => {
+          const isSelecionada = form.sala_id == sala.id;
+
+          return (
+            <div
+              key={sala.id}
+              className={`sala-card-mapa ${isSelecionada ? 'selecionada' : ''} ${sala.em_manutencao ? 'manutencao' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setForm((prev) => ({ ...prev, sala_id: sala.id })); }}
+            >
+              {isSelecionada && <div className="badge-selecionada">SELECIONADA</div>}
+
+              <div className="sala-nome-destaque">{sala.nome}</div>
+              <div className="sala-localizacao-texto">
+                Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}
+              </div>
+              <div className="sala-localizacao-texto">
+                Capacidade: {sala.capacidade || '?'} pessoas
+              </div>
+
+              {sala.equipamentos && (
+                <div className="sala-equipamentos-lista">
+                  <div className="equipamentos-titulo">EQUIPAMENTOS</div>
+                  <ul>
+                    {sala.equipamentos.split(',').map((item, idx) => (
+                      <li key={idx}>
+                        <span className="quadrado-roxo"></span>
+                        {item.trim()}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
+              )}
+
+              {sala.em_manutencao && <div className="badge-manutencao">🔧 Em manutenção</div>}
             </div>
-          </section>
-        </>
-      );
-    }
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
     // MINHAS RESERVAS (com abas e horário Brasília)
     if (activeView === 'minhas-reservas') {
@@ -804,9 +847,12 @@ function App() {
       };
 
       return (
-        <section className="box minhas-reservas-box">
-          <div className="disponibilidade-header">
-            <div><h2>Minhas reservas</h2><p className="disponibilidade-sub">Acompanhe o status das suas solicitações de reserva.</p></div>
+        <div className="gs-container">
+          <div className="gs-header">
+            <div>
+              <h2 className="gs-titulo">Minhas reservas</h2>
+              <p className="gs-subtitulo">Acompanhe o status das suas solicitações de reserva.</p>
+            </div>
           </div>
           <div className="modo-consulta" style={{ marginBottom: '1.5rem' }}>
             <label className={`modo-radio ${tabReservas === 'ativas' ? 'active' : ''}`}>
@@ -829,7 +875,7 @@ function App() {
             {tabReservas === 'pendentes' && isExterno && (reservasPendentes.length === 0 ? <p className="sem-reservas">Nenhuma solicitação pendente.</p> : reservasPendentes.map(r => renderReservaCard(r, false)))}
             {tabReservas === 'historico' && (reservasHistorico.length === 0 ? <p className="sem-reservas">Nenhuma solicitação no histórico.</p> : reservasHistorico.map(r => renderReservaCard(r, true)))}
           </div>
-        </section>
+        </div>
       );
     }
 
@@ -906,109 +952,127 @@ function App() {
       const salasOptions = [{ value: 'todas', label: 'Todas' }, ...salas.map(s => ({ value: s.id.toString(), label: s.nome }))];
 
       return (
-        <section className="box minhas-reservas-box">
-          <div className="disponibilidade-header">
-            <div><h2>Gerenciar Reservas</h2><p className="disponibilidade-sub">Visualize todas as reservas do sistema. Selecione uma para editar ou cancelar.</p></div>
-            <button className="solicitar-reserva-btn" onClick={exportarCSV}>📎 Exportar CSV</button>
-          </div>
-          <div className="filtros-reservas" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', margin: '1rem 0', padding: '1rem 0', borderBottom: '1px solid #e9e0f5' }}>
-            <div className="filtro-busca" style={{ flex: 2, minWidth: '200px' }}>
-              <input type="text" placeholder="Buscar por usuário ou sala..." value={filtroTexto} onChange={e => setFiltroTexto(e.target.value)} style={{ width: '100%', padding: '0.6rem 1rem', borderRadius: '40px', border: '1px solid #cbd5e1' }} />
+        <div className="gs-container">
+          <div className="gs-header">
+            <div>
+              <h2 className="gs-titulo">Gerenciar Reservas</h2>
+              <p className="gs-subtitulo">Visualize e gerencie todas as reservas do sistema.</p>
             </div>
-            <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '40px', border: '1px solid #cbd5e1' }}>
+          </div>
+          <div className="gs-filtros">
+            <input className="gs-filtros-busca" type="text" placeholder="⌕ Buscar por usuário ou sala..." value={filtroTexto} onChange={e => setFiltroTexto(e.target.value)} />
+            <select className="filtros-select" value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
               {statusOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
-            <select value={filtroSala} onChange={e => setFiltroSala(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '40px', border: '1px solid #cbd5e1' }}>
+            <select className="filtros-select" value={filtroSala} onChange={e => setFiltroSala(e.target.value)}>
               {salasOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
-            <select value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)} style={{ padding: '0.6rem 1rem', borderRadius: '40px', border: '1px solid #cbd5e1' }}>
+            <select className="filtros-select" value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)}>
               {periodoOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
+            <button className="gs-btn-exportar" onClick={exportarCSV}>Exportar CSV</button>
           </div>
-          <div className="reservas-stats" style={{ fontSize: '0.85rem', color: '#5a6e7c', marginBottom: '1rem' }}>
-            Mostrando <strong>{reservasFiltradas.length}</strong> de <strong>{allReservas.length}</strong> reservas
-            {recorrentesNoFiltro > 0 && <span> · {recorrentesNoFiltro} recorrente(s) ativa(s) no período</span>}
+          <div className="gs-stats-bar">
+            <span className="gs-stats-total">Mostrando {reservasFiltradas.length}</span>
+            <span className="gs-stats-detail">de {allReservas.length} reservas{recorrentesNoFiltro > 0 ? ` · ${recorrentesNoFiltro} recorrente(s) no período` : ''}</span>
           </div>
-          <div className="reservas-lista">
-            {reservasFiltradas.length === 0 ? <p className="sem-reservas">Nenhuma reserva encontrada.</p> : reservasFiltradas.map(r => {
-              const sala = salas.find(s => s.id === r.sala_id);
+
+          <div className="gu-table-header">
+            <span style={{flex:'0 0 230px'}}>USUÁRIO</span>
+            <span style={{flex:2}}>SALA</span>
+            <span style={{flex:2}}>DATA / HORÁRIO</span>
+            <span style={{flex:'0 0 130px'}}>STATUS</span>
+            <span style={{flex:'0 0 170px'}}>AÇÕES</span>
+          </div>
+          <div className="gu-rows">
+            {reservasFiltradas.length === 0 && <p className="admin-req-vazio">Nenhuma reserva encontrada.</p>}
+            {reservasFiltradas.map(r => {
               const [ano, mes, dia] = r.data.split('-');
               const dataObj = new Date(Date.UTC(ano, mes-1, dia));
-              const diaSemana = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'][dataObj.getUTCDay()];
+              const diaSemana = ['dom','seg','ter','qua','qui','sex','sáb'][dataObj.getUTCDay()];
               const dataFormatada = `${dia}/${mes}/${ano}`;
-              let statusClass = '', statusTexto = '';
-              if (r.status === 'aprovada') { statusClass = 'status-confirmada'; statusTexto = 'CONFIRMADA'; }
-              else if (r.status === 'pendente') { statusClass = 'status-pendente'; statusTexto = 'PENDENTE'; }
-              else { statusClass = 'status-cancelada'; statusTexto = r.status === 'rejeitada' ? 'REJEITADA' : 'CANCELADA'; }
+              const statusBg = r.status==='aprovada'?'#2ECC71':r.status==='pendente'?'#F39C12':r.status==='rejeitada'?'#E74C3C':'#95A5A6';
+              const statusTxt = r.status==='aprovada'?'CONFIRMADA':r.status==='pendente'?'PENDENTE':r.status==='rejeitada'?'REJEITADA':'CANCELADA';
               return (
-                <div className="reserva-card-minha" key={r.id}>
-                  <div className="reserva-card-header"><h3>{r.sala_nome}</h3><span className={`reserva-status ${statusClass}`}>{statusTexto}</span></div>
-                  <div className="reserva-card-info">
-                    <p><strong>{dataFormatada}</strong> · {diaSemana} · {r.hora_inicio} às {r.hora_fim}</p>
-                    {sala && <p className="sala-localizacao-card">Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}</p>}
-                    <p className="reserva-titulo">{r.titulo}</p>
-                    {r.descricao && <p>Descrição: {r.descricao}</p>}
-                    <p>Solicitante: {r.responsavel} ({r.email})</p>
-                    {r.status === 'aprovada' && r.aprovador && <p>Aprovada por {r.aprovador} em {formatarDataHoraBrasilia(r.data_aprovacao)}</p>}
+                <div key={r.id} className="gu-row">
+                  <div style={{flex:'0 0 230px',display:'flex',alignItems:'center',gap:'10px'}}>
+                    <div className="gu-avatar">{(r.responsavel||'??').substring(0,2).toUpperCase()}</div>
+                    <div>
+                      <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'13px',lineHeight:1.3}}>{r.responsavel}</div>
+                      <div style={{color:'#6B5F7A',fontSize:'11px'}}>{r.email}</div>
+                    </div>
                   </div>
-                  <div className="reserva-actions-minhas">
-                    <button className="edit-reserva-btn" onClick={() => handleEditarReserva(r)}>Editar</button>
-                    {r.grupo_id && <button className="cancel-group-btn" onClick={() => handleCancelarGrupo(r.grupo_id, false)}>Cancelar série</button>}
-                    <button className="cancel-reserva-btn" onClick={() => handleCancelarReserva(r.id, r.titulo)}>Cancelar reserva</button>
+                  <div style={{flex:2}}>
+                    <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'13px'}}>{r.sala_nome}</div>
+                    {r.titulo && <div style={{color:'#6B5F7A',fontSize:'11px'}}>{r.titulo}</div>}
+                  </div>
+                  <div style={{flex:2}}>
+                    <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'12px'}}>{dataFormatada} ({diaSemana})</div>
+                    <div style={{color:'#6B5F7A',fontSize:'11px'}}>{r.hora_inicio} às {r.hora_fim}</div>
+                  </div>
+                  <div style={{flex:'0 0 130px',display:'flex',flexDirection:'column',gap:'4px',alignItems:'flex-start'}}>
+                    {r.grupo_id && <span className="gu-status-badge" style={{background:'#3498DB'}}>RECORRENTE</span>}
+                    <span className="gu-status-badge" style={{background:statusBg}}>{statusTxt}</span>
+                  </div>
+                  <div style={{flex:'0 0 170px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
+                    <button className="gu-btn-papel" onClick={() => handleEditarReserva(r)}>Editar</button>
+                    {r.grupo_id && <button className="gu-btn-sec" onClick={() => handleCancelarGrupo(r.grupo_id, false)}>Série</button>}
+                    <button className="gu-btn-sec" onClick={() => handleCancelarReserva(r.id, r.titulo)}>Cancelar</button>
                   </div>
                 </div>
               );
             })}
           </div>
-        </section>
+        </div>
       );
     }
 
     // RELATÓRIOS (admin/gerente)
     if (activeView === 'relatorios' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       return (
-        <section className="box">
-          <h2>Relatórios</h2>
-          <p className="disponibilidade-sub" style={{ marginBottom: '1rem' }}>
-            Este relatório exibe estatísticas das reservas de acordo com o período selecionado.
-            As métricas incluem total de reservas, horas reservadas, média diária e usuários distintos.
-          </p>
+        <div className="gs-container">
+          <div className="gs-header">
+            <div>
+              <h2 className="gs-titulo">Relatórios</h2>
+              <p className="gs-subtitulo">Estatísticas de reservas por período — total, horas, média diária e usuários.</p>
+            </div>
+            <button className="gs-btn-novo" onClick={exportarRelatorioCSV}>Exportar CSV</button>
+          </div>
 
-          <div className="relatorio-filtros" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <label>Período:</label>
-            <select value={periodoRelatorio} onChange={e => {
+          <div className="gs-filtros" style={{alignItems:'center'}}>
+            <span style={{fontSize:'13px',fontWeight:700,color:'#4B3A6B'}}>Período:</span>
+            <select className="filtros-select" value={periodoRelatorio} onChange={e => {
               setPeriodoRelatorio(e.target.value);
               if (e.target.value !== 'custom') setPeriodoCustomAplicado(false);
-            }} style={{ padding: '0.5rem', borderRadius: '40px', border: '1px solid #cbd5e1' }}>
+            }}>
               <option value="30d">Últimos 30 dias</option>
               <option value="90d">Últimos 90 dias</option>
               <option value="ano">Ano atual</option>
               <option value="todos">Todo histórico</option>
               <option value="custom">Personalizado...</option>
             </select>
-
             {periodoRelatorio === 'custom' && (
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <input type="date" value={dataInicioCustom} onChange={e => setDataInicioCustom(e.target.value)} style={{ padding: '0.5rem', borderRadius: '40px', border: '1px solid #cbd5e1' }} />
-                <span>a</span>
-                <input type="date" value={dataFimCustom} onChange={e => setDataFimCustom(e.target.value)} style={{ padding: '0.5rem', borderRadius: '40px', border: '1px solid #cbd5e1' }} />
-                <button onClick={aplicarPeriodoCustom} className="solicitar-reserva-btn" style={{ padding: '0.5rem 1rem' }}>Aplicar</button>
-              </div>
+              <>
+                <input className="modal-input" type="date" value={dataInicioCustom} onChange={e => setDataInicioCustom(e.target.value)} style={{width:'auto'}} />
+                <span style={{color:'#6B5F7A'}}>a</span>
+                <input className="modal-input" type="date" value={dataFimCustom} onChange={e => setDataFimCustom(e.target.value)} style={{width:'auto'}} />
+                <button className="gs-btn-novo" onClick={aplicarPeriodoCustom}>Aplicar</button>
+              </>
             )}
-
-            <button onClick={exportarRelatorioCSV} className="solicitar-reserva-btn" style={{ marginLeft: 'auto' }}>Exportar CSV</button>
           </div>
 
-          <div className="relatorio-metricas" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-            <div className="metrica-card"><h3>Total reservas</h3><p>{metricas.totalReservas}</p><small>Número total de reservas no período (todos os status).</small></div>
-            <div className="metrica-card"><h3>Total horas reservadas</h3><p>{metricas.totalHoras}</p><small>Soma da duração (em horas) das reservas confirmadas.</small></div>
-            <div className="metrica-card"><h3>Média diária</h3><p>{metricas.mediaDiaria}</p><small>Média de reservas confirmadas por dia (últimos 30 dias).</small></div>
-            <div className="metrica-card"><h3>Usuários distintos</h3><p>{metricas.usuariosDistintos}</p><small>Quantidade de usuários diferentes que fizeram reservas.</small></div>
+          <div className="relatorio-metricas">
+            <div className="metrica-card"><h3>Total reservas</h3><p>{metricas.totalReservas}</p><small>Todos os status no período.</small></div>
+            <div className="metrica-card"><h3>Horas reservadas</h3><p>{metricas.totalHoras}</p><small>Reservas confirmadas.</small></div>
+            <div className="metrica-card"><h3>Média diária</h3><p>{metricas.mediaDiaria}</p><small>Confirmadas por dia.</small></div>
+            <div className="metrica-card"><h3>Usuários distintos</h3><p>{metricas.usuariosDistintos}</p><small>Usuários que reservaram.</small></div>
           </div>
 
-          <div>
-            <h3>Salas mais reservadas</h3>
-            <p className="info-grafico" style={{ fontSize: '0.8rem', color: '#6f4f8f', marginBottom: '0.5rem' }}>Ranking das 5 salas com maior número de reservas confirmadas no período.</p>
+          <div style={{marginTop:'24px'}}>
+            <div className="gs-stats-bar" style={{marginBottom:'12px'}}>
+              <span className="gs-stats-total">Salas mais reservadas</span>
+              <span className="gs-stats-detail">top 5 por reservas confirmadas</span>
+            </div>
             <table className="ranking-table">
               <thead><tr><th>Sala</th><th>Quantidade</th></tr></thead>
               <tbody>
@@ -1017,328 +1081,581 @@ function App() {
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
       );
     }
 
     // CONSULTAR DISPONIBILIDADE
     if (activeView === 'consultar-disponibilidade') {
+      const salaSelecionadaObj = salas.find(s => Number(s.id) === Number(form.sala_id));
+      const dateObj = form.data ? new Date(form.data + 'T12:00:00') : null;
+      const diaNum = dateObj ? dateObj.getDate() : null;
+      const mesAbrev = dateObj ? dateObj.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') : null;
+      const diaSemana = dateObj ? dateObj.toLocaleDateString('pt-BR', { weekday: 'long' }).toUpperCase() : null;
       return (
-        <section className="box disponibilidade-box">
-          <div className="disponibilidade-header">
-            <div><h2>Consultar disponibilidade</h2><p className="disponibilidade-sub">Clique em um horário disponível para solicitar reserva · blocos de 30 min.</p></div>
-          </div>
-          <div className="modo-consulta">
-            <label className={`modo-radio ${modoDisponibilidade === 'sala' ? 'active' : ''}`}>
-              <input type="radio" value="sala" checked={modoDisponibilidade === 'sala'} onChange={() => setModoDisponibilidade('sala')} /><span>Por sala e data</span>
-            </label>
-            <label className={`modo-radio ${modoDisponibilidade === 'data_hora' ? 'active' : ''}`}>
-              <input type="radio" value="data_hora" checked={modoDisponibilidade === 'data_hora'} onChange={() => setModoDisponibilidade('data_hora')} /><span>Por data e hora (intervalo)</span>
-            </label>
-          </div>
-          {modoDisponibilidade === 'sala' ? (
-            <div className="consulta-sala">
-              <div className="consulta-field"><label>SALA</label><select value={form.sala_id} onChange={(e) => setForm((prev) => ({ ...prev, sala_id: e.target.value }))}><option value="">Selecione uma sala</option>{salas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}</select></div>
-              <div className="consulta-field"><label>DATA</label><input type="date" value={form.data} onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))} /></div>
-              <button className="consulta-btn" onClick={handleDisponibilidade}>Ver disponibilidade</button>
+        <div className="gs-container">
+          <div className="gs-header">
+            <div>
+              <h2 className="gs-titulo">Consultar disponibilidade</h2>
+              <p className="gs-subtitulo">Clique em um horário disponível para solicitar reserva · blocos de 30 min.</p>
             </div>
-          ) : (
-            <div className="consulta-data-hora">
-              <div className="consulta-field"><label>Data</label><input type="date" value={dataConsulta} onChange={(e) => setDataConsulta(e.target.value)} /></div>
-              <div className="consulta-field"><label>Início</label><select value={horaConsulta} onChange={(e) => setHoraConsulta(e.target.value)}>{todosInicios.map(h => <option key={h}>{h}</option>)}</select></div>
-              <div className="consulta-field"><label>Fim</label><select value={horaFimConsulta} onChange={(e) => setHoraFimConsulta(e.target.value)}>{todosFins.filter(f => timeToMinutes(f) > timeToMinutes(horaConsulta)).map(h => <option key={h}>{h}</option>)}</select></div>
-              <button className="consulta-btn" onClick={handleConsultarDisponibilidadeDataHora}>Buscar salas disponíveis</button>
-            </div>
-          )}
-          {modoDisponibilidade === 'sala' && disponibilidade && (
-            <div className="resultado-disponibilidade">
-              {(() => {
-                const salaSelecionada = salas.find(s => Number(s.id) === Number(form.sala_id));
-                return (
-                  <div className="sala-info-header">
-                    <h3>{salaSelecionada?.nome || disponibilidade.sala_nome}</h3>
-                    <p className="sala-info-detalhes">Capacidade: {salaSelecionada?.capacidade || '?'} pessoas{salaSelecionada?.andar && ` · Andar: ${salaSelecionada.andar}`}</p>
-                    {salaSelecionada?.equipamentos && <p className="sala-info-detalhes">Equipamentos: {salaSelecionada.equipamentos}</p>}
-                    <p className="sala-mensagem">🔑 Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</p>
+          </div>
+
+          <div className="cd-tabs">
+            <button className={`cd-tab ${modoDisponibilidade === 'sala' ? 'cd-tab-ativo' : ''}`} onClick={() => setModoDisponibilidade('sala')}>Por sala</button>
+            <button className={`cd-tab ${modoDisponibilidade === 'data_hora' ? 'cd-tab-ativo' : ''}`} onClick={() => setModoDisponibilidade('data_hora')}>Por data e hora</button>
+          </div>
+
+          {modoDisponibilidade === 'sala' && (
+            <>
+              <div className="cd-filtro-card">
+                <div className="cd-filtro-field">
+                  <label className="cd-filtro-label">SALA</label>
+                  <select className="cd-filtro-select" value={form.sala_id} onChange={(e) => setForm((prev) => ({ ...prev, sala_id: e.target.value }))}>
+                    <option value="">Selecione uma sala</option>
+                    {salas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                  </select>
+                </div>
+                <div className="cd-filtro-field">
+                  <label className="cd-filtro-label">DATA</label>
+                  <input className="cd-filtro-input" type="date" value={form.data} onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))} />
+                </div>
+                <button className="cd-filtro-btn" onClick={handleDisponibilidade}>Ver horários</button>
+              </div>
+
+              {disponibilidade && (
+                <div className="cd-resultado">
+                  <div className="cd-sala-info">
+                    <div className="cd-sala-info-texto">
+                      <div className="cd-sala-nome">{salaSelecionadaObj?.nome || disponibilidade.sala_nome}</div>
+                      <div className="cd-sala-detalhes">
+                        {salaSelecionadaObj?.capacidade && `Capacidade: ${salaSelecionadaObj.capacidade} pessoas`}
+                        {salaSelecionadaObj?.andar && ` · ${salaSelecionadaObj.andar}`}
+                        {salaSelecionadaObj?.equipamentos && ` · ${salaSelecionadaObj.equipamentos}`}
+                      </div>
+                    </div>
+                    {dateObj && (
+                      <div className="cd-data-badge">
+                        <span className="cd-data-dia">{diaNum} {mesAbrev}</span>
+                        <span className="cd-data-semana">{diaSemana}</span>
+                      </div>
+                    )}
                   </div>
-                );
-              })()}
-              <p className="horario-titulo">Horários · 08:00 às 19:00 · blocos de 30 min</p>
-              <div className="horarios-grade">
-                {disponibilidade.horarios.map((item) => {
-                  let statusClass = '', statusText = '', isSelected = false;
-                  if (item.ocupado) {
-                    statusClass = item.titulo?.startsWith('Manutenção') ? 'status-manutencao' : 'status-reservado';
-                    statusText = item.titulo?.startsWith('Manutenção') ? 'MANUTENÇÃO' : 'RESERVADO';
-                  } else {
-                    statusClass = 'status-disponivel'; statusText = 'DISPONÍVEL';
-                    if (selectedStart && selectedEnd && item.hora_inicio >= selectedStart.hora_inicio && item.hora_inicio <= selectedEnd.hora_inicio) isSelected = true;
-                    else if (selectedStart && !selectedEnd && item.hora_inicio === selectedStart.hora_inicio) isSelected = true;
-                  }
-                  if (isSelected && !item.ocupado) { statusClass = 'status-selecionado'; statusText = 'SELECIONADO'; }
-                  return (
-                    <div key={`${item.hora_inicio}-${item.hora_fim}`} className={`horario-card ${statusClass}`} onClick={() => {
-                      if (item.ocupado) return;
-                      if (!selectedStart) setSelectedStart(item);
-                      else if (!selectedEnd) { if (item.hora_inicio > selectedStart.hora_inicio) setSelectedEnd(item); else setSelectedStart(item); }
-                      else setSelectedStart(item);
-                    }}>
-                      <span className="horario-inicio">{item.hora_inicio}</span>
-                      <span className="horario-status">{statusText}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="disponibilidade-legenda">
-                <div className="legenda-item"><span className="legenda-cor disponivel"></span> Disponível</div>
-                <div className="legenda-item"><span className="legenda-cor reservado"></span> Reservado</div>
-                <div className="legenda-item"><span className="legenda-cor manutencao"></span> Manutenção</div>
-                <div className="legenda-item"><span className="legenda-cor selecionado"></span> Selecionado</div>
-              </div>
-              <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
-                <button className="solicitar-reserva-btn" onClick={() => {
-                  if (selectedStart && selectedEnd) {
-                    setReservaData({ sala_id: form.sala_id, data: form.data, hora_inicio: selectedStart.hora_inicio, hora_fim: selectedEnd.hora_fim, titulo: '' });
-                    setModalReservaAberto(true);
-                  } else if (selectedStart && !selectedEnd) {
-                    const endItem = disponibilidade.horarios.find(h => h.hora_inicio === selectedStart.hora_inicio);
-                    setReservaData({ sala_id: form.sala_id, data: form.data, hora_inicio: selectedStart.hora_inicio, hora_fim: endItem ? endItem.hora_fim : add30min(selectedStart.hora_inicio), titulo: '' });
-                    setModalReservaAberto(true);
-                  } else alert('Selecione um intervalo de horários (clique no início e depois no fim).');
-                }}>+ Solicitar Reserva</button>
-              </div>
-            </div>
-          )}
-          {modoDisponibilidade === 'data_hora' && disponibilidadeDataHora && (
-            <div className="resultado-disponibilidade">
-              <h3>Salas disponíveis em {formatarData(dataConsulta)} das {horaConsulta} às {horaFimConsulta}</h3>
-              {disponibilidadeDataHora.length === 0 ? <p className="sem-resultados">Nenhuma sala disponível nesse horário.</p> : (
-                <div className="salas-disponiveis-grid">
-                  {disponibilidadeDataHora.map((sala) => (
-                    <div key={sala.id} className="sala-card-horario" onClick={() => {
-                      setReservaData({ sala_id: sala.id, data: dataConsulta, hora_inicio: horaConsulta, hora_fim: horaFimConsulta, titulo: '' });
-                      setModalReservaAberto(true);
-                    }}>
-                      <div className="sala-nome">{sala.nome}</div>
-                      <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || '?'}</div>
-                      <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'}</div>
-                      {sala.equipamentos && <div className="sala-equipamentos">📋 {sala.equipamentos}</div>}
-                      <button className="small-btn">Selecionar</button>
-                    </div>
-                  ))}
+                  <div className="cd-info-banner">
+                    <span className="cd-info-icon">i</span>
+                    <span>Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</span>
+                  </div>
+                  <p className="cd-grade-titulo">Horários · 08:00 às 19:00 · blocos de 30 min</p>
+                  <div className="cd-grade-horarios">
+                    {disponibilidade.horarios.map((item) => {
+                      let statusClass = '', statusText = '', isSelected = false;
+                      if (item.ocupado) {
+                        statusClass = item.titulo?.startsWith('Manutenção') ? 'cd-slot-manut' : 'cd-slot-reservado';
+                        statusText = item.titulo?.startsWith('Manutenção') ? 'MANUTENÇÃO' : 'RESERVADO';
+                      } else {
+                        statusClass = 'cd-slot-disponivel'; statusText = 'DISPONÍVEL';
+                        if (selectedStart && selectedEnd && item.hora_inicio >= selectedStart.hora_inicio && item.hora_inicio <= selectedEnd.hora_inicio) isSelected = true;
+                        else if (selectedStart && !selectedEnd && item.hora_inicio === selectedStart.hora_inicio) isSelected = true;
+                      }
+                      if (isSelected && !item.ocupado) { statusClass = 'cd-slot-selecionado'; statusText = 'SELECIONADO'; }
+                      return (
+                        <div key={`${item.hora_inicio}-${item.hora_fim}`} className={`cd-slot ${statusClass}`} onClick={() => {
+                          if (item.ocupado) return;
+                          if (!selectedStart) setSelectedStart(item);
+                          else if (!selectedEnd) { if (item.hora_inicio > selectedStart.hora_inicio) setSelectedEnd(item); else setSelectedStart(item); }
+                          else { setSelectedStart(item); setSelectedEnd(null); }
+                        }}>
+                          <span className="cd-slot-hora">{item.hora_inicio}</span>
+                          <span className="cd-slot-status">{statusText}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="cd-legenda">
+                    <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-disponivel"></span>Disponível</div>
+                    <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-selecionado"></span>Selecionado</div>
+                    <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-reservado"></span>Reservado</div>
+                    <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-manut"></span>Indisponível</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <button className="solicitar-reserva-btn" onClick={() => {
+                      if (selectedStart && selectedEnd) {
+                        setReservaData({ sala_id: form.sala_id, data: form.data, hora_inicio: selectedStart.hora_inicio, hora_fim: selectedEnd.hora_fim, titulo: '' });
+                        setModalReservaAberto(true);
+                      } else if (selectedStart && !selectedEnd) {
+                        const endItem = disponibilidade.horarios.find(h => h.hora_inicio === selectedStart.hora_inicio);
+                        setReservaData({ sala_id: form.sala_id, data: form.data, hora_inicio: selectedStart.hora_inicio, hora_fim: endItem ? endItem.hora_fim : add30min(selectedStart.hora_inicio), titulo: '' });
+                        setModalReservaAberto(true);
+                      } else alert('Selecione um intervalo de horários.');
+                    }}>+ Solicitar Reserva</button>
+                  </div>
                 </div>
               )}
-            </div>
+            </>
           )}
-        </section>
+
+          {modoDisponibilidade === 'data_hora' && (
+            <>
+              <div className="cd-filtro-card">
+                <div className="cd-filtro-field">
+                  <label className="cd-filtro-label">DATA</label>
+                  <input className="cd-filtro-input" type="date" value={dataConsulta} onChange={(e) => setDataConsulta(e.target.value)} />
+                </div>
+                <div className="cd-filtro-field">
+                  <label className="cd-filtro-label">INÍCIO</label>
+                  <select className="cd-filtro-select" value={horaConsulta} onChange={(e) => setHoraConsulta(e.target.value)}>
+                    {todosInicios.map(h => <option key={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div className="cd-filtro-field">
+                  <label className="cd-filtro-label">FIM</label>
+                  <select className="cd-filtro-select" value={horaFimConsulta} onChange={(e) => setHoraFimConsulta(e.target.value)}>
+                    {todosFins.filter(f => timeToMinutes(f) > timeToMinutes(horaConsulta)).map(h => <option key={h}>{h}</option>)}
+                  </select>
+                </div>
+                <button className="cd-filtro-btn" onClick={handleConsultarDisponibilidadeDataHora}>Buscar salas</button>
+              </div>
+
+              {disponibilidadeDataHora && (
+                <div className="cd-resultado">
+                  <p className="cd-resultado-titulo">Salas disponíveis em {formatarData(dataConsulta)} das {horaConsulta} às {horaFimConsulta}</p>
+                  {disponibilidadeDataHora.length === 0 ? (
+                    <p className="sem-resultados">Nenhuma sala disponível nesse horário.</p>
+                  ) : (
+                    <div className="salas-grid-mapa">
+                      {disponibilidadeDataHora.map((sala) => (
+                        <div key={sala.id} className="sala-card-mapa" onClick={() => {
+                          setReservaData({ sala_id: sala.id, data: dataConsulta, hora_inicio: horaConsulta, hora_fim: horaFimConsulta, titulo: '' });
+                          setModalReservaAberto(true);
+                        }}>
+                          <div className="sala-nome-destaque">{sala.nome}</div>
+                          <div className="sala-localizacao-texto">Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}</div>
+                          <div className="sala-localizacao-texto">Capacidade: {sala.capacidade || '?'} pessoas</div>
+                          {sala.equipamentos && (
+                            <div className="sala-equipamentos-lista">
+                              <div className="equipamentos-titulo">EQUIPAMENTOS</div>
+                              <ul>{sala.equipamentos.split(',').map((item, idx) => <li key={idx}><span className="quadrado-roxo"></span>{item.trim()}</li>)}</ul>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       );
     }
 
-    // GERENCIAR SALAS (admin) – com manutenção integrada
+    // GERENCIAR SALAS (admin)
     if (activeView === 'gerenciar-salas' && currentUser?.cargo === 'admin') {
+      const totalOp = salas.filter(s => !s.em_manutencao).length;
+      const totalMn = salas.filter(s => s.em_manutencao).length;
       return (
-        <section className="box">
-          <h2>📋 Gerenciar Salas</h2>
-          <div className="admin-sala-form">
-            <input name="nome" placeholder="Nome da sala (obrigatório)" value={novaSala.nome} onChange={handleChangeSala} />
-            <input name="bloco" placeholder="Bloco (ex: 43431)" value={novaSala.bloco} onChange={handleChangeSala} />
-            <select name="andar" value={novaSala.andar} onChange={handleChangeSala}>
-              <option value="">Selecione o andar</option>
-              <option value="1° andar">1° andar</option>
-              <option value="2° andar">2° andar</option>
-            </select>
-            <input name="capacidade" placeholder="Capacidade (pessoas)" type="number" value={novaSala.capacidade} onChange={handleChangeSala} />
-            <textarea name="equipamentos" placeholder="Equipamentos (separados por vírgula)" value={novaSala.equipamentos} onChange={handleChangeSala} rows="2" />
-            {editandoSala ? (
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <button onClick={handleUpdateSala}>Salvar alterações</button>
-                <button onClick={handleCancelarEdicaoSala} className="secondary">Cancelar</button>
-              </div>
-            ) : (
-              <button onClick={handleAdicionarSala}>Adicionar sala</button>
-            )}
-          </div>
-
-          <div className="salas-grid-mapa">
-            {salas.map((sala) => (
-              <div key={sala.id} className="sala-card-mapa">
-                <div className="sala-nome">{sala.nome}</div>
-                <div className="sala-localizacao">📍 Bloco {sala.bloco || '?'} | {sala.andar || 'Andar não informado'}</div>
-                <div className="sala-info">👥 Capacidade: {sala.capacidade || '?'} pessoas</div>
-                {sala.equipamentos && (
-                  <div className="sala-equipamentos">
-                    <strong>📋 Equipamentos:</strong>
-                    <ul>{sala.equipamentos.split(',').map((item, idx) => <li key={idx}>{item.trim()}</li>)}</ul>
-                  </div>
-                )}
-                {sala.em_manutencao && <div className="sala-manutencao-badge">🔧 Em manutenção</div>}
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button className="edit-sala-btn" onClick={() => handleEditarSala(sala)}>Editar</button>
-                  <button className="delete-sala-btn" onClick={() => handleDeletarSala(sala.id, sala.nome)}>Excluir</button>
+        <div className="gs-container">
+          {(formSalaAberto || editandoSala) && (
+            <div className="modal-overlay" onClick={() => { setFormSalaAberto(false); handleCancelarEdicaoSala(); }}>
+              <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <div className="modal-header-row">
+                  <h3>{editandoSala ? 'Editar sala' : 'Cadastrar nova sala'}</h3>
+                  <button className="modal-close-btn" onClick={() => { setFormSalaAberto(false); handleCancelarEdicaoSala(); }}>×</button>
+                </div>
+                <label className="modal-label">Nome *<input className="modal-input" name="nome" placeholder="Nome da sala" value={novaSala.nome} onChange={handleChangeSala} /></label>
+                <label className="modal-label">Bloco<input className="modal-input" name="bloco" placeholder="Bloco (ex: 43431)" value={novaSala.bloco} onChange={handleChangeSala} /></label>
+                <label className="modal-label">Andar
+                  <select className="modal-input" name="andar" value={novaSala.andar} onChange={handleChangeSala}>
+                    <option value="">Selecione</option>
+                    <option value="1° andar">1° andar</option>
+                    <option value="2° andar">2° andar</option>
+                  </select>
+                </label>
+                <label className="modal-label">Capacidade<input className="modal-input" name="capacidade" type="number" placeholder="Nº de pessoas" value={novaSala.capacidade} onChange={handleChangeSala} /></label>
+                <label className="modal-label">Equipamentos<textarea className="modal-input" name="equipamentos" rows="2" placeholder="Separados por vírgula" value={novaSala.equipamentos} onChange={handleChangeSala} /></label>
+                <div className="modal-buttons">
+                  <button className="secondary" onClick={() => { setFormSalaAberto(false); handleCancelarEdicaoSala(); }}>Cancelar</button>
+                  <button onClick={async () => { editandoSala ? await handleUpdateSala() : await handleAdicionarSala(); setFormSalaAberto(false); }}>
+                    {editandoSala ? 'Salvar alterações' : 'Cadastrar'}
+                  </button>
                 </div>
               </div>
-            ))}
+            </div>
+          )}
+
+          {formManutAberto && (
+            <div className="modal-overlay" onClick={() => setFormManutAberto(false)}>
+              <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <div className="modal-header-row">
+                  <h3>Bloquear sala por manutenção</h3>
+                  <button className="modal-close-btn" onClick={() => setFormManutAberto(false)}>×</button>
+                </div>
+                <label className="modal-label">Sala
+                  <select className="modal-input" name="sala_id" value={novaManutencao.sala_id} onChange={handleChangeManutencao}>
+                    <option value="">Selecione</option>
+                    {salas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                  </select>
+                </label>
+                <div style={{display:'flex',gap:'12px'}}>
+                  <label className="modal-label" style={{flex:1}}>Data início<input className="modal-input" type="date" name="data_inicio" value={novaManutencao.data_inicio} onChange={handleChangeManutencao} /></label>
+                  <label className="modal-label" style={{flex:1}}>Data fim<input className="modal-input" type="date" name="data_fim" value={novaManutencao.data_fim} onChange={handleChangeManutencao} /></label>
+                </div>
+                <div style={{display:'flex',gap:'12px'}}>
+                  <label className="modal-label" style={{flex:1}}>Hora início
+                    <select className="modal-input" name="hora_inicio" value={novaManutencao.hora_inicio} onChange={handleChangeManutencao}>
+                      {horariosManutencao.map(h => <option key={h}>{h}</option>)}
+                    </select>
+                  </label>
+                  <label className="modal-label" style={{flex:1}}>Hora fim
+                    <select className="modal-input" name="hora_fim" value={novaManutencao.hora_fim} onChange={handleChangeManutencao}>
+                      {horariosManutencao.map(h => <option key={h}>{h}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <label className="modal-label">Motivo<input className="modal-input" name="motivo" placeholder="Ex.: reforma, manutenção elétrica" value={novaManutencao.motivo} onChange={handleChangeManutencao} /></label>
+                <div className="modal-buttons">
+                  <button className="secondary" onClick={() => setFormManutAberto(false)}>Cancelar</button>
+                  <button onClick={async () => { await handleCriarManutencao(); setFormManutAberto(false); }}>Bloquear</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="gs-header">
+            <div>
+              <h2 className="gs-titulo">Gerenciar salas</h2>
+              <p className="gs-subtitulo">Cadastre, edite ou desative salas do Centro de Biotecnologia.</p>
+            </div>
+            <button className="gs-btn-novo" onClick={() => { handleCancelarEdicaoSala(); setFormSalaAberto(true); }}>+ Cadastrar nova sala</button>
           </div>
 
-          <hr style={{ margin: '1.5rem 0' }} />
-
-          <h3>🔧 Bloqueios por Manutenção</h3>
-          <div className="admin-sala-form">
-            <select name="sala_id" value={novaManutencao.sala_id} onChange={handleChangeManutencao}>
-              <option value="">Selecione a sala</option>
-              {salas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
-            </select>
-            <input type="date" name="data_inicio" placeholder="Data início" value={novaManutencao.data_inicio} onChange={handleChangeManutencao} />
-            <input type="date" name="data_fim" placeholder="Data fim" value={novaManutencao.data_fim} onChange={handleChangeManutencao} />
-            <select name="hora_inicio" value={novaManutencao.hora_inicio} onChange={handleChangeManutencao}>
-              {horariosManutencao.map(h => <option key={h}>{h}</option>)}
-            </select>
-            <select name="hora_fim" value={novaManutencao.hora_fim} onChange={handleChangeManutencao}>
-              {horariosManutencao.map(h => <option key={h}>{h}</option>)}
-            </select>
-            <input name="motivo" placeholder="Motivo (ex.: reforma, manutenção elétrica)" value={novaManutencao.motivo} onChange={handleChangeManutencao} />
-            <button onClick={handleCriarManutencao}>Bloquear período</button>
+          <div className="gs-stats-bar">
+            <span className="gs-stats-total">{salas.length} salas cadastradas</span>
+            <span className="gs-stats-detail">· {totalOp} operacionais · {totalMn} em manutenção</span>
           </div>
 
-          <div className="manutencoes-list">
-            {manutencoes.length === 0 ? (
-              <p>Nenhum bloqueio ativo.</p>
-            ) : (
-              manutencoes.map(m => {
-                const sala = salas.find(s => s.id === m.sala_id);
-                return (
-                  <div key={m.id} className="manutencao-item">
-                    <div>
-                      <strong>{sala?.nome || 'Sala'}</strong> – {formatarData(m.data_inicio)} a {formatarData(m.data_fim)} das {m.hora_inicio} às {m.hora_fim}
-                      <br />
-                      <small>Motivo: {m.motivo}</small>
+          <div className="gs-grid">
+            {salas.map(sala => {
+              const manutAtiva = manutencoes.find(m => m.sala_id === sala.id);
+              return (
+                <div key={sala.id} className={`gs-card${sala.em_manutencao ? ' manut' : ''}`}>
+                  <div className="gs-card-faixa" />
+                  <div className="gs-card-body">
+                    <div className="gs-card-topo">
+                      <span className="gs-sala-nome">{sala.nome}</span>
+                      <span className={`gs-badge${sala.em_manutencao ? ' manut' : ' ok'}`}>
+                        {sala.em_manutencao ? 'EM MANUTENÇÃO' : 'OPERACIONAL'}
+                      </span>
                     </div>
-                    <button onClick={() => handleRemoverManutencao(m.id)}>Remover</button>
+                    <div className="gs-sala-info">
+                      {sala.andar ? sala.andar.toUpperCase() : 'ANDAR NÃO INFORMADO'} · CAPACIDADE: {sala.capacidade || '?'} PESSOAS
+                    </div>
+                    {sala.equipamentos && (
+                      <div className="gs-equipamentos">
+                        <div className="gs-equip-titulo">EQUIPAMENTOS</div>
+                        <div>{sala.equipamentos.split(',').map(e => e.trim()).join(' · ')}</div>
+                      </div>
+                    )}
+                    {sala.em_manutencao && manutAtiva && (
+                      <div className="gs-aviso-manut">
+                        ⚠ Manutenção: {formatarData(manutAtiva.data_inicio)} a {formatarData(manutAtiva.data_fim)} · {manutAtiva.motivo || 'não pode ser reservada'}
+                      </div>
+                    )}
+                    <div className="gs-card-acoes">
+                      <button className="gs-btn-editar" onClick={() => { handleEditarSala(sala); setFormSalaAberto(true); }}>Editar</button>
+                      {sala.em_manutencao ? (
+                        <button className="gs-btn-liberar" onClick={() => handleLiberarSala(sala.id)}>Liberar para uso</button>
+                      ) : (
+                        <button className="gs-btn-manut" onClick={() => { setNovaManutencao(prev => ({ ...prev, sala_id: sala.id })); setFormManutAberto(true); }}>Tornar indisponível</button>
+                      )}
+                      <button className="gs-btn-remover" onClick={() => handleDeletarSala(sala.id, sala.nome)}>Remover</button>
+                    </div>
                   </div>
-                );
-              })
-            )}
+                </div>
+              );
+            })}
           </div>
-        </section>
+          {salas.length === 0 && <p className="admin-req-vazio">Nenhuma sala cadastrada.</p>}
+        </div>
       );
     }
 
     // GERENCIAR USUÁRIOS (admin)
     if (activeView === 'gerenciar-usuarios' && currentUser?.cargo === 'admin') {
+      const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', usuario_comum: 'Usuário CBiot', usuario_externo: 'Usuário Externo' };
+      const cargoBg = { admin: '#844BD4', gerente: '#3498DB', usuario_comum: '#ECE6F7', usuario_externo: '#ECE6F7' };
+      const cargoFg = { admin: '#fff', gerente: '#fff', usuario_comum: '#6B5F7A', usuario_externo: '#6B5F7A' };
       return (
-        <section className="box">
-          <h2>👥 Gerenciar Usuários</h2>
-          <div className="users-table-container">
-            <table className="users-table">
-              <thead>
-                <tr><th>Nome</th><th>E-mail</th><th>Cargo</th><th>Status</th><th>Ações</th></tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.nome}</td>
-                    <td>{u.email}</td>
-                    <td>
-                      <select value={u.cargo} onChange={(e) => handleUpdateUser(u.id, { cargo: e.target.value })}>
-                        <option value="admin">Admin</option>
-                        <option value="gerente">Gerente</option>
-                        <option value="usuario_comum">Usuário comum</option>
-                        <option value="usuario_externo">Usuário externo</option>
-                      </select>
-                    </td>
-                    <td>{u.status}</td>
-                    <td>
-                      {u.status === 'pendente' && (
-                        <>
-                          <button className="small-btn" onClick={() => handleApproveUser(u.id, u.cargo)}>Aprovar</button>
-                          <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Rejeitar</button>
-                        </>
-                      )}
-                      {u.status === 'aprovado' && <button className="small-btn danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Bloquear</button>}
-                      {u.status === 'rejeitado' && <button className="small-btn" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>Reativar</button>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {users.length === 0 && <p>Nenhum usuário cadastrado.</p>}
+        <div className="gs-container">
+          {alterandoPapelUser && (
+            <div className="modal-overlay" onClick={() => setAlterandoPapelUser(null)}>
+              <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <div className="modal-header-row">
+                  <h3>Alterar papel de usuário</h3>
+                  <button className="modal-close-btn" onClick={() => setAlterandoPapelUser(null)}>×</button>
+                </div>
+                <p style={{color:'#6B5F7A',fontSize:'13px',marginBottom:'16px'}}>A alteração entra em vigor imediatamente.</p>
+                <div className="gu-modal-user">
+                  <div className="gu-avatar">{alterandoPapelUser.nome.substring(0,2).toUpperCase()}</div>
+                  <div>
+                    <div style={{fontWeight:700,color:'#1A0F2B'}}>{alterandoPapelUser.nome}</div>
+                    <div style={{color:'#6B5F7A',fontSize:'13px'}}>{alterandoPapelUser.email}</div>
+                  </div>
+                </div>
+                <div className="gu-modal-papeis">
+                  <div style={{flex:1}}>
+                    <div className="gu-modal-label">PAPEL ATUAL</div>
+                    <div className="gu-modal-atual">{cargoLabel[alterandoPapelUser.cargo] || alterandoPapelUser.cargo}</div>
+                  </div>
+                  <div className="gu-modal-seta">→</div>
+                  <div style={{flex:1}}>
+                    <div className="gu-modal-label">NOVO PAPEL</div>
+                    <select className="modal-input" value={novoPapelSelecionado} onChange={e => setNovoPapelSelecionado(e.target.value)}>
+                      <option value="admin">Administrador</option>
+                      <option value="gerente">Gerente</option>
+                      <option value="usuario_comum">Usuário CBiot</option>
+                      <option value="usuario_externo">Usuário Externo</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="modal-buttons">
+                  <button className="secondary" onClick={() => setAlterandoPapelUser(null)}>Cancelar</button>
+                  <button onClick={async () => { await handleUpdateUser(alterandoPapelUser.id, { cargo: novoPapelSelecionado }); setAlterandoPapelUser(null); }}>Confirmar alteração</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="gs-header">
+            <div>
+              <h2 className="gs-titulo">Gerenciar usuários</h2>
+              <p className="gs-subtitulo">Gerencie os acessos e papéis dos usuários do sistema.</p>
+            </div>
           </div>
-        </section>
+
+          <div className="gs-stats-bar">
+            <span className="gs-stats-total">{users.length} usuários cadastrados</span>
+            <span className="gs-stats-detail">
+              · {users.filter(u=>u.cargo==='admin').length} administradores
+              · {users.filter(u=>u.cargo==='gerente').length} gerentes
+              · {users.filter(u=>u.cargo==='usuario_comum').length} usuários CBiot
+            </span>
+          </div>
+
+          <div className="gu-table-header">
+            <span style={{flex:3}}>USUÁRIO</span>
+            <span style={{flex:3}}>E-MAIL</span>
+            <span style={{flex:2}}>PAPEL</span>
+            <span style={{flex:1}}>STATUS</span>
+            <span style={{flex:'0 0 220px'}}>AÇÕES</span>
+          </div>
+
+          <div className="gu-rows">
+            {users.map(u => (
+              <div key={u.id} className="gu-row">
+                <div style={{flex:3,display:'flex',alignItems:'center',gap:'10px'}}>
+                  <div className="gu-avatar">{u.nome.substring(0,2).toUpperCase()}</div>
+                  <div>
+                    <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'14px',lineHeight:1.3}}>{u.nome}</div>
+                    {u.id === currentUser.id && <span className="gu-voce">você</span>}
+                  </div>
+                </div>
+                <span style={{flex:3,color:'#6B5F7A',fontSize:'13px'}}>{u.email}</span>
+                <span style={{flex:2}}>
+                  <span className="gu-cargo-badge" style={{background:cargoBg[u.cargo]||'#ECE6F7',color:cargoFg[u.cargo]||'#6B5F7A'}}>
+                    {(cargoLabel[u.cargo]||u.cargo).toUpperCase()}
+                  </span>
+                </span>
+                <span style={{flex:1}}>
+                  <span className="gu-status-badge" style={{background:u.status==='aprovado'?'#2ECC71':u.status==='pendente'?'#F39C12':'#95A5A6'}}>
+                    {u.status==='aprovado'?'ATIVO':u.status==='pendente'?'PENDENTE':'INATIVO'}
+                  </span>
+                </span>
+                <div style={{flex:'0 0 220px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
+                  {u.id !== currentUser.id && (
+                    <button className="gu-btn-papel" onClick={() => { setAlterandoPapelUser(u); setNovoPapelSelecionado(u.cargo); }}>Alterar papel</button>
+                  )}
+                  {u.status === 'pendente' && (
+                    <>
+                      <button className="gu-btn-aprovar" onClick={() => handleApproveUser(u.id, u.cargo)}>Aprovar</button>
+                      <button className="gu-btn-sec" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Rejeitar</button>
+                    </>
+                  )}
+                  {u.status === 'aprovado' && u.id !== currentUser.id && (
+                    <button className="gu-btn-sec" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Desativar</button>
+                  )}
+                  {u.status === 'rejeitado' && (
+                    <button className="gu-btn-sec" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>Reativar</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {users.length === 0 && <p className="admin-req-vazio">Nenhum usuário cadastrado.</p>}
+        </div>
       );
     }
 
-    // SOLICITAÇÕES DE RESERVA (admin/gerente)
     if (activeView === 'solicitacoes-reserva' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
-      return (
-        <section className="box minhas-reservas-box">
-          <div className="disponibilidade-header">
-            <div><h2>Solicitações de Reserva</h2><p className="disponibilidade-sub">Aprove ou rejeite as solicitações pendentes.</p></div>
-          </div>
-          <div className="modo-consulta" style={{ marginBottom: '1.5rem' }}>
-            <label className={`modo-radio ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`}>
-              <input type="radio" value="pendentes" checked={tabSolicitacoes === 'pendentes'} onChange={() => setTabSolicitacoes('pendentes')} />
-              <span>Pendentes ({solicitacoes.length})</span>
-            </label>
-            <label className={`modo-radio ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`}>
-              <input type="radio" value="rejeitadas" checked={tabSolicitacoes === 'rejeitadas'} onChange={() => setTabSolicitacoes('rejeitadas')} />
-              <span>Rejeitadas ({rejeitadas.length})</span>
-            </label>
-          </div>
-          <div className="reservas-lista">
-            {tabSolicitacoes === 'pendentes' && (solicitacoes.length === 0 ? <p className="sem-reservas">Nenhuma solicitação pendente.</p> : solicitacoes.map(s => {
+  return (
+    <div className="gs-container">
+      <div className="gs-header">
+        <div>
+          <h2 className="gs-titulo">{tabSolicitacoes === 'pendentes' ? 'Solicitações pendentes' : 'Histórico de solicitações'}</h2>
+          <p className="gs-subtitulo">
+            {tabSolicitacoes === 'pendentes'
+              ? `${solicitacoes.length} solicitações de reserva aguardando análise.`
+              : 'Visualizando o histórico de reservas processadas.'}
+          </p>
+        </div>
+        <div className="admin-req-abas">
+          <button
+            className={`req-aba-btn ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`}
+            onClick={() => setTabSolicitacoes('pendentes')}
+          >
+            Pendentes
+          </button>
+          <button
+            className={`req-aba-btn ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`}
+            onClick={() => setTabSolicitacoes('rejeitadas')}
+          >
+            Histórico
+          </button>
+        </div>
+      </div>
+
+      <div className="admin-req-filtros">
+        <div className="filtros-esq">
+          <span className="filtros-label">ORDENAR POR:</span>
+          <select className="filtros-select">
+            <option>Mais recente</option>
+            <option>Mais antiga</option>
+          </select>
+          <select className="filtros-select">
+            <option>Tipo: Todos</option>
+            <option>Apenas Recorrentes</option>
+          </select>
+        </div>
+        <div className="filtros-dir">
+          <span className="filtros-contagem">
+            {tabSolicitacoes === 'pendentes' ? `${solicitacoes.length} pendentes` : ''}
+          </span>
+        </div>
+      </div>
+
+      <div className="admin-req-lista">
+        {tabSolicitacoes === 'pendentes' && (
+          <>
+            {solicitacoes.length === 0 && <p className="admin-req-vazio">Nenhuma solicitação pendente.</p>}
+            {solicitacoes.map((s) => {
               const sala = salas.find(sl => sl.id === s.sala_id);
-              const [ano, mes, dia] = s.data.split('-');
-              const dataObj = new Date(Date.UTC(ano, mes-1, dia));
-              const diaSemana = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'][dataObj.getUTCDay()];
-              const dataFormatada = `${dia}/${mes}/${ano}`;
               return (
-                <div className="reserva-card-minha" key={s.id}>
-                  <div className="reserva-card-header"><h3>{s.sala_nome}</h3><span className="reserva-status status-pendente">PENDENTE</span></div>
-                  <div className="reserva-card-info">
-                    <p><strong>{dataFormatada}</strong> · {diaSemana} · {s.hora_inicio} às {s.hora_fim}</p>
-                    {sala && <p className="sala-localizacao-card">Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}</p>}
-                    <p className="reserva-titulo">{s.titulo}</p>
-                    <p className="reserva-pendente-msg">Solicitada por {s.responsavel} ({s.email}) · em {formatarDataBrasilia(s.data_criacao || s.data)}</p>
+                <div className="req-card" key={s.id}>
+                  <div className="req-card-faixa"></div>
+                  <div className="req-card-topo">
+                    <div className="req-user-info">
+                      <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
+                      <div className="req-user-texto">
+                        <strong>{s.responsavel}</strong>
+                        <span>{s.email} · {formatarData(s.data)}</span>
+                      </div>
+                    </div>
+                    <div className="req-tags">
+                      {s.grupo_id && <span className="req-tag-azul">RECORRENTE</span>}
+                      <span className="req-tag-laranja">PENDENTE</span>
+                    </div>
                   </div>
-                  <div className="reserva-actions-minhas"><button className="edit-reserva-btn" onClick={() => handleAprovarSolicitacao(s.id)}>Aprovar</button><button className="cancel-reserva-btn" onClick={() => handleRejeitarSolicitacao(s.id)}>Rejeitar</button></div>
+                  <div className="req-card-miolo">
+                    <div className="req-coluna-sala">
+                      <span className="req-coluna-titulo">SALA</span>
+                      <strong className="req-sala-nome">{s.sala_nome}</strong>
+                      <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
+                      {sala && <span className="req-sala-bloco">Bloco {sala.bloco || '?'} · Andar {sala.andar || '?'}</span>}
+                    </div>
+                    <div className="req-coluna-finalidade">
+                      <span className="req-coluna-titulo">FINALIDADE</span>
+                      <p>{s.titulo}</p>
+                      {s.descricao && <p className="req-descricao-extra">{s.descricao}</p>}
+                    </div>
+                  </div>
+                  <div className="req-card-acoes">
+                    <button className="req-btn-rejeitar" onClick={() => handleRejeitarSolicitacao(s.id)}>Rejeitar</button>
+                    <button className="req-btn-aprovar" onClick={() => handleAprovarSolicitacao(s.id)}>Aprovar solicitação</button>
+                  </div>
                 </div>
               );
-            }))}
-            {tabSolicitacoes === 'rejeitadas' && (rejeitadas.length === 0 ? <p className="sem-reservas">Nenhuma reserva rejeitada.</p> : rejeitadas.map(s => {
+            })}
+          </>
+        )}
+
+        {tabSolicitacoes === 'rejeitadas' && (
+          <>
+            {rejeitadas.length === 0 && <p className="admin-req-vazio">Nenhum histórico encontrado.</p>}
+            {rejeitadas.map((s) => {
               const sala = salas.find(sl => sl.id === s.sala_id);
-              const [ano, mes, dia] = s.data.split('-');
-              const dataObj = new Date(Date.UTC(ano, mes-1, dia));
-              const diaSemana = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'][dataObj.getUTCDay()];
-              const dataFormatada = `${dia}/${mes}/${ano}`;
               return (
-                <div className="reserva-card-minha" key={s.id}>
-                  <div className="reserva-card-header"><h3>{s.sala_nome}</h3><span className="reserva-status status-cancelada">REJEITADA</span></div>
-                  <div className="reserva-card-info">
-                    <p><strong>{dataFormatada}</strong> · {diaSemana} · {s.hora_inicio} às {s.hora_fim}</p>
-                    {sala && <p className="sala-localizacao-card">Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}</p>}
-                    <p className="reserva-titulo">{s.titulo}</p>
-                    <p className="reserva-rejeitada-msg">Rejeitada por {s.aprovador} em {formatarDataHoraBrasilia(s.data_aprovacao)}</p>
+                <div className="req-card rejeitado" key={s.id}>
+                  <div className="req-card-faixa vermelha"></div>
+                  <div className="req-card-topo">
+                    <div className="req-user-info">
+                      <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
+                      <div className="req-user-texto">
+                        <strong>{s.responsavel}</strong>
+                        <span>{s.email}</span>
+                      </div>
+                    </div>
+                    <div className="req-tags">
+                      <span className="req-tag-vermelha">REJEITADA</span>
+                    </div>
                   </div>
-                  <div className="reserva-actions-minhas"><button className="detalhes-reserva-btn" onClick={() => alert(`Detalhes da reserva rejeitada:\nTítulo: ${s.titulo}\nSala: ${s.sala_nome}\nData: ${dataFormatada}\nHorário: ${s.hora_inicio} - ${s.hora_fim}`)}>Ver detalhes</button></div>
+                  <div className="req-card-miolo">
+                    <div className="req-coluna-sala">
+                      <span className="req-coluna-titulo">SALA</span>
+                      <strong className="req-sala-nome">{s.sala_nome}</strong>
+                      <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
+                    </div>
+                    <div className="req-coluna-finalidade">
+                      <span className="req-coluna-titulo">MOTIVO / FINALIDADE</span>
+                      <p>{s.titulo}</p>
+                    </div>
+                  </div>
+                  <div className="req-card-acoes historico-auditoria">
+                    <span>Processado por <strong>{s.aprovador}</strong> em {new Date(s.data_aprovacao).toLocaleDateString()}</span>
+                  </div>
                 </div>
               );
-            }))}
-          </div>
-        </section>
-      );
-    }
+            })}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
     // MEUS DADOS
     if (activeView === 'meus-dados') {
+      const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', usuario_comum: 'Usuário CBiot', usuario_externo: 'Usuário Externo' };
+      const cargoBg = { admin: '#844BD4', gerente: '#3498DB', usuario_comum: '#ECE6F7', usuario_externo: '#ECE6F7' };
+      const cargoFg = { admin: '#fff', gerente: '#fff', usuario_comum: '#6B5F7A', usuario_externo: '#6B5F7A' };
       return (
-        <section className="box user-card-box">
-          <div className="user-card">
-            <h2>Meus Dados</h2>
-            <p><strong>Nome:</strong> {currentUser.nome}</p>
-            <p><strong>E-mail:</strong> {currentUser.email}</p>
-            <p><strong>Cargo:</strong> {currentUser.cargo}</p>
+        <div className="gs-container">
+          <div className="gs-header">
+            <div>
+              <h2 className="gs-titulo">Meus Dados</h2>
+              <p className="gs-subtitulo">Informações da sua conta no sistema.</p>
+            </div>
           </div>
-        </section>
+          <div className="meus-dados-card">
+            <div className="meus-dados-avatar">{currentUser.nome.substring(0,2).toUpperCase()}</div>
+            <div className="meus-dados-info">
+              <div className="meus-dados-nome">{currentUser.nome}</div>
+              <div className="meus-dados-email">{currentUser.email}</div>
+              <span className="gu-cargo-badge" style={{background:cargoBg[currentUser.cargo]||'#ECE6F7',color:cargoFg[currentUser.cargo]||'#6B5F7A',marginTop:'8px',display:'inline-block'}}>
+                {(cargoLabel[currentUser.cargo]||currentUser.cargo).toUpperCase()}
+              </span>
+            </div>
+          </div>
+        </div>
       );
     }
 
