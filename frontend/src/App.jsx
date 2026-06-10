@@ -133,6 +133,8 @@ function App() {
     titulo: '',
   });
   const [modalReservaAberto, setModalReservaAberto] = useState(false);
+  const [selectedSalaId, setSelectedSalaId] = useState(null); // para destacar sala no mapa
+
   const dataSelecionada = !!form.data;
 
   // Estados para filtros de reservas (admin)
@@ -164,7 +166,6 @@ function App() {
   // ========== CARREGAMENTO INICIAL ==========
   const loadSalas = async () => {
     const data = await getSalas();
-    // Marcar em_manutencao baseado em bloqueios ativos
     const hoje = new Date().toISOString().slice(0, 10);
     const manutAtivas = manutencoes.filter(m => m.data_inicio <= hoje && m.data_fim >= hoje);
     const salasComManut = new Set(manutAtivas.map(m => m.sala_id));
@@ -519,12 +520,10 @@ function App() {
       showToast('Preencha todos os campos da manutenção', 'error');
       return;
     }
-    // Validação de data: início não pode ser maior que fim
     if (novaManutencao.data_inicio > novaManutencao.data_fim) {
       showToast('A data de início deve ser anterior ou igual à data de fim', 'error');
       return;
     }
-    // Validação opcional: permitir qualquer horário (sem comparar inicio vs fim)
     try {
       const res = await fetch('http://localhost:5000/api/manutencoes', {
         method: 'POST',
@@ -704,75 +703,75 @@ function App() {
     }
   };
 
+  const handleModalClose = () => {
+    setModalReservaAberto(false);
+    setSelectedSalaId(null);
+  };
+
   if (!currentUser) return <div>Carregando...</div>;
 
   // ========== RENDERIZAÇÃO DAS VIEWS ==========
   const renderMainContent = () => {
-    // VIEW INÍCIO
+    // VIEW INÍCIO (mapa de salas com clique direto)
     if (activeView === 'inicio') {
-  const salaSelecionada = !!form.sala_id;
+      const handleSalaClick = (sala) => {
+        if (sala.em_manutencao) {
+          showToast('Esta sala está em manutenção e não pode ser reservada.', 'error');
+          return;
+        }
+        setSelectedSalaId(sala.id);
+        setReservaData({
+          sala_id: sala.id,
+          data: '',
+          hora_inicio: '',
+          hora_fim: '',
+          titulo: '',
+        });
+        setModalReservaAberto(true);
+      };
 
-  return (
-    <section
-      className="box mapa-salas-prototipo"
-      onClick={() => setForm((prev) => ({ ...prev, sala_id: '' }))}
-    >
-      <div className="gs-header">
-        <div>
-          <h2 className="gs-titulo">Mapa das Salas</h2>
-          <p className="gs-subtitulo">Clique em uma sala para iniciar uma solicitação de reserva.</p>
-        </div>
-        <button
-          className={`btn-solicitar-reserva-inicio ${salaSelecionada ? 'ativo' : 'inativo'}`}
-          disabled={!salaSelecionada}
-          onClick={(e) => { e.stopPropagation(); setModalReservaAberto(true); }}
-        >
-          + Solicitar Reserva
-        </button>
-      </div>
-
-      <div className="salas-grid-mapa">
-        {salasOrdenadas.map((sala) => {
-          const isSelecionada = form.sala_id == sala.id;
-
-          return (
-            <div
-              key={sala.id}
-              className={`sala-card-mapa ${isSelecionada ? 'selecionada' : ''} ${sala.em_manutencao ? 'manutencao' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setForm((prev) => ({ ...prev, sala_id: sala.id })); }}
-            >
-              {isSelecionada && <div className="badge-selecionada">SELECIONADA</div>}
-
-              <div className="sala-nome-destaque">{sala.nome}</div>
-              <div className="sala-localizacao-texto">
-                Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}
-              </div>
-              <div className="sala-localizacao-texto">
-                Capacidade: {sala.capacidade || '?'} pessoas
-              </div>
-
-              {sala.equipamentos && (
-                <div className="sala-equipamentos-lista">
-                  <div className="equipamentos-titulo">EQUIPAMENTOS</div>
-                  <ul>
-                    {sala.equipamentos.split(',').map((item, idx) => (
-                      <li key={idx}>
-                        <span className="quadrado-roxo"></span>
-                        {item.trim()}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {sala.em_manutencao && <div className="badge-manutencao">🔧 Em manutenção</div>}
+      return (
+        <section className="box mapa-salas-prototipo">
+          <div className="gs-header">
+            <div>
+              <h2 className="gs-titulo">Mapa das Salas</h2>
+              <p className="gs-subtitulo">Clique em uma sala para solicitar reserva.</p>
             </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
+          </div>
+          <div className="salas-grid-mapa">
+            {salasOrdenadas.map((sala) => (
+              <div
+                key={sala.id}
+                className={`sala-card-mapa ${selectedSalaId === sala.id ? 'selecionada' : ''} ${sala.em_manutencao ? 'manutencao' : ''}`}
+                onClick={() => handleSalaClick(sala)}
+              >
+                <div className="sala-nome-destaque">{sala.nome}</div>
+                <div className="sala-localizacao-texto">
+                  Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}
+                </div>
+                <div className="sala-localizacao-texto">
+                  Capacidade: {sala.capacidade || '?'} pessoas
+                </div>
+                {sala.equipamentos && (
+                  <div className="sala-equipamentos-lista">
+                    <div className="equipamentos-titulo">EQUIPAMENTOS</div>
+                    <ul>
+                      {sala.equipamentos.split(',').map((item, idx) => (
+                        <li key={idx}>
+                          <span className="quadrado-roxo"></span>
+                          {item.trim()}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {sala.em_manutencao && <div className="badge-manutencao">🔧 Em manutenção</div>}
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
 
     // MINHAS RESERVAS (com abas e horário Brasília)
     if (activeView === 'minhas-reservas') {
@@ -976,7 +975,6 @@ function App() {
             <span className="gs-stats-total">Mostrando {reservasFiltradas.length}</span>
             <span className="gs-stats-detail">de {allReservas.length} reservas{recorrentesNoFiltro > 0 ? ` · ${recorrentesNoFiltro} recorrente(s) no período` : ''}</span>
           </div>
-
           <div className="gu-table-header">
             <span style={{flex:'0 0 230px'}}>USUÁRIO</span>
             <span style={{flex:2}}>SALA</span>
@@ -1038,7 +1036,6 @@ function App() {
             </div>
             <button className="gs-btn-novo" onClick={exportarRelatorioCSV}>Exportar CSV</button>
           </div>
-
           <div className="gs-filtros" style={{alignItems:'center'}}>
             <span style={{fontSize:'13px',fontWeight:700,color:'#4B3A6B'}}>Período:</span>
             <select className="filtros-select" value={periodoRelatorio} onChange={e => {
@@ -1060,14 +1057,12 @@ function App() {
               </>
             )}
           </div>
-
           <div className="relatorio-metricas">
             <div className="metrica-card"><h3>Total reservas</h3><p>{metricas.totalReservas}</p><small>Todos os status no período.</small></div>
             <div className="metrica-card"><h3>Horas reservadas</h3><p>{metricas.totalHoras}</p><small>Reservas confirmadas.</small></div>
             <div className="metrica-card"><h3>Média diária</h3><p>{metricas.mediaDiaria}</p><small>Confirmadas por dia.</small></div>
             <div className="metrica-card"><h3>Usuários distintos</h3><p>{metricas.usuariosDistintos}</p><small>Usuários que reservaram.</small></div>
           </div>
-
           <div style={{marginTop:'24px'}}>
             <div className="gs-stats-bar" style={{marginBottom:'12px'}}>
               <span className="gs-stats-total">Salas mais reservadas</span>
@@ -1100,12 +1095,10 @@ function App() {
               <p className="gs-subtitulo">Clique em um horário disponível para solicitar reserva · blocos de 30 min.</p>
             </div>
           </div>
-
           <div className="cd-tabs">
             <button className={`cd-tab ${modoDisponibilidade === 'sala' ? 'cd-tab-ativo' : ''}`} onClick={() => setModoDisponibilidade('sala')}>Por sala</button>
             <button className={`cd-tab ${modoDisponibilidade === 'data_hora' ? 'cd-tab-ativo' : ''}`} onClick={() => setModoDisponibilidade('data_hora')}>Por data e hora</button>
           </div>
-
           {modoDisponibilidade === 'sala' && (
             <>
               <div className="cd-filtro-card">
@@ -1122,7 +1115,6 @@ function App() {
                 </div>
                 <button className="cd-filtro-btn" onClick={handleDisponibilidade}>Ver horários</button>
               </div>
-
               {disponibilidade && (
                 <div className="cd-resultado">
                   <div className="cd-sala-info">
@@ -1193,7 +1185,6 @@ function App() {
               )}
             </>
           )}
-
           {modoDisponibilidade === 'data_hora' && (
             <>
               <div className="cd-filtro-card">
@@ -1215,7 +1206,6 @@ function App() {
                 </div>
                 <button className="cd-filtro-btn" onClick={handleConsultarDisponibilidadeDataHora}>Buscar salas</button>
               </div>
-
               {disponibilidadeDataHora && (
                 <div className="cd-resultado">
                   <p className="cd-resultado-titulo">Salas disponíveis em {formatarData(dataConsulta)} das {horaConsulta} às {horaFimConsulta}</p>
@@ -1282,7 +1272,6 @@ function App() {
               </div>
             </div>
           )}
-
           {formManutAberto && (
             <div className="modal-overlay" onClick={() => setFormManutAberto(false)}>
               <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -1320,7 +1309,6 @@ function App() {
               </div>
             </div>
           )}
-
           <div className="gs-header">
             <div>
               <h2 className="gs-titulo">Gerenciar salas</h2>
@@ -1328,12 +1316,10 @@ function App() {
             </div>
             <button className="gs-btn-novo" onClick={() => { handleCancelarEdicaoSala(); setFormSalaAberto(true); }}>+ Cadastrar nova sala</button>
           </div>
-
           <div className="gs-stats-bar">
             <span className="gs-stats-total">{salas.length} salas cadastradas</span>
             <span className="gs-stats-detail">· {totalOp} operacionais · {totalMn} em manutenção</span>
           </div>
-
           <div className="gs-grid">
             {salas.map(sala => {
               const manutAtiva = manutencoes.find(m => m.sala_id === sala.id);
@@ -1425,14 +1411,12 @@ function App() {
               </div>
             </div>
           )}
-
           <div className="gs-header">
             <div>
               <h2 className="gs-titulo">Gerenciar usuários</h2>
               <p className="gs-subtitulo">Gerencie os acessos e papéis dos usuários do sistema.</p>
             </div>
           </div>
-
           <div className="gs-stats-bar">
             <span className="gs-stats-total">{users.length} usuários cadastrados</span>
             <span className="gs-stats-detail">
@@ -1441,7 +1425,6 @@ function App() {
               · {users.filter(u=>u.cargo==='usuario_comum').length} usuários CBiot
             </span>
           </div>
-
           <div className="gu-table-header">
             <span style={{flex:3}}>USUÁRIO</span>
             <span style={{flex:3}}>E-MAIL</span>
@@ -1449,7 +1432,6 @@ function App() {
             <span style={{flex:1}}>STATUS</span>
             <span style={{flex:'0 0 220px'}}>AÇÕES</span>
           </div>
-
           <div className="gu-rows">
             {users.map(u => (
               <div key={u.id} className="gu-row">
@@ -1496,141 +1478,139 @@ function App() {
       );
     }
 
+    // SOLICITAÇÕES DE RESERVA (admin/gerente)
     if (activeView === 'solicitacoes-reserva' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
-  return (
-    <div className="gs-container">
-      <div className="gs-header">
-        <div>
-          <h2 className="gs-titulo">{tabSolicitacoes === 'pendentes' ? 'Solicitações pendentes' : 'Histórico de solicitações'}</h2>
-          <p className="gs-subtitulo">
-            {tabSolicitacoes === 'pendentes'
-              ? `${solicitacoes.length} solicitações de reserva aguardando análise.`
-              : 'Visualizando o histórico de reservas processadas.'}
-          </p>
-        </div>
-        <div className="admin-req-abas">
-          <button
-            className={`req-aba-btn ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`}
-            onClick={() => setTabSolicitacoes('pendentes')}
-          >
-            Pendentes
-          </button>
-          <button
-            className={`req-aba-btn ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`}
-            onClick={() => setTabSolicitacoes('rejeitadas')}
-          >
-            Histórico
-          </button>
-        </div>
-      </div>
-
-      <div className="admin-req-filtros">
-        <div className="filtros-esq">
-          <span className="filtros-label">ORDENAR POR:</span>
-          <select className="filtros-select">
-            <option>Mais recente</option>
-            <option>Mais antiga</option>
-          </select>
-          <select className="filtros-select">
-            <option>Tipo: Todos</option>
-            <option>Apenas Recorrentes</option>
-          </select>
-        </div>
-        <div className="filtros-dir">
-          <span className="filtros-contagem">
-            {tabSolicitacoes === 'pendentes' ? `${solicitacoes.length} pendentes` : ''}
-          </span>
-        </div>
-      </div>
-
-      <div className="admin-req-lista">
-        {tabSolicitacoes === 'pendentes' && (
-          <>
-            {solicitacoes.length === 0 && <p className="admin-req-vazio">Nenhuma solicitação pendente.</p>}
-            {solicitacoes.map((s) => {
-              const sala = salas.find(sl => sl.id === s.sala_id);
-              return (
-                <div className="req-card" key={s.id}>
-                  <div className="req-card-faixa"></div>
-                  <div className="req-card-topo">
-                    <div className="req-user-info">
-                      <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
-                      <div className="req-user-texto">
-                        <strong>{s.responsavel}</strong>
-                        <span>{s.email} · {formatarData(s.data)}</span>
+      return (
+        <div className="gs-container">
+          <div className="gs-header">
+            <div>
+              <h2 className="gs-titulo">{tabSolicitacoes === 'pendentes' ? 'Solicitações pendentes' : 'Histórico de solicitações'}</h2>
+              <p className="gs-subtitulo">
+                {tabSolicitacoes === 'pendentes'
+                  ? `${solicitacoes.length} solicitações de reserva aguardando análise.`
+                  : 'Visualizando o histórico de reservas processadas.'}
+              </p>
+            </div>
+            <div className="admin-req-abas">
+              <button
+                className={`req-aba-btn ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`}
+                onClick={() => setTabSolicitacoes('pendentes')}
+              >
+                Pendentes
+              </button>
+              <button
+                className={`req-aba-btn ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`}
+                onClick={() => setTabSolicitacoes('rejeitadas')}
+              >
+                Histórico
+              </button>
+            </div>
+          </div>
+          <div className="admin-req-filtros">
+            <div className="filtros-esq">
+              <span className="filtros-label">ORDENAR POR:</span>
+              <select className="filtros-select">
+                <option>Mais recente</option>
+                <option>Mais antiga</option>
+              </select>
+              <select className="filtros-select">
+                <option>Tipo: Todos</option>
+                <option>Apenas Recorrentes</option>
+              </select>
+            </div>
+            <div className="filtros-dir">
+              <span className="filtros-contagem">
+                {tabSolicitacoes === 'pendentes' ? `${solicitacoes.length} pendentes` : ''}
+              </span>
+            </div>
+          </div>
+          <div className="admin-req-lista">
+            {tabSolicitacoes === 'pendentes' && (
+              <>
+                {solicitacoes.length === 0 && <p className="admin-req-vazio">Nenhuma solicitação pendente.</p>}
+                {solicitacoes.map((s) => {
+                  const sala = salas.find(sl => sl.id === s.sala_id);
+                  return (
+                    <div className="req-card" key={s.id}>
+                      <div className="req-card-faixa"></div>
+                      <div className="req-card-topo">
+                        <div className="req-user-info">
+                          <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
+                          <div className="req-user-texto">
+                            <strong>{s.responsavel}</strong>
+                            <span>{s.email} · {formatarData(s.data)}</span>
+                          </div>
+                        </div>
+                        <div className="req-tags">
+                          {s.grupo_id && <span className="req-tag-azul">RECORRENTE</span>}
+                          <span className="req-tag-laranja">PENDENTE</span>
+                        </div>
+                      </div>
+                      <div className="req-card-miolo">
+                        <div className="req-coluna-sala">
+                          <span className="req-coluna-titulo">SALA</span>
+                          <strong className="req-sala-nome">{s.sala_nome}</strong>
+                          <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
+                          {sala && <span className="req-sala-bloco">Bloco {sala.bloco || '?'} · Andar {sala.andar || '?'}</span>}
+                        </div>
+                        <div className="req-coluna-finalidade">
+                          <span className="req-coluna-titulo">FINALIDADE</span>
+                          <p>{s.titulo}</p>
+                          {s.descricao && <p className="req-descricao-extra">{s.descricao}</p>}
+                        </div>
+                      </div>
+                      <div className="req-card-acoes">
+                        <button className="req-btn-rejeitar" onClick={() => handleRejeitarSolicitacao(s.id)}>Rejeitar</button>
+                        <button className="req-btn-aprovar" onClick={() => handleAprovarSolicitacao(s.id)}>Aprovar solicitação</button>
                       </div>
                     </div>
-                    <div className="req-tags">
-                      {s.grupo_id && <span className="req-tag-azul">RECORRENTE</span>}
-                      <span className="req-tag-laranja">PENDENTE</span>
-                    </div>
-                  </div>
-                  <div className="req-card-miolo">
-                    <div className="req-coluna-sala">
-                      <span className="req-coluna-titulo">SALA</span>
-                      <strong className="req-sala-nome">{s.sala_nome}</strong>
-                      <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
-                      {sala && <span className="req-sala-bloco">Bloco {sala.bloco || '?'} · Andar {sala.andar || '?'}</span>}
-                    </div>
-                    <div className="req-coluna-finalidade">
-                      <span className="req-coluna-titulo">FINALIDADE</span>
-                      <p>{s.titulo}</p>
-                      {s.descricao && <p className="req-descricao-extra">{s.descricao}</p>}
-                    </div>
-                  </div>
-                  <div className="req-card-acoes">
-                    <button className="req-btn-rejeitar" onClick={() => handleRejeitarSolicitacao(s.id)}>Rejeitar</button>
-                    <button className="req-btn-aprovar" onClick={() => handleAprovarSolicitacao(s.id)}>Aprovar solicitação</button>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {tabSolicitacoes === 'rejeitadas' && (
-          <>
-            {rejeitadas.length === 0 && <p className="admin-req-vazio">Nenhum histórico encontrado.</p>}
-            {rejeitadas.map((s) => {
-              const sala = salas.find(sl => sl.id === s.sala_id);
-              return (
-                <div className="req-card rejeitado" key={s.id}>
-                  <div className="req-card-faixa vermelha"></div>
-                  <div className="req-card-topo">
-                    <div className="req-user-info">
-                      <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
-                      <div className="req-user-texto">
-                        <strong>{s.responsavel}</strong>
-                        <span>{s.email}</span>
+                  );
+                })}
+              </>
+            )}
+            {tabSolicitacoes === 'rejeitadas' && (
+              <>
+                {rejeitadas.length === 0 && <p className="admin-req-vazio">Nenhum histórico encontrado.</p>}
+                {rejeitadas.map((s) => {
+                  const sala = salas.find(sl => sl.id === s.sala_id);
+                  return (
+                    <div className="req-card rejeitado" key={s.id}>
+                      <div className="req-card-faixa vermelha"></div>
+                      <div className="req-card-topo">
+                        <div className="req-user-info">
+                          <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
+                          <div className="req-user-texto">
+                            <strong>{s.responsavel}</strong>
+                            <span>{s.email}</span>
+                          </div>
+                        </div>
+                        <div className="req-tags">
+                          <span className="req-tag-vermelha">REJEITADA</span>
+                        </div>
+                      </div>
+                      <div className="req-card-miolo">
+                        <div className="req-coluna-sala">
+                          <span className="req-coluna-titulo">SALA</span>
+                          <strong className="req-sala-nome">{s.sala_nome}</strong>
+                          <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
+                        </div>
+                        <div className="req-coluna-finalidade">
+                          <span className="req-coluna-titulo">MOTIVO / FINALIDADE</span>
+                          <p>{s.titulo}</p>
+                        </div>
+                      </div>
+                      <div className="req-card-acoes historico-auditoria">
+                        <span>Processado por <strong>{s.aprovador}</strong> em {new Date(s.data_aprovacao).toLocaleDateString()}</span>
                       </div>
                     </div>
-                    <div className="req-tags">
-                      <span className="req-tag-vermelha">REJEITADA</span>
-                    </div>
-                  </div>
-                  <div className="req-card-miolo">
-                    <div className="req-coluna-sala">
-                      <span className="req-coluna-titulo">SALA</span>
-                      <strong className="req-sala-nome">{s.sala_nome}</strong>
-                      <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
-                    </div>
-                    <div className="req-coluna-finalidade">
-                      <span className="req-coluna-titulo">MOTIVO / FINALIDADE</span>
-                      <p>{s.titulo}</p>
-                    </div>
-                  </div>
-                  <div className="req-card-acoes historico-auditoria">
-                    <span>Processado por <strong>{s.aprovador}</strong> em {new Date(s.data_aprovacao).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+                  );
+                })}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     // MEUS DADOS
     if (activeView === 'meus-dados') {
@@ -1678,7 +1658,14 @@ function App() {
           </div>
         </div>
       )}
-      <ReservaModal isOpen={modalReservaAberto} onClose={() => setModalReservaAberto(false)} salas={salas} currentUser={currentUser} userRole={currentUser.cargo === 'usuario_externo' ? 'externo' : 'interno'} initialData={reservaData} />
+      <ReservaModal
+        isOpen={modalReservaAberto}
+        onClose={handleModalClose}
+        salas={salas}
+        currentUser={currentUser}
+        userRole={currentUser.cargo === 'usuario_externo' ? 'externo' : 'interno'}
+        initialData={reservaData}
+      />
       <aside className="sidebar">
         <div className="sidebar-brand"><img src="/CBiot_logo.jpg" alt="CBiot" className="logo-sidebar" /><div><strong>CBiot</strong><span>Reserva de salas</span></div></div>
         <div className="sidebar-section">
@@ -1704,7 +1691,7 @@ function App() {
         <div className="sidebar-section">
           <div className="sidebar-section-title">CONTA</div>
           <button className={`sidebar-item ${activeView === 'meus-dados' ? 'active' : ''}`} onClick={() => setActiveView('meus-dados')}>Meus Dados</button>
-          <button className="sidebar-item" onClick={handleLogout}>Sair</button>
+          <button className="sidebar-item" onClick={handleLogout}>Voltar ao Portal</button>
         </div>
         <div className="sidebar-footer">
           <div className="sidebar-avatar">{currentUser?.nome?.charAt(0) || 'U'}</div>
