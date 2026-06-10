@@ -72,12 +72,11 @@ def role_required(allowed_roles):
         return decorated
     return decorator
 
-# ---------- FUNÇÕES AUXILIARES CORRIGIDAS ----------
+# ---------- FUNÇÕES AUXILIARES ----------
 def parse_date(data_str):
     return datetime.strptime(data_str, '%Y-%m-%d').date()
 
 def parse_time(time_str):
-    # Remove espaços e garante formato HH:MM (ignora segundos)
     time_str = time_str.strip()
     if ':' in time_str:
         parts = time_str.split(':')
@@ -316,7 +315,6 @@ def get_reservas_by_grupo(grupo_id):
         return jsonify({'erro': 'Grupo não encontrado'}), 404
     return jsonify([formatReserva(r) for r in reservas])
 
-
 @app.route('/api/reservas/grupo/<grupo_id>/user', methods=['DELETE'])
 def delete_user_grupo(grupo_id):
     user = session.get('user')
@@ -333,17 +331,139 @@ def delete_user_grupo(grupo_id):
     db.session.commit()
     return jsonify({'mensagem': f'{len(reservas)} reservas canceladas'})
 
-# ========== ROTA DE EDIÇÃO CORRIGIDA ==========
-# ========== ROTA DE CANCELAMENTO INDIVIDUAL (deve vir ANTES da de grupo) ==========
+# ========== ROTA DE EDIÇÃO (PUT) ==========
+# ========== ROTA DE EDIÇÃO (PUT) ==========
+@app.route('/api/reservas/<int:reserva_id>', methods=['PUT'])
+def update_reserva(reserva_id):
+    reserva = Reserva.query.get_or_404(reserva_id)
+    user = session.get('user')
+    if not user or (user.get('cargo') not in ['admin', 'gerente'] and reserva.email != user.get('email')):
+        return jsonify({'erro': 'Acesso não autorizado'}), 401
+    if reserva.status != 'aprovada':
+        return jsonify({'erro': 'Só é possível editar reservas já aprovadas'}), 400
+
+    dados = request.get_json()
+    titulo = dados.get('titulo')
+    descricao = dados.get('descricao')
+    data_str = dados.get('data')
+    hora_inicio_str = dados.get('hora_inicio')
+    hora_fim_str = dados.get('hora_fim')
+
+    # Guardar valores antigos para comparação (antes de qualquer alteração)
+    old_titulo = reserva.titulo
+    old_descricao = reserva.descricao
+    old_data = reserva.data
+    old_hora_inicio = reserva.hora_inicio
+    old_hora_fim = reserva.hora_fim
+
+    if titulo is not None:
+        reserva.titulo = titulo
+    if descricao is not None:
+        reserva.descricao = descricao
+
+    if data_str and hora_inicio_str and hora_fim_str:
+        hora_inicio_str = hora_inicio_str.strip()
+        hora_fim_str = hora_fim_str.strip()
+        data_str = data_str.strip()
+
+        try:
+            nova_data = parse_date(data_str)
+            nova_hora_ini = parse_time(hora_inicio_str)
+            nova_hora_fim = parse_time(hora_fim_str)
+        except ValueError as e:
+            app.logger.error(f"Erro parse: {e}")
+            return jsonify({'erro': 'Formato inválido de data/hora. Use AAAA-MM-DD e HH:MM'}), 400
+
+        inicio_min = nova_hora_ini.hour * 60 + nova_hora_ini.minute
+        fim_min = nova_hora_fim.hour * 60 + nova_hora_fim.minute
+
+        if inicio_min >= fim_min:
+            return jsonify({'erro': f'Hora de início ({nova_hora_ini}) deve ser anterior à hora de fim ({nova_hora_fim})'}), 400
+        if inicio_min < 8*60 or fim_min > 19*60 or inicio_min >= 19*60:
+            return jsonify({'erro': 'Reservas só podem ocorrer entre 08:00 e 19:00'}), 400
+        if inicio_min % 30 != 0 or fim_min % 30 != 0:
+            return jsonify({'erro': 'Reservas devem começar e terminar na hora cheia ou meia hora'}), 400
+        hoje = date.today()
+        if nova_data < hoje:
+            return jsonify({'erro': 'Não é possível editar para uma data já passada'}), 400
+        if nova_data == hoje and inicio_min < (datetime.now().hour*60 + datetime.now().minute):
+            return jsonify({'erro': 'Não é possível editar para um horário que já passou hoje'}), 400
+        if nova_data.weekday() in (5, 6):
+            return jsonify({'erro': 'Reservas não são permitidas aos sábados e domingos'}), 400
+
+        conflito = Reserva.query.filter(
+            and_(
+                Reserva.sala_id == reserva.sala_id,
+                Reserva.data == nova_data,
+                Reserva.hora_inicio < nova_hora_fim,
+                Reserva.hora_fim > nova_hora_ini,
+                Reserva.id != reserva_id,
+                Reserva.status.in_(['aprovada', 'pendente'])
+            )
+        ).first()
+        if conflito:
+            return jsonify({'erro': 'Conflito de horário: sala já reservada neste período'}), 400
+
+        manutencoes = Manutencao.query.filter(
+            Manutencao.sala_id == reserva.sala_id,
+            Manutencao.data_inicio <= nova_data,
+            Manutencao.data_fim >= nova_data
+        ).all()
+        for m in manutencoes:
+            if nova_data == m.data_inicio:
+                inicio_manut = m.hora_inicio
+            else:
+                inicio_manut = time(8, 0)
+            if nova_data == m.data_fim:
+                fim_manut = m.hora_fim
+            else:
+                fim_manut = time(19, 0)
+            inicio_manut_min = inicio_manut.hour * 60 + inicio_manut.minute
+            fim_manut_min = fim_manut.hour * 60 + fim_manut.minute
+            if inicio_min < fim_manut_min and fim_min > inicio_manut_min:
+                return jsonify({'erro': f'Sala em manutenção no período: {m.motivo}'}), 400
+
+        reserva.data = nova_data
+        reserva.hora_inicio = nova_hora_ini
+        reserva.hora_fim = nova_hora_fim
+
+    db.session.commit()
+
+    # Notificação detalhada com antes/depois
+    if user.get('cargo') in ['admin', 'gerente'] and reserva.email != user.get('email'):
+        destinatario = User.query.filter_by(email=reserva.email).first()
+        if destinatario:
+            alteracoes = []
+            if old_titulo != reserva.titulo:
+                alteracoes.append(f"título: '{old_titulo}' → '{reserva.titulo}'")
+            if old_data != reserva.data or old_hora_inicio != reserva.hora_inicio or old_hora_fim != reserva.hora_fim:
+                alteracoes.append(f"data/horário: {old_data.strftime('%d-%m-%Y')} {old_hora_inicio.strftime('%H:%M')}-{old_hora_fim.strftime('%H:%M')} → {reserva.data.strftime('%d-%m-%Y')} {reserva.hora_inicio.strftime('%H:%M')}-{reserva.hora_fim.strftime('%H:%M')}")
+            if alteracoes:
+                mensagem = f"Sua reserva foi EDITADA. Alterações: {'; '.join(alteracoes)}."
+            else:
+                mensagem = f"Sua reserva foi EDITADA (nenhuma alteração detectada)."
+            
+            notif = Notificacao(
+                usuario_email=reserva.email,
+                mensagem=mensagem,
+                tipo='edicao',
+                reserva_id=reserva.id
+            )
+            db.session.add(notif)
+            db.session.commit()
+
+    return jsonify(formatReserva(reserva)), 200
+
+# ========== ROTA DE CANCELAMENTO INDIVIDUAL ==========
 @app.route('/api/reservas/<int:reserva_id>', methods=['DELETE'])
 def delete_reserva(reserva_id):
     reserva = Reserva.query.get_or_404(reserva_id)
     user = session.get('user')
-
     if not user or (user.get('cargo') not in ['admin', 'gerente'] and reserva.email != user.get('email')):
         return jsonify({'erro': 'Acesso não autorizado'}), 401
 
     if user.get('cargo') in ['admin', 'gerente'] and reserva.email != user.get('email'):
+        # Garantir que o destinatário exista
         destinatario = User.query.filter_by(email=reserva.email).first()
         if not destinatario:
             destinatario = User(
@@ -354,21 +474,21 @@ def delete_reserva(reserva_id):
             )
             destinatario.set_password('senha_temporaria')
             db.session.add(destinatario)
-            db.session.flush()  # ← flush em vez de commit para manter tudo na mesma transação
+            db.session.flush()
 
         notif = Notificacao(
             usuario_email=reserva.email,
             mensagem=f'Sua reserva "{reserva.titulo}" para {reserva.data.strftime("%d-%m-%Y")} foi CANCELADA por um administrador.',
             tipo='cancelamento',
-            reserva_id=None  # ← já coloca None, pois a reserva será deletada
+            reserva_id=None   # Evita FK constraint, pois a reserva será deletada
         )
         db.session.add(notif)
 
     db.session.delete(reserva)
-    db.session.commit()  # ← único commit, atômico
+    db.session.commit()
     return jsonify({'mensagem': 'Reserva cancelada'}), 200
 
-# ========== ROTA DE CANCELAMENTO DE GRUPO (mais genérica, deve vir depois) ==========
+# ========== ROTA DE CANCELAMENTO DE GRUPO ==========
 @app.route('/api/reservas/grupo/<grupo_id>', methods=['DELETE'])
 @role_required(['admin', 'gerente'])
 def delete_reservas_by_grupo(grupo_id):
@@ -376,13 +496,11 @@ def delete_reservas_by_grupo(grupo_id):
     if not reservas:
         return jsonify({'erro': 'Grupo não encontrado'}), 404
 
-    # Agrupar reservas por email do dono
     por_usuario = {}
     for r in reservas:
         por_usuario.setdefault(r.email, []).append(r)
 
     for email, lista in por_usuario.items():
-        # Garantir que o usuário existe
         destinatario = User.query.filter_by(email=email).first()
         if not destinatario:
             nome = lista[0].responsavel if lista[0].responsavel else email.split('@')[0]
@@ -408,12 +526,12 @@ def delete_reservas_by_grupo(grupo_id):
         )
         db.session.add(notif)
 
-    # Excluir as reservas
     for r in reservas:
         db.session.delete(r)
     db.session.commit()
     return jsonify({'mensagem': f'{len(reservas)} reservas canceladas do grupo'}), 200
 
+# ---------- ROTAS DE DISPONIBILIDADE ----------
 @app.route('/api/disponibilidade', methods=['GET'])
 def disponibilidade():
     sala_id = request.args.get('sala_id', type=int)
@@ -697,7 +815,7 @@ def aprovar_usuario(user_id):
     db.session.commit()
     return jsonify(user.to_dict())
 
-# ---------- ROTAS DE SOLICITAÇÕES DE RESERVA (COM NOTIFICAÇÕES) ----------
+# ---------- ROTAS DE SOLICITAÇÕES (COM NOTIFICAÇÕES) ----------
 @app.route('/api/solicitacoes', methods=['GET'])
 @role_required(['admin', 'gerente'])
 def listar_solicitacoes():
@@ -929,7 +1047,19 @@ def marcar_todas_notificacoes_lidas():
     db.session.commit()
     return jsonify({'mensagem': 'Todas as notificações marcadas como lidas'})
 
-# ---------- ROTA ADMIN LEGACY ----------
+@app.route('/api/notificacoes/<int:notif_id>', methods=['DELETE'])
+def deletar_notificacao(notif_id):
+    user = session.get('user')
+    if not user:
+        return jsonify({'erro': 'Não autenticado'}), 401
+    notif = Notificacao.query.get_or_404(notif_id)
+    if notif.usuario_email != user['email']:
+        return jsonify({'erro': 'Não autorizado'}), 403
+    db.session.delete(notif)
+    db.session.commit()
+    return jsonify({'mensagem': 'Notificação removida'}), 200
+
+# ---------- ROTAS ADMIN LEGACY ----------
 @app.route('/api/admin/login', methods=['POST'])
 def admin_login():
     dados = request.get_json()
@@ -946,6 +1076,10 @@ def admin_logout():
 # ---------- INICIALIZAÇÃO ----------
 with app.app_context():
     db.create_all()
+
+print("\n=== ROTAS REGISTRADAS ===")
+for rule in app.url_map.iter_rules():
+    print(rule)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

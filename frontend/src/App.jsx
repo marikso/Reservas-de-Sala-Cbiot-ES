@@ -201,9 +201,21 @@ const marcarTodasComoLidas = async () => {
   }
 };
 
-const removerNotificacaoLida = (id) => {
-  // Remove apenas do estado local (a notificação permanece no banco)
-  setNotificacoes(prev => prev.filter(n => n.id !== id));
+const removerNotificacaoLida = async (id) => {
+  try {
+    const res = await fetch(`http://localhost:5000/api/notificacoes/${id}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    });
+    if (res.ok) {
+      setNotificacoes(prev => prev.filter(n => n.id !== id));
+    } else {
+      const errorData = await res.json();
+      console.error('Erro ao remover notificação:', errorData.erro);
+    }
+  } catch (err) {
+    console.error('Erro na requisição:', err);
+  }
 };
 
   // ========== CARREGAMENTO INICIAL ==========
