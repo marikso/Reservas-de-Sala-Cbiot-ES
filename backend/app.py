@@ -431,26 +431,44 @@ def update_reserva(reserva_id):
 
     # Notificação detalhada com antes/depois
     if user.get('cargo') in ['admin', 'gerente'] and reserva.email != user.get('email'):
+        # Garantir que o destinatário exista
         destinatario = User.query.filter_by(email=reserva.email).first()
-        if destinatario:
-            alteracoes = []
-            if old_titulo != reserva.titulo:
-                alteracoes.append(f"título: '{old_titulo}' → '{reserva.titulo}'")
-            if old_data != reserva.data or old_hora_inicio != reserva.hora_inicio or old_hora_fim != reserva.hora_fim:
-                alteracoes.append(f"data/horário: {old_data.strftime('%d-%m-%Y')} {old_hora_inicio.strftime('%H:%M')}-{old_hora_fim.strftime('%H:%M')} → {reserva.data.strftime('%d-%m-%Y')} {reserva.hora_inicio.strftime('%H:%M')}-{reserva.hora_fim.strftime('%H:%M')}")
-            if alteracoes:
-                mensagem = f"Sua reserva foi EDITADA. Alterações: {'; '.join(alteracoes)}."
-            else:
-                mensagem = f"Sua reserva foi EDITADA (nenhuma alteração detectada)."
-            
-            notif = Notificacao(
-                usuario_email=reserva.email,
-                mensagem=mensagem,
-                tipo='edicao',
-                reserva_id=reserva.id
+        if not destinatario:
+            destinatario = User(
+                email=reserva.email,
+                nome=reserva.responsavel or 'Usuário',
+                cargo='usuario_externo',
+                status='aprovado'
             )
-            db.session.add(notif)
-            db.session.commit()
+            destinatario.set_password('senha_temporaria')
+            db.session.add(destinatario)
+            db.session.commit()   # commit imediato para ter o ID
+
+        # Montar lista de alterações
+        alteracoes = []
+        if old_titulo != reserva.titulo:
+            alteracoes.append(f"título: '{old_titulo}' → '{reserva.titulo}'")
+        if old_data != reserva.data or old_hora_inicio != reserva.hora_inicio or old_hora_fim != reserva.hora_fim:
+            alteracoes.append(f"data/horário: {old_data.strftime('%d-%m-%Y')} {old_hora_inicio.strftime('%H:%M')}-{old_hora_fim.strftime('%H:%M')} → {reserva.data.strftime('%d-%m-%Y')} {reserva.hora_inicio.strftime('%H:%M')}-{reserva.hora_fim.strftime('%H:%M')}")
+        if old_descricao != reserva.descricao:
+            alteracoes.append(f"descrição: '{old_descricao}' → '{reserva.descricao}'")
+
+        if alteracoes:
+            mensagem = f"Sua reserva foi EDITADA. Alterações: {'; '.join(alteracoes)}."
+        else:
+            mensagem = f"Sua reserva foi EDITADA (nenhuma alteração detectada)."
+
+        notif = Notificacao(
+            usuario_email=reserva.email,
+            mensagem=mensagem,
+            tipo='edicao',
+            reserva_id=reserva.id
+        )
+        db.session.add(notif)
+        db.session.commit()
+
+    return jsonify(formatReserva(reserva)), 200
+    
 
     return jsonify(formatReserva(reserva)), 200
 
@@ -505,16 +523,22 @@ def delete_reservas_by_grupo(grupo_id):
     for r in reservas:
         por_usuario.setdefault(r.email, []).append(r)
 
+    # Criar notificações antes de deletar as reservas
     for email, lista in por_usuario.items():
+        print(f"[DEBUG] Processando notificação para {email} ({len(lista)} reservas)")  # log no terminal
+
+        # Garantir que o destinatário exista
         destinatario = User.query.filter_by(email=email).first()
         if not destinatario:
             nome = lista[0].responsavel if lista[0].responsavel else email.split('@')[0]
-            novo = User(email=email, nome=nome, cargo='usuario_comum', status='aprovado')
+            novo = User(email=email, nome=nome, cargo='usuario_externo', status='aprovado')
             novo.set_password('senha_temporaria')
             db.session.add(novo)
-            db.session.commit()
+            db.session.commit()   # commit imediato para ter o ID
             destinatario = novo
+            print(f"[DEBUG] Usuário {email} criado com sucesso.")
 
+        # Montar mensagem
         if len(lista) == 1:
             r = lista[0]
             mensagem = f'Sua reserva recorrente "{r.titulo}" para {r.data.strftime("%d-%m-%Y")} foi CANCELADA pelo administrador.'
@@ -523,6 +547,7 @@ def delete_reservas_by_grupo(grupo_id):
             if len(lista) > 5:
                 datas += f' e mais {len(lista)-5}'
             mensagem = f'{len(lista)} reservas da série "{lista[0].titulo}" foram CANCELADAS pelo administrador (datas: {datas}).'
+
         notif = Notificacao(
             usuario_email=email,
             mensagem=mensagem,
@@ -530,10 +555,20 @@ def delete_reservas_by_grupo(grupo_id):
             reserva_id=lista[0].id if lista else None
         )
         db.session.add(notif)
+        print(f"[DEBUG] Notificação adicionada para {email}")
 
+    # Agora deletar as reservas (após todas as notificações)
     for r in reservas:
         db.session.delete(r)
-    db.session.commit()
+
+    try:
+        db.session.commit()
+        print(f"[DEBUG] {len(reservas)} reservas canceladas e notificações salvas.")
+    except Exception as e:
+        db.session.rollback()
+        print(f"[ERRO] Falha no commit: {e}")
+        return jsonify({'erro': f'Erro ao cancelar grupo: {str(e)}'}), 500
+
     return jsonify({'mensagem': f'{len(reservas)} reservas canceladas do grupo'}), 200
 
 # ---------- ROTAS DE DISPONIBILIDADE ----------
@@ -852,15 +887,27 @@ def aprovar_solicitacao(solicitacao_id):
     user = session.get('user')
     reserva.aprovador = user.get('nome') or user.get('email')
     reserva.data_aprovacao = datetime.utcnow()
+
+    # Garantir que o destinatário exista na tabela users
     destinatario = User.query.filter_by(email=reserva.email).first()
-    if destinatario:
-        notif = Notificacao(
-            usuario_email=reserva.email,
-            mensagem=f'Sua solicitação "{reserva.titulo}" foi APROVADA.',
-            tipo='aprovacao',
-            reserva_id=reserva.id
+    if not destinatario:
+        destinatario = User(
+            email=reserva.email,
+            nome=reserva.responsavel or 'Usuário',
+            cargo='usuario_externo',
+            status='aprovado'
         )
-        db.session.add(notif)
+        destinatario.set_password('senha_temporaria')
+        db.session.add(destinatario)
+        db.session.commit()
+
+    notif = Notificacao(
+        usuario_email=reserva.email,
+        mensagem=f'Sua solicitação "{reserva.titulo}" foi APROVADA.',
+        tipo='aprovacao',
+        reserva_id=reserva.id
+    )
+    db.session.add(notif)
     db.session.commit()
     return jsonify({'mensagem': 'Reserva aprovada', 'aprovador': reserva.aprovador, 'data_aprovacao': reserva.data_aprovacao.isoformat()})
 
@@ -875,36 +922,25 @@ def rejeitar_solicitacao(solicitacao_id):
     reserva.aprovador = user.get('nome') or user.get('email')
     reserva.data_aprovacao = datetime.utcnow()
     destinatario = User.query.filter_by(email=reserva.email).first()
-    if destinatario:
-        notif = Notificacao(
-            usuario_email=reserva.email,
-            mensagem=f'Sua solicitação "{reserva.titulo}" foi REJEITADA.',
-            tipo='rejeicao',
-            reserva_id=reserva.id
+    if not destinatario:
+        destinatario = User(
+            email=reserva.email,
+            nome=reserva.responsavel or 'Usuário',
+            cargo='usuario_externo',
+            status='aprovado'
         )
-        db.session.add(notif)
+        destinatario.set_password('senha_temporaria')
+        db.session.add(destinatario)
+        db.session.commit()
+    notif = Notificacao(
+        usuario_email=reserva.email,
+        mensagem=f'Sua solicitação "{reserva.titulo}" foi REJEITADA.',
+        tipo='rejeicao',
+        reserva_id=reserva.id
+    )
+    db.session.add(notif)
     db.session.commit()
     return jsonify({'mensagem': 'Solicitação rejeitada', 'aprovador': reserva.aprovador, 'data_aprovacao': reserva.data_aprovacao.isoformat()})
-
-# ---------- ROTAS ADMINISTRATIVAS (SALAS, MANUTENÇÕES) ----------
-@app.route('/api/salas', methods=['POST'])
-@role_required(['admin', 'gerente'])
-def create_sala():
-    dados = request.get_json()
-    if not dados or not dados.get('nome'):
-        return jsonify({'erro': 'Nome obrigatório'}), 400
-    if Sala.query.filter_by(nome=dados['nome']).first():
-        return jsonify({'erro': 'Sala já existe'}), 400
-    sala = Sala(
-        nome=dados['nome'],
-        bloco=dados.get('bloco'),
-        andar=dados.get('andar'),
-        capacidade=dados.get('capacidade'),
-        equipamentos=dados.get('equipamentos')
-    )
-    db.session.add(sala)
-    db.session.commit()
-    return jsonify(sala.to_dict()), 201
 
 @app.route('/api/salas/<int:sala_id>', methods=['PUT'])
 @role_required(['admin', 'gerente'])
@@ -1057,7 +1093,10 @@ def deletar_notificacao(notif_id):
     user = session.get('user')
     if not user:
         return jsonify({'erro': 'Não autenticado'}), 401
-    notif = Notificacao.query.get_or_404(notif_id)
+    notif = Notificacao.query.get(notif_id)  # usar .get() em vez de get_or_404
+    if not notif:
+        # Já foi removida, retorna sucesso (idempotente)
+        return jsonify({'mensagem': 'Notificação já removida'}), 200
     if notif.usuario_email != user['email']:
         return jsonify({'erro': 'Não autorizado'}), 403
     db.session.delete(notif)

@@ -154,71 +154,77 @@ function App() {
   const [metricas, setMetricas] = useState({ totalReservas: 0, totalHoras: 0, mediaDiaria: 0, usuariosDistintos: 0 });
   const [rankingSalas, setRankingSalas] = useState([]);
 
- // ========== NOTIFICAÇÕES (API) ==========
-const [notificacoes, setNotificacoes] = useState([]);
+  // ========== NOTIFICAÇÕES (API) ==========
+  const [notificacoes, setNotificacoes] = useState([]);
 
-const carregarNotificacoes = async () => {
-  try {
-    const res = await fetch('http://localhost:5000/api/notificacoes', { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
-      setNotificacoes(data);
+  const carregarNotificacoes = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/notificacoes', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setNotificacoes(data);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar notificações', err);
     }
-  } catch (err) {
-    console.error('Erro ao carregar notificações', err);
-  }
-};
+  };
 
-useEffect(() => {
-  if (currentUser) {
-    carregarNotificacoes();
-  }
-}, [currentUser]);
-
-const marcarNotificacaoComoLida = async (id) => {
-  try {
-    const res = await fetch(`http://localhost:5000/api/notificacoes/${id}/marcar-lida`, {
-      method: 'PUT',
-      credentials: 'include'
-    });
-    if (res.ok) {
-      setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
+  useEffect(() => {
+    if (currentUser) {
+      carregarNotificacoes();
     }
-  } catch (err) {
-    console.error('Erro ao marcar notificação como lida', err);
-  }
-};
+  }, [currentUser]);
 
-const marcarTodasComoLidas = async () => {
-  try {
-    const res = await fetch('http://localhost:5000/api/notificacoes/marcar-todas-lidas', {
-      method: 'PUT',
-      credentials: 'include'
-    });
-    if (res.ok) {
-      setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
+  const marcarNotificacaoComoLida = async (id) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/notificacoes/${id}/marcar-lida`, {
+        method: 'PUT',
+        credentials: 'include'
+      });
+      if (res.ok) {
+        setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
+      }
+    } catch (err) {
+      console.error('Erro ao marcar notificação como lida', err);
     }
-  } catch (err) {
-    console.error('Erro ao marcar todas como lidas', err);
-  }
-};
+  };
 
-const removerNotificacaoLida = async (id) => {
-  try {
-    const res = await fetch(`http://localhost:5000/api/notificacoes/${id}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    });
-    if (res.ok) {
-      setNotificacoes(prev => prev.filter(n => n.id !== id));
-    } else {
-      const errorData = await res.json();
-      console.error('Erro ao remover notificação:', errorData.erro);
+  const marcarTodasComoLidas = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/notificacoes/marcar-todas-lidas', {
+        method: 'PUT',
+        credentials: 'include'
+      });
+      if (res.ok) {
+        setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
+      }
+    } catch (err) {
+      console.error('Erro ao marcar todas como lidas', err);
     }
-  } catch (err) {
-    console.error('Erro na requisição:', err);
-  }
-};
+  };
+
+  const [removendoNotificacao, setRemovendoNotificacao] = useState({});
+
+  const removerNotificacaoLida = async (id) => {
+    if (removendoNotificacao[id]) return;
+    setRemovendoNotificacao(prev => ({ ...prev, [id]: true }));
+    try {
+      const res = await fetch(`http://localhost:5000/api/notificacoes/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (res.ok) {
+        setNotificacoes(prev => prev.filter(n => n.id !== id));
+      } else {
+        const errorData = await res.json();
+        console.error('Erro ao remover notificação:', errorData.erro);
+      }
+    } catch (err) {
+      console.error('Erro na requisição:', err);
+    } finally {
+      setRemovendoNotificacao(prev => ({ ...prev, [id]: false }));
+    }
+  };
 
   // ========== CARREGAMENTO INICIAL ==========
   const loadSalas = async () => {
@@ -415,37 +421,37 @@ const removerNotificacaoLida = async (id) => {
     navigate('/');
   };
 
-// ========== CANCELAMENTO DE RESERVAS (com notificação) ==========
-const handleCancelarReserva = async (id, titulo, emailUsuario) => {
-  if (window.confirm(`Cancelar a reserva "${titulo}"?`)) {
-    const res = await deleteReserva(id);
-    if (res.erro) showToast(res.erro, 'error');
-    else {
-      showToast('Reserva cancelada', 'success');
-      if (activeView === 'minhas-reservas') await loadReservas();
-      else if (activeView === 'admin-reservas') await loadAllReservas();
-      await carregarNotificacoes(); 
+  // ========== CANCELAMENTO DE RESERVAS (com notificação) ==========
+  const handleCancelarReserva = async (id, titulo, emailUsuario) => {
+    if (window.confirm(`Cancelar a reserva "${titulo}"?`)) {
+      const res = await deleteReserva(id);
+      if (res.erro) showToast(res.erro, 'error');
+      else {
+        showToast('Reserva cancelada', 'success');
+        if (activeView === 'minhas-reservas') await loadReservas();
+        else if (activeView === 'admin-reservas') await loadAllReservas();
+        await carregarNotificacoes();
+      }
     }
-  }
-};
+  };
 
-const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, tituloExemplo) => {
-  if (window.confirm('Cancelar TODAS as reservas desta série recorrente?')) {
-    let res;
-    if (isOwner) {
-      res = await deleteUserGrupo(grupoId);
-    } else {
-      res = await deleteReservasByGrupo(grupoId);
+  const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, tituloExemplo) => {
+    if (window.confirm('Cancelar TODAS as reservas desta série recorrente?')) {
+      let res;
+      if (isOwner) {
+        res = await deleteUserGrupo(grupoId);
+      } else {
+        res = await deleteReservasByGrupo(grupoId);
+      }
+      if (res.erro) showToast(res.erro, 'error');
+      else {
+        showToast(res.mensagem, 'success');
+        if (activeView === 'minhas-reservas') await loadReservas();
+        else if (activeView === 'admin-reservas') await loadAllReservas();
+        await carregarNotificacoes();
+      }
     }
-    if (res.erro) showToast(res.erro, 'error');
-    else {
-      showToast(res.mensagem, 'success');
-      if (activeView === 'minhas-reservas') await loadReservas();
-      else if (activeView === 'admin-reservas') await loadAllReservas();
-      await carregarNotificacoes();
-    }
-  }
-};
+  };
 
   // ========== EDIÇÃO DE RESERVA (com notificação) ==========
   const handleEditarReserva = (reserva) => {
@@ -472,12 +478,10 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
     if (res.erro) showToast(res.erro, 'error');
     else {
       showToast('Reserva atualizada!', 'success');
-      if (reservaOriginal.email !== currentUser?.email) {
-    
-      }
       setEditandoReserva(null);
       if (activeView === 'minhas-reservas') await loadReservas();
       else if (activeView === 'admin-reservas') await loadAllReservas();
+      await carregarNotificacoes();   // 🔔 ESSENCIAL
     }
   };
 
@@ -608,7 +612,7 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
         showToast('Bloqueio criado com sucesso', 'success');
         if (data.reservas_afetadas && data.reservas_afetadas.length) {
           data.reservas_afetadas.forEach(reserva => {
-       
+
           });
           if (data.reservas_afetadas.some(r => r.email === currentUser?.email)) {
             loadReservas();
@@ -625,6 +629,7 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
           hora_fim: '09:00',
           motivo: '',
         });
+        await carregarNotificacoes();   // <-- adicionar
       }
     } catch (err) {
       showToast('Erro de conexão', 'error');
@@ -652,7 +657,7 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
     for (const m of ativos) {
       try {
         await fetch(`http://localhost:5000/api/manutencoes/${m.id}`, { method: 'DELETE', credentials: 'include' });
-      } catch {}
+      } catch { }
     }
     await loadManutencoes();
     await loadSalas();
@@ -682,28 +687,25 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
     const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/aprovar`, { method: 'POST', credentials: 'include' });
     if (res.ok) {
       showToast('Reserva aprovada!', 'success');
-     
-      loadSolicitacoes();
-      loadAllReservas();
-      if (currentUser?.email === emailUsuario) {
-        loadReservas();
-      }
+      await loadSolicitacoes();
+      await loadAllReservas();
+      if (currentUser?.email === emailUsuario) await loadReservas();
+      await carregarNotificacoes();   // <-- adicionar
     } else {
       const err = await res.json();
       showToast(err.erro || 'Erro ao aprovar', 'error');
     }
   };
+
   const handleRejeitarSolicitacao = async (id, emailUsuario, titulo) => {
     if (window.confirm('Rejeitar esta solicitação?')) {
       const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/rejeitar`, { method: 'POST', credentials: 'include' });
       if (res.ok) {
         showToast('Solicitação rejeitada', 'success');
-    
-        loadSolicitacoes();
-        loadRejeitadas();
-        if (currentUser?.email === emailUsuario) {
-          loadReservas();
-        }
+        await loadSolicitacoes();
+        await loadRejeitadas();
+        if (currentUser?.email === emailUsuario) await loadReservas();
+        await carregarNotificacoes();   // <-- adicionar
       } else {
         const err = await res.json();
         showToast(err.erro || 'Erro ao rejeitar', 'error');
@@ -970,6 +972,7 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
     }
 
     // --- GERENCIAR RESERVAS (ADMIN) ---
+    // OBS: Botão "Cancelar Série de Reservas" foi removido conforme solicitado
     if (activeView === 'admin-reservas' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       const statusOptions = [
         { value: 'todas', label: 'Todas' },
@@ -1055,45 +1058,45 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
             <button className="btn-padrao btn-secondary" onClick={exportarCSV}>Exportar CSV</button>
           </div>
           <div className="gu-table-header">
-            <span style={{flex:'0 0 230px'}}>USUÁRIO</span>
-            <span style={{flex:2}}>SALA</span>
-            <span style={{flex:2}}>DATA / HORÁRIO</span>
-            <span style={{flex:'0 0 130px'}}>STATUS</span>
-            <span style={{flex:'0 0 170px'}}>AÇÕES</span>
+            <span style={{ flex: '0 0 230px' }}>USUÁRIO</span>
+            <span style={{ flex: 2 }}>SALA</span>
+            <span style={{ flex: 2 }}>DATA / HORÁRIO</span>
+            <span style={{ flex: '0 0 130px' }}>STATUS</span>
+            <span style={{ flex: '0 0 170px' }}>AÇÕES</span>
           </div>
           <div className="gu-rows">
             {reservasFiltradas.length === 0 && <p className="admin-req-vazio">Nenhuma reserva encontrada.</p>}
             {reservasFiltradas.map(r => {
               const [ano, mes, dia] = r.data.split('-');
-              const dataObj = new Date(Date.UTC(ano, mes-1, dia));
-              const diaSemana = ['dom','seg','ter','qua','qui','sex','sáb'][dataObj.getUTCDay()];
+              const dataObj = new Date(Date.UTC(ano, mes - 1, dia));
+              const diaSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][dataObj.getUTCDay()];
               const dataFormatada = `${dia}/${mes}/${ano}`;
-              const statusBg = r.status==='aprovada'?'#2ECC71':r.status==='pendente'?'#F39C12':r.status==='rejeitada'?'#E74C3C':'#95A5A6';
-              const statusTxt = r.status==='aprovada'?'CONFIRMADA':r.status==='pendente'?'PENDENTE':r.status==='rejeitada'?'REJEITADA':'CANCELADA';
+              const statusBg = r.status === 'aprovada' ? '#2ECC71' : r.status === 'pendente' ? '#F39C12' : r.status === 'rejeitada' ? '#E74C3C' : '#95A5A6';
+              const statusTxt = r.status === 'aprovada' ? 'CONFIRMADA' : r.status === 'pendente' ? 'PENDENTE' : r.status === 'rejeitada' ? 'REJEITADA' : 'CANCELADA';
               return (
                 <div key={r.id} className="gu-row">
-                  <div style={{flex:'0 0 230px',display:'flex',alignItems:'center',gap:'10px'}}>
-                    <div className="gu-avatar">{(r.responsavel||'??').substring(0,2).toUpperCase()}</div>
+                  <div style={{ flex: '0 0 230px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="gu-avatar">{(r.responsavel || '??').substring(0, 2).toUpperCase()}</div>
                     <div>
-                      <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'13px',lineHeight:1.3}}>{r.responsavel}</div>
-                      <div style={{color:'#6B5F7A',fontSize:'11px'}}>{r.email}</div>
+                      <div style={{ fontWeight: 700, color: '#1A0F2B', fontSize: '13px', lineHeight: 1.3 }}>{r.responsavel}</div>
+                      <div style={{ color: '#6B5F7A', fontSize: '11px' }}>{r.email}</div>
                     </div>
                   </div>
-                  <div style={{flex:2}}>
-                    <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'13px'}}>{r.sala_nome}</div>
-                    {r.titulo && <div style={{color:'#6B5F7A',fontSize:'11px'}}>{r.titulo}</div>}
+                  <div style={{ flex: 2 }}>
+                    <div style={{ fontWeight: 700, color: '#1A0F2B', fontSize: '13px' }}>{r.sala_nome}</div>
+                    {r.titulo && <div style={{ color: '#6B5F7A', fontSize: '11px' }}>{r.titulo}</div>}
                   </div>
-                  <div style={{flex:2}}>
-                    <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'12px'}}>{dataFormatada} ({diaSemana})</div>
-                    <div style={{color:'#6B5F7A',fontSize:'11px'}}>{r.hora_inicio} às {r.hora_fim}</div>
+                  <div style={{ flex: 2 }}>
+                    <div style={{ fontWeight: 700, color: '#1A0F2B', fontSize: '12px' }}>{dataFormatada} ({diaSemana})</div>
+                    <div style={{ color: '#6B5F7A', fontSize: '11px' }}>{r.hora_inicio} às {r.hora_fim}</div>
                   </div>
-                  <div style={{flex:'0 0 130px',display:'flex',flexDirection:'column',gap:'4px',alignItems:'flex-start'}}>
-                    {r.grupo_id && <span className="gu-status-badge" style={{background:'#3498DB'}}>RECORRENTE</span>}
-                    <span className="gu-status-badge" style={{background:statusBg}}>{statusTxt}</span>
+                  <div style={{ flex: '0 0 130px', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                    {r.grupo_id && <span className="gu-status-badge" style={{ background: '#3498DB' }}>RECORRENTE</span>}
+                    <span className="gu-status-badge" style={{ background: statusBg }}>{statusTxt}</span>
                   </div>
-                  <div style={{flex:'0 0 170px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
+                  <div style={{ flex: '0 0 170px', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button className="btn-padrao btn-edit" onClick={() => handleEditarReserva(r)}>Editar</button>
-                    {r.grupo_id && <button className="btn-padrao btn-warning" onClick={() => handleCancelarGrupo(r.grupo_id, false, r.email, r.titulo)}>Cancelar Série de Reservas</button>}
+                    {/* Botão "Cancelar Série de Reservas" removido conforme solicitado */}
                     <button className="btn-padrao btn-danger" onClick={() => handleCancelarReserva(r.id, r.titulo, r.email)}>Cancelar</button>
                   </div>
                 </div>
@@ -1105,17 +1108,17 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
     }
 
     const buscarReserva = async (id) => {
-  if (reservasDetalhe[id]) return;
-  try {
-    const res = await fetch(`http://localhost:5000/api/reservas/${id}`, { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
-      setReservasDetalhe(prev => ({ ...prev, [id]: data }));
-    }
-  } catch (err) {
-    console.error('Erro ao buscar reserva', err);
-  }
-};
+      if (reservasDetalhe[id]) return;
+      try {
+        const res = await fetch(`http://localhost:5000/api/reservas/${id}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setReservasDetalhe(prev => ({ ...prev, [id]: data }));
+        }
+      } catch (err) {
+        console.error('Erro ao buscar reserva', err);
+      }
+    };
 
     // --- RELATÓRIOS ---
     if (activeView === 'relatorios' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
@@ -1125,8 +1128,8 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
             <h1>Relatórios</h1>
             <p className="subtitulo">Estatísticas de reservas por período — total, horas, média diária e usuários.</p>
           </div>
-          <div className="gs-filtros" style={{alignItems:'center'}}>
-            <span style={{fontSize:'13px',fontWeight:700,color:'#4B3A6B'}}>Período:</span>
+          <div className="gs-filtros" style={{ alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#4B3A6B' }}>Período:</span>
             <select className="filtros-select" value={periodoRelatorio} onChange={e => {
               setPeriodoRelatorio(e.target.value);
               if (e.target.value !== 'custom') setPeriodoCustomAplicado(false);
@@ -1139,13 +1142,13 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
             </select>
             {periodoRelatorio === 'custom' && (
               <>
-                <input className="modal-input" type="date" value={dataInicioCustom} onChange={e => setDataInicioCustom(e.target.value)} style={{width:'auto'}} />
-                <span style={{color:'#6B5F7A'}}>a</span>
-                <input className="modal-input" type="date" value={dataFimCustom} onChange={e => setDataFimCustom(e.target.value)} style={{width:'auto'}} />
+                <input className="modal-input" type="date" value={dataInicioCustom} onChange={e => setDataInicioCustom(e.target.value)} style={{ width: 'auto' }} />
+                <span style={{ color: '#6B5F7A' }}>a</span>
+                <input className="modal-input" type="date" value={dataFimCustom} onChange={e => setDataFimCustom(e.target.value)} style={{ width: 'auto' }} />
                 <button className="btn-padrao btn-primary" onClick={aplicarPeriodoCustom}>Aplicar</button>
               </>
             )}
-            <button className="btn-padrao btn-secondary" onClick={exportarRelatorioCSV} style={{marginLeft:'auto'}}>Exportar CSV</button>
+            <button className="btn-padrao btn-secondary" onClick={exportarRelatorioCSV} style={{ marginLeft: 'auto' }}>Exportar CSV</button>
           </div>
           <div className="relatorio-metricas">
             <div className="metrica-card"><h3>Total reservas</h3><p>{metricas.totalReservas}</p><small>Todos os status no período.</small></div>
@@ -1153,8 +1156,8 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
             <div className="metrica-card"><h3>Média diária</h3><p>{metricas.mediaDiaria}</p><small>Confirmadas por dia.</small></div>
             <div className="metrica-card"><h3>Usuários distintos</h3><p>{metricas.usuariosDistintos}</p><small>Usuários que reservaram.</small></div>
           </div>
-          <div style={{marginTop:'24px'}}>
-            <div className="gs-stats-bar" style={{marginBottom:'12px'}}>
+          <div style={{ marginTop: '24px' }}>
+            <div className="gs-stats-bar" style={{ marginBottom: '12px' }}>
               <span className="gs-stats-total">Salas mais reservadas</span>
               <span className="gs-stats-detail">top 5 por reservas confirmadas</span>
             </div>
@@ -1241,9 +1244,32 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
                       return (
                         <div key={`${item.hora_inicio}-${item.hora_fim}`} className={`cd-slot ${statusClass}`} onClick={() => {
                           if (item.ocupado) return;
-                          if (!selectedStart) setSelectedStart(item);
-                          else if (!selectedEnd) { if (item.hora_inicio > selectedStart.hora_inicio) setSelectedEnd(item); else setSelectedStart(item); }
-                          else { setSelectedStart(item); setSelectedEnd(null); }
+
+                          // Se não houver nenhum selecionado, define este como início
+                          if (!selectedStart && !selectedEnd) {
+                            setSelectedStart(item);
+                            return;
+                          }
+
+                          // Se já temos um início, mas não o fim
+                          if (selectedStart && !selectedEnd) {
+                            // O segundo clique será sempre o fim
+                            let newStart = selectedStart;
+                            let newEnd = item;
+
+                            // Se o fim for anterior ao início, troca os papéis para manter início < fim
+                            if (newEnd.hora_inicio < newStart.hora_inicio) {
+                              newStart = item;
+                              newEnd = selectedStart;
+                            }
+                            setSelectedStart(newStart);
+                            setSelectedEnd(newEnd);
+                            return;
+                          }
+
+                          // Se ambos já estão definidos, reinicia a seleção (limpa e define o novo clique como início)
+                          setSelectedStart(item);
+                          setSelectedEnd(null);
                         }}>
                           <span className="cd-slot-hora">{item.hora_inicio}</span>
                           <span className="cd-slot-status">{statusText}</span>
@@ -1260,13 +1286,28 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
                   <div style={{ textAlign: 'right' }}>
                     <button className="btn-padrao btn-primary" onClick={() => {
                       if (selectedStart && selectedEnd) {
-                        setReservaData({ sala_id: form.sala_id, data: form.data, hora_inicio: selectedStart.hora_inicio, hora_fim: selectedEnd.hora_fim, titulo: '' });
+                        console.log('Início:', selectedStart.hora_inicio, 'Fim:', selectedEnd.hora_inicio);
+                        setReservaData({
+                          sala_id: form.sala_id,
+                          data: form.data,
+                          hora_inicio: selectedStart.hora_inicio,
+                          hora_fim: selectedEnd.hora_inicio,
+                          titulo: '',
+                        });
                         setModalReservaAberto(true);
                       } else if (selectedStart && !selectedEnd) {
-                        const endItem = disponibilidade.horarios.find(h => h.hora_inicio === selectedStart.hora_inicio);
-                        setReservaData({ sala_id: form.sala_id, data: form.data, hora_inicio: selectedStart.hora_inicio, hora_fim: endItem ? endItem.hora_fim : add30min(selectedStart.hora_inicio), titulo: '' });
+                        // se apenas um selecionado, usa o próprio como início e fim (30 min)
+                        setReservaData({
+                          sala_id: form.sala_id,
+                          data: form.data,
+                          hora_inicio: selectedStart.hora_inicio,
+                          hora_fim: add30min(selectedStart.hora_inicio),
+                          titulo: '',
+                        });
                         setModalReservaAberto(true);
-                      } else alert('Selecione um intervalo de horários.');
+                      } else {
+                        alert('Selecione um intervalo de horários (dois cliques).');
+                      }
                     }}>+ Solicitar Reserva</button>
                   </div>
                 </div>
@@ -1428,17 +1469,17 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
                     {salas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
                   </select>
                 </label>
-                <div style={{display:'flex',gap:'12px'}}>
-                  <label className="modal-label" style={{flex:1}}>Data início<input className="modal-input" type="date" name="data_inicio" value={novaManutencao.data_inicio} onChange={handleChangeManutencao} /></label>
-                  <label className="modal-label" style={{flex:1}}>Data fim<input className="modal-input" type="date" name="data_fim" value={novaManutencao.data_fim} onChange={handleChangeManutencao} /></label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <label className="modal-label" style={{ flex: 1 }}>Data início<input className="modal-input" type="date" name="data_inicio" value={novaManutencao.data_inicio} onChange={handleChangeManutencao} /></label>
+                  <label className="modal-label" style={{ flex: 1 }}>Data fim<input className="modal-input" type="date" name="data_fim" value={novaManutencao.data_fim} onChange={handleChangeManutencao} /></label>
                 </div>
-                <div style={{display:'flex',gap:'12px'}}>
-                  <label className="modal-label" style={{flex:1}}>Hora início
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <label className="modal-label" style={{ flex: 1 }}>Hora início
                     <select className="modal-input" name="hora_inicio" value={novaManutencao.hora_inicio} onChange={handleChangeManutencao}>
                       {horariosManutencao.map(h => <option key={h}>{h}</option>)}
                     </select>
                   </label>
-                  <label className="modal-label" style={{flex:1}}>Hora fim
+                  <label className="modal-label" style={{ flex: 1 }}>Hora fim
                     <select className="modal-input" name="hora_fim" value={novaManutencao.hora_fim} onChange={handleChangeManutencao}>
                       {horariosManutencao.map(h => <option key={h}>{h}</option>)}
                     </select>
@@ -1470,40 +1511,40 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
           <div className="gs-stats-bar">
             <span className="gs-stats-total">{users.length} usuários cadastrados</span>
             <span className="gs-stats-detail">
-              · {users.filter(u=>u.cargo==='admin').length} administradores
-              · {users.filter(u=>u.cargo==='gerente').length} gerentes
-              · {users.filter(u=>u.cargo==='usuario_comum').length} usuários CBiot
+              · {users.filter(u => u.cargo === 'admin').length} administradores
+              · {users.filter(u => u.cargo === 'gerente').length} gerentes
+              · {users.filter(u => u.cargo === 'usuario_comum').length} usuários CBiot
             </span>
           </div>
           <div className="gu-table-header">
-            <span style={{flex:3}}>USUÁRIO</span>
-            <span style={{flex:3}}>E-MAIL</span>
-            <span style={{flex:2}}>PAPEL</span>
-            <span style={{flex:1}}>STATUS</span>
-            <span style={{flex:'0 0 220px'}}>AÇÕES</span>
+            <span style={{ flex: 3 }}>USUÁRIO</span>
+            <span style={{ flex: 3 }}>E-MAIL</span>
+            <span style={{ flex: 2 }}>PAPEL</span>
+            <span style={{ flex: 1 }}>STATUS</span>
+            <span style={{ flex: '0 0 220px' }}>AÇÕES</span>
           </div>
           <div className="gu-rows">
             {users.map(u => (
               <div key={u.id} className="gu-row">
-                <div style={{flex:3,display:'flex',alignItems:'center',gap:'10px'}}>
-                  <div className="gu-avatar">{u.nome.substring(0,2).toUpperCase()}</div>
+                <div style={{ flex: 3, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className="gu-avatar">{u.nome.substring(0, 2).toUpperCase()}</div>
                   <div>
-                    <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'14px',lineHeight:1.3}}>{u.nome}</div>
+                    <div style={{ fontWeight: 700, color: '#1A0F2B', fontSize: '14px', lineHeight: 1.3 }}>{u.nome}</div>
                     {u.id === currentUser.id && <span className="gu-voce">você</span>}
                   </div>
                 </div>
-                <span style={{flex:3,color:'#6B5F7A',fontSize:'13px'}}>{u.email}</span>
-                <span style={{flex:2}}>
-                  <span className="gu-cargo-badge" style={{background:cargoBg[u.cargo]||'#ECE6F7',color:cargoFg[u.cargo]||'#6B5F7A'}}>
-                    {(cargoLabel[u.cargo]||u.cargo).toUpperCase()}
+                <span style={{ flex: 3, color: '#6B5F7A', fontSize: '13px' }}>{u.email}</span>
+                <span style={{ flex: 2 }}>
+                  <span className="gu-cargo-badge" style={{ background: cargoBg[u.cargo] || '#ECE6F7', color: cargoFg[u.cargo] || '#6B5F7A' }}>
+                    {(cargoLabel[u.cargo] || u.cargo).toUpperCase()}
                   </span>
                 </span>
-                <span style={{flex:1}}>
-                  <span className="gu-status-badge" style={{background:u.status==='aprovado'?'#2ECC71':u.status==='pendente'?'#F39C12':'#95A5A6'}}>
-                    {u.status==='aprovado'?'ATIVO':u.status==='pendente'?'PENDENTE':'INATIVO'}
+                <span style={{ flex: 1 }}>
+                  <span className="gu-status-badge" style={{ background: u.status === 'aprovado' ? '#2ECC71' : u.status === 'pendente' ? '#F39C12' : '#95A5A6' }}>
+                    {u.status === 'aprovado' ? 'ATIVO' : u.status === 'pendente' ? 'PENDENTE' : 'INATIVO'}
                   </span>
                 </span>
-                <div style={{flex:'0 0 220px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
+                <div style={{ flex: '0 0 220px', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                   {u.id !== currentUser.id && (
                     <button className="btn-padrao btn-primary" onClick={() => { setAlterandoPapelUser(u); setNovoPapelSelecionado(u.cargo); }}>Alterar papel</button>
                   )}
@@ -1533,21 +1574,21 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
                   <h3>Alterar papel de usuário</h3>
                   <button className="modal-close-btn" onClick={() => setAlterandoPapelUser(null)}>×</button>
                 </div>
-                <p style={{color:'#6B5F7A',fontSize:'13px',marginBottom:'16px'}}>A alteração entra em vigor imediatamente.</p>
+                <p style={{ color: '#6B5F7A', fontSize: '13px', marginBottom: '16px' }}>A alteração entra em vigor imediatamente.</p>
                 <div className="gu-modal-user">
-                  <div className="gu-avatar">{alterandoPapelUser.nome.substring(0,2).toUpperCase()}</div>
+                  <div className="gu-avatar">{alterandoPapelUser.nome.substring(0, 2).toUpperCase()}</div>
                   <div>
-                    <div style={{fontWeight:700,color:'#1A0F2B'}}>{alterandoPapelUser.nome}</div>
-                    <div style={{color:'#6B5F7A',fontSize:'13px'}}>{alterandoPapelUser.email}</div>
+                    <div style={{ fontWeight: 700, color: '#1A0F2B' }}>{alterandoPapelUser.nome}</div>
+                    <div style={{ color: '#6B5F7A', fontSize: '13px' }}>{alterandoPapelUser.email}</div>
                   </div>
                 </div>
                 <div className="gu-modal-papeis">
-                  <div style={{flex:1}}>
+                  <div style={{ flex: 1 }}>
                     <div className="gu-modal-label">PAPEL ATUAL</div>
                     <div className="gu-modal-atual">{cargoLabel[alterandoPapelUser.cargo] || alterandoPapelUser.cargo}</div>
                   </div>
                   <div className="gu-modal-seta">→</div>
-                  <div style={{flex:1}}>
+                  <div style={{ flex: 1 }}>
                     <div className="gu-modal-label">NOVO PAPEL</div>
                     <select className="modal-input" value={novoPapelSelecionado} onChange={e => setNovoPapelSelecionado(e.target.value)}>
                       <option value="admin">Administrador</option>
@@ -1568,6 +1609,7 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
       );
     }
 
+    // --- SOLICITAÇÕES DE RESERVA (admin/gerente) ---
     // --- SOLICITAÇÕES DE RESERVA (admin/gerente) ---
     if (activeView === 'solicitacoes-reserva' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       return (
@@ -1590,6 +1632,7 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
                 {solicitacoes.length === 0 && <p className="admin-req-vazio">Nenhuma solicitação pendente.</p>}
                 {solicitacoes.map((s) => {
                   const sala = salas.find(sl => sl.id === s.sala_id);
+                  const isRecorrente = s.grupo_id !== null && s.grupo_id !== undefined;
                   return (
                     <div className="req-card" key={s.id}>
                       <div className="req-card-faixa"></div>
@@ -1602,7 +1645,7 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
                           </div>
                         </div>
                         <div className="req-tags">
-                          {s.grupo_id && <span className="req-tag-azul">RECORRENTE</span>}
+                          {isRecorrente && <span className="req-tag-azul">RECORRENTE</span>}
                           <span className="req-tag-laranja">PENDENTE</span>
                         </div>
                       </div>
@@ -1673,82 +1716,82 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
     }
 
     // --- NOTIFICAÇÕES ---
- 
-if (activeView === 'notificacoes') {
-  const naoLidas = notificacoes.filter(n => !n.lida);
-  const lidas = notificacoes.filter(n => n.lida);
 
-  // Função para definir a cor do badge conforme o tipo
-  const getBadgeStyle = (tipo) => {
-    switch (tipo) {
-      case 'aprovacao': return { bg: '#2ECC71', text: 'APROVADA' };
-      case 'rejeicao': return { bg: '#E74C3C', text: 'REJEITADA' };
-      case 'cancelamento': return { bg: '#E74C3C', text: 'CANCELADA' };
-      case 'cancelamento_manutencao': return { bg: '#F39C12', text: 'MANUTENÇÃO' };
-      case 'edicao': return { bg: '#F1C40F', text: 'EDITADA' };
-      default: return { bg: '#95A5A6', text: 'INFO' };
-    }
-  };
+    if (activeView === 'notificacoes') {
+      const naoLidas = notificacoes.filter(n => !n.lida);
+      const lidas = notificacoes.filter(n => n.lida);
 
-  return (
-    <div className="conteudo-mapa-padrao">
-      <div className="cabecalho-mapa-padrao">
-        <h1>Notificações</h1>
-        <p className="subtitulo">Eventos recentes sobre suas reservas.</p>
-      </div>
-      {naoLidas.length > 0 && (
-        <div className="gs-stats-bar" style={{ justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <span>{naoLidas.length} não lida(s)</span>
-          <button className="btn-padrao btn-secondary" onClick={marcarTodasComoLidas}>Marcar todas como lidas</button>
-        </div>
-      )}
-      <div className="reservas-lista">
-        {notificacoes.length === 0 && <p className="sem-reservas">Nenhuma notificação.</p>}
-        {notificacoes.map(notif => {
-          const badge = getBadgeStyle(notif.tipo);
-          // Buscar reserva apenas se tiver reservaId e ainda não foi carregada
-          if (notif.reservaId && !reservasDetalhe[notif.reservaId]) {
-            buscarReserva(notif.reservaId);
-          }
-          const reserva = reservasDetalhe[notif.reservaId];
-          const dataFormatada = new Date(notif.data).toLocaleString();
+      // Função para definir a cor do badge conforme o tipo
+      const getBadgeStyle = (tipo) => {
+        switch (tipo) {
+          case 'aprovacao': return { bg: '#2ECC71', text: 'APROVADA' };
+          case 'rejeicao': return { bg: '#E74C3C', text: 'REJEITADA' };
+          case 'cancelamento': return { bg: '#E74C3C', text: 'CANCELADA' };
+          case 'cancelamento_manutencao': return { bg: '#F39C12', text: 'MANUTENÇÃO' };
+          case 'edicao': return { bg: '#F1C40F', text: 'EDITADA' };
+          default: return { bg: '#95A5A6', text: 'INFO' };
+        }
+      };
 
-          return (
-            <div key={notif.id} className={`reserva-card-minha ${!notif.lida ? 'nao-lida' : ''}`} style={{ borderLeft: notif.lida ? '' : '4px solid #844BD4' }}>
-              <div className="reserva-card-header">
-                <h3>
-                  {reserva?.sala_nome || 'Reserva'}
-                  {reserva && <span className="sala-localizacao-card" style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}> · {reserva.sala_nome}</span>}
-                </h3>
-                <span className="reserva-status" style={{ background: badge.bg, color: '#fff', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem' }}>
-                  {badge.text}
-                </span>
-              </div>
-              <div className="reserva-card-info">
-                <p><strong>{dataFormatada}</strong></p>
-                <p className="reserva-titulo">{notif.mensagem}</p>
-                {reserva && (
-                  <div style={{ marginTop: '0.5rem', background: '#F8F9FA', padding: '0.5rem', borderRadius: '8px' }}>
-                    <p><strong>Sala:</strong> {reserva.sala_nome}</p>
-                    <p><strong>Data original:</strong> {formatarData(reserva.data)} – {reserva.hora_inicio} às {reserva.hora_fim}</p>
-                    {reserva.titulo && <p><strong>Título:</strong> {reserva.titulo}</p>}
-                    {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
-                  </div>
-                )}
-              </div>
-              <div className="reserva-actions-minhas">
-                {!notif.lida && (
-                  <button className="btn-padrao btn-success" onClick={() => marcarNotificacaoComoLida(notif.id)}>Marcar como lida</button>
-                )}
-                <button className="btn-padrao btn-secondary" onClick={() => removerNotificacaoLida(notif.id)}>Remover</button>
-              </div>
+      return (
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao">
+            <h1>Notificações</h1>
+            <p className="subtitulo">Eventos recentes sobre suas reservas.</p>
+          </div>
+          {naoLidas.length > 0 && (
+            <div className="gs-stats-bar" style={{ justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <span>{naoLidas.length} não lida(s)</span>
+              <button className="btn-padrao btn-secondary" onClick={marcarTodasComoLidas}>Marcar todas como lidas</button>
             </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+          )}
+          <div className="reservas-lista">
+            {notificacoes.length === 0 && <p className="sem-reservas">Nenhuma notificação.</p>}
+            {notificacoes.map(notif => {
+              const badge = getBadgeStyle(notif.tipo);
+              // Buscar reserva apenas se tiver reservaId e ainda não foi carregada
+              if (notif.reservaId && !reservasDetalhe[notif.reservaId]) {
+                buscarReserva(notif.reservaId);
+              }
+              const reserva = reservasDetalhe[notif.reservaId];
+              const dataFormatada = new Date(notif.data).toLocaleString();
+
+              return (
+                <div key={notif.id} className={`reserva-card-minha ${!notif.lida ? 'nao-lida' : ''}`} style={{ borderLeft: notif.lida ? '' : '4px solid #844BD4' }}>
+                  <div className="reserva-card-header">
+                    <h3>
+                      {reserva?.sala_nome || 'Reserva'}
+                      {reserva && <span className="sala-localizacao-card" style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}> · {reserva.sala_nome}</span>}
+                    </h3>
+                    <span className="reserva-status" style={{ background: badge.bg, color: '#fff', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem' }}>
+                      {badge.text}
+                    </span>
+                  </div>
+                  <div className="reserva-card-info">
+                    <p><strong>{dataFormatada}</strong></p>
+                    <p className="reserva-titulo">{notif.mensagem}</p>
+                    {reserva && (
+                      <div style={{ marginTop: '0.5rem', background: '#F8F9FA', padding: '0.5rem', borderRadius: '8px' }}>
+                        <p><strong>Sala:</strong> {reserva.sala_nome}</p>
+                        <p><strong>Data original:</strong> {formatarData(reserva.data)} – {reserva.hora_inicio} às {reserva.hora_fim}</p>
+                        {reserva.titulo && <p><strong>Título:</strong> {reserva.titulo}</p>}
+                        {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="reserva-actions-minhas">
+                    {!notif.lida && (
+                      <button className="btn-padrao btn-success" onClick={() => marcarNotificacaoComoLida(notif.id)}>Marcar como lida</button>
+                    )}
+                    <button className="btn-padrao btn-secondary" onClick={() => removerNotificacaoLida(notif.id)}>Remover</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
 
     // --- MEUS DADOS ---
     if (activeView === 'meus-dados') {
@@ -1762,12 +1805,12 @@ if (activeView === 'notificacoes') {
             <p className="subtitulo">Informações da sua conta no sistema.</p>
           </div>
           <div className="meus-dados-card">
-            <div className="meus-dados-avatar">{currentUser.nome.substring(0,2).toUpperCase()}</div>
+            <div className="meus-dados-avatar">{currentUser.nome.substring(0, 2).toUpperCase()}</div>
             <div className="meus-dados-info">
               <div className="meus-dados-nome">{currentUser.nome}</div>
               <div className="meus-dados-email">{currentUser.email}</div>
-              <span className="gu-cargo-badge" style={{background:cargoBg[currentUser.cargo]||'#ECE6F7',color:cargoFg[currentUser.cargo]||'#6B5F7A',marginTop:'8px',display:'inline-block'}}>
-                {(cargoLabel[currentUser.cargo]||currentUser.cargo).toUpperCase()}
+              <span className="gu-cargo-badge" style={{ background: cargoBg[currentUser.cargo] || '#ECE6F7', color: cargoFg[currentUser.cargo] || '#6B5F7A', marginTop: '8px', display: 'inline-block' }}>
+                {(cargoLabel[currentUser.cargo] || currentUser.cargo).toUpperCase()}
               </span>
             </div>
           </div>
@@ -1833,12 +1876,13 @@ if (activeView === 'notificacoes') {
               />
             </label>
             <div className="modal-buttons">
-              <button className="btn-padrao btn-primary" onClick={() => handleUpdateReserva(editandoReserva)}>
-                Salvar
-              </button>
               <button className="btn-padrao btn-secondary" onClick={() => setEditandoReserva(null)}>
                 Cancelar
               </button>
+              <button className="btn-padrao btn-primary" onClick={() => handleUpdateReserva(editandoReserva)}>
+                Salvar
+              </button>
+
             </div>
           </div>
         </div>
