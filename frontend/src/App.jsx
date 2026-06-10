@@ -23,7 +23,7 @@ import {
 
 import ReservaModal from './components/ReservaModal';
 
-// ========== FUNÇÕES AUXILIARES DE HORÁRIO (30 minutos) ==========
+// ========== FUNÇÕES AUXILIARES DE HORÁRIO ==========
 const timeToMinutes = (timeStr) => {
   const [h, m] = timeStr.split(':').map(Number);
   return h * 60 + m;
@@ -81,6 +81,8 @@ function App() {
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dataFim, setDataFim] = useState('');
 
+  const [reservasDetalhe, setReservasDetalhe] = useState({});
+
   const [tabSolicitacoes, setTabSolicitacoes] = useState('pendentes');
   const [tabReservas, setTabReservas] = useState('ativas');
 
@@ -99,6 +101,7 @@ function App() {
     hora_fim: '',
   });
 
+
   const [novaSala, setNovaSala] = useState({
     nome: '',
     bloco: '',
@@ -109,22 +112,14 @@ function App() {
   const [editandoSala, setEditandoSala] = useState(null);
 
   const [activeView, setActiveView] = useState('inicio');
-  const [selectedCargo, setSelectedCargo] = useState({});
   const [formSalaAberto, setFormSalaAberto] = useState(false);
   const [formManutAberto, setFormManutAberto] = useState(false);
   const [alterandoPapelUser, setAlterandoPapelUser] = useState(null);
   const [novoPapelSelecionado, setNovoPapelSelecionado] = useState('');
 
-  // Estados para seleção de intervalo na consulta de disponibilidade
   const [selectedStart, setSelectedStart] = useState(null);
   const [selectedEnd, setSelectedEnd] = useState(null);
-
   const [solicitacoesPendentes, setSolicitacoesPendentes] = useState([]);
-  const loadMinhasSolicitacoes = async () => {
-    const data = await getMinhasSolicitacoes();
-    setSolicitacoesPendentes(data);
-  };
-
   const [reservaData, setReservaData] = useState({
     sala_id: '',
     data: '',
@@ -133,15 +128,14 @@ function App() {
     titulo: '',
   });
   const [modalReservaAberto, setModalReservaAberto] = useState(false);
+  const [selectedSalaId, setSelectedSalaId] = useState(null);
   const dataSelecionada = !!form.data;
 
-  // Estados para filtros de reservas (admin)
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('todas');
   const [filtroSala, setFiltroSala] = useState('todas');
   const [filtroPeriodo, setFiltroPeriodo] = useState('proximas');
 
-  // ========== ESTADOS PARA MANUTENÇÃO ==========
   const [manutencoes, setManutencoes] = useState([]);
   const [novaManutencao, setNovaManutencao] = useState({
     sala_id: '',
@@ -153,7 +147,6 @@ function App() {
   });
   const horariosManutencao = useMemo(() => generateAllStartTimes(), []);
 
-  // ========== ESTADOS PARA RELATÓRIOS ==========
   const [periodoRelatorio, setPeriodoRelatorio] = useState('30d');
   const [dataInicioCustom, setDataInicioCustom] = useState('');
   const [dataFimCustom, setDataFimCustom] = useState('');
@@ -161,10 +154,75 @@ function App() {
   const [metricas, setMetricas] = useState({ totalReservas: 0, totalHoras: 0, mediaDiaria: 0, usuariosDistintos: 0 });
   const [rankingSalas, setRankingSalas] = useState([]);
 
+ // ========== NOTIFICAÇÕES (API) ==========
+const [notificacoes, setNotificacoes] = useState([]);
+
+const carregarNotificacoes = async () => {
+  try {
+    const res = await fetch('http://localhost:5000/api/notificacoes', { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json();
+      setNotificacoes(data);
+    }
+  } catch (err) {
+    console.error('Erro ao carregar notificações', err);
+  }
+};
+
+useEffect(() => {
+  if (currentUser) {
+    carregarNotificacoes();
+  }
+}, [currentUser]);
+
+const marcarNotificacaoComoLida = async (id) => {
+  try {
+    const res = await fetch(`http://localhost:5000/api/notificacoes/${id}/marcar-lida`, {
+      method: 'PUT',
+      credentials: 'include'
+    });
+    if (res.ok) {
+      setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
+    }
+  } catch (err) {
+    console.error('Erro ao marcar notificação como lida', err);
+  }
+};
+
+const marcarTodasComoLidas = async () => {
+  try {
+    const res = await fetch('http://localhost:5000/api/notificacoes/marcar-todas-lidas', {
+      method: 'PUT',
+      credentials: 'include'
+    });
+    if (res.ok) {
+      setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
+    }
+  } catch (err) {
+    console.error('Erro ao marcar todas como lidas', err);
+  }
+};
+
+const removerNotificacaoLida = async (id) => {
+  try {
+    const res = await fetch(`http://localhost:5000/api/notificacoes/${id}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    });
+    if (res.ok) {
+      setNotificacoes(prev => prev.filter(n => n.id !== id));
+    } else {
+      const errorData = await res.json();
+      console.error('Erro ao remover notificação:', errorData.erro);
+    }
+  } catch (err) {
+    console.error('Erro na requisição:', err);
+  }
+};
+
   // ========== CARREGAMENTO INICIAL ==========
   const loadSalas = async () => {
     const data = await getSalas();
-    // Marcar em_manutencao baseado em bloqueios ativos
     const hoje = new Date().toISOString().slice(0, 10);
     const manutAtivas = manutencoes.filter(m => m.data_inicio <= hoje && m.data_fim >= hoje);
     const salasComManut = new Set(manutAtivas.map(m => m.sala_id));
@@ -218,6 +276,10 @@ function App() {
       console.error('Erro ao carregar manutenções', err);
     }
   };
+  const loadMinhasSolicitacoes = async () => {
+    const data = await getMinhasSolicitacoes();
+    setSolicitacoesPendentes(data);
+  };
 
   useEffect(() => {
     loadSalas();
@@ -255,7 +317,6 @@ function App() {
     }
   }, [currentUser]);
 
-  // Atualiza em_manutencao nas salas quando manutencoes mudar
   useEffect(() => {
     if (salas.length && manutencoes.length) {
       const hoje = new Date().toISOString().slice(0, 10);
@@ -265,19 +326,10 @@ function App() {
     }
   }, [manutencoes]);
 
-  // ========== FUNÇÕES DE FORMATAÇÃO (UTC → BRASÍLIA) ==========
   const formatarData = (dataISO) => {
     if (!dataISO) return '';
     const partes = dataISO.split('-');
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
-  };
-  const formatarDataHoraBrasilia = (isoString) => {
-    if (!isoString) return '';
-    return new Intl.DateTimeFormat('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      dateStyle: 'short',
-      timeStyle: 'medium',
-    }).format(new Date(isoString));
   };
   const formatarDataBrasilia = (isoString) => {
     if (!isoString) return '';
@@ -287,7 +339,6 @@ function App() {
     }).format(new Date(isoString));
   };
 
-  // ========== LÓGICA DE HORÁRIOS DISPONÍVEIS ==========
   const reservasIntervalos = useMemo(
     () =>
       reservasDoDia.map((r) => ({
@@ -299,6 +350,20 @@ function App() {
   const conflita = (inicio, fim) => reservasIntervalos.some((r) => inicio < r.fim && fim > r.inicio);
   const todosInicios = useMemo(() => generateAllStartTimes(), []);
   const todosFins = useMemo(() => generateAllEndTimes(), []);
+
+  // ========== CORREÇÃO: Sincroniza horário de fim quando início muda no modal de edição ==========
+  // Este useEffect deve ficar APÓS a declaração de todosFins
+  useEffect(() => {
+    if (editForm.hora_inicio) {
+      const minutosInicio = timeToMinutes(editForm.hora_inicio);
+      const opcoesFim = todosFins.filter(f => timeToMinutes(f) > minutosInicio);
+      if (opcoesFim.length > 0) {
+        if (!editForm.hora_fim || timeToMinutes(editForm.hora_fim) <= minutosInicio) {
+          setEditForm(prev => ({ ...prev, hora_fim: opcoesFim[0] }));
+        }
+      }
+    }
+  }, [editForm.hora_inicio, todosFins, editForm.hora_fim]);
 
   const horasInicioDisponiveis = useMemo(() => {
     if (!dataSelecionada && !recorrente) return [];
@@ -350,35 +415,39 @@ function App() {
     navigate('/');
   };
 
-  const handleCancelarReserva = async (id, titulo) => {
-    if (window.confirm(`Cancelar a reserva "${titulo}"?`)) {
-      const res = await deleteReserva(id);
-      if (res.erro) showToast(res.erro, 'error');
-      else {
-        showToast('Reserva cancelada', 'success');
-        if (activeView === 'minhas-reservas') await loadReservas();
-        else if (activeView === 'admin-reservas') await loadAllReservas();
-      }
+// ========== CANCELAMENTO DE RESERVAS (com notificação) ==========
+const handleCancelarReserva = async (id, titulo, emailUsuario) => {
+  if (window.confirm(`Cancelar a reserva "${titulo}"?`)) {
+    const res = await deleteReserva(id);
+    if (res.erro) showToast(res.erro, 'error');
+    else {
+      showToast('Reserva cancelada', 'success');
+      if (activeView === 'minhas-reservas') await loadReservas();
+      else if (activeView === 'admin-reservas') await loadAllReservas();
+      await carregarNotificacoes(); 
     }
-  };
+  }
+};
 
-  const handleCancelarGrupo = async (grupoId, isOwner = false) => {
-    if (window.confirm('Cancelar TODAS as reservas desta série recorrente?')) {
-      let res;
-      if (isOwner) {
-        res = await deleteUserGrupo(grupoId);
-      } else {
-        res = await deleteReservasByGrupo(grupoId);
-      }
-      if (res.erro) showToast(res.erro, 'error');
-      else {
-        showToast(res.mensagem, 'success');
-        if (activeView === 'minhas-reservas') await loadReservas();
-        else if (activeView === 'admin-reservas') await loadAllReservas();
-      }
+const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, tituloExemplo) => {
+  if (window.confirm('Cancelar TODAS as reservas desta série recorrente?')) {
+    let res;
+    if (isOwner) {
+      res = await deleteUserGrupo(grupoId);
+    } else {
+      res = await deleteReservasByGrupo(grupoId);
     }
-  };
+    if (res.erro) showToast(res.erro, 'error');
+    else {
+      showToast(res.mensagem, 'success');
+      if (activeView === 'minhas-reservas') await loadReservas();
+      else if (activeView === 'admin-reservas') await loadAllReservas();
+      await carregarNotificacoes();
+    }
+  }
+};
 
+  // ========== EDIÇÃO DE RESERVA (com notificação) ==========
   const handleEditarReserva = (reserva) => {
     setEditandoReserva(reserva);
     setEditForm({
@@ -390,7 +459,7 @@ function App() {
     });
   };
 
-  const handleUpdateReserva = async () => {
+  const handleUpdateReserva = async (reservaOriginal) => {
     if (!editandoReserva) return;
     const payload = {
       titulo: editForm.titulo,
@@ -403,6 +472,9 @@ function App() {
     if (res.erro) showToast(res.erro, 'error');
     else {
       showToast('Reserva atualizada!', 'success');
+      if (reservaOriginal.email !== currentUser?.email) {
+    
+      }
       setEditandoReserva(null);
       if (activeView === 'minhas-reservas') await loadReservas();
       else if (activeView === 'admin-reservas') await loadAllReservas();
@@ -454,7 +526,7 @@ function App() {
     }
   };
 
-  // ========== ADMIN (GERENCIAR SALAS, USUÁRIOS, ETC) ==========
+  // ========== GERENCIAR SALAS (admin) ==========
   const handleChangeSala = (e) => {
     const { name, value } = e.target;
     setNovaSala((prev) => ({ ...prev, [name]: value }));
@@ -509,7 +581,7 @@ function App() {
     }
   };
 
-  // Manutenções
+  // ========== MANUTENÇÕES (com cancelamento de reservas) ==========
   const handleChangeManutencao = (e) => {
     const { name, value } = e.target;
     setNovaManutencao((prev) => ({ ...prev, [name]: value }));
@@ -519,12 +591,10 @@ function App() {
       showToast('Preencha todos os campos da manutenção', 'error');
       return;
     }
-    // Validação de data: início não pode ser maior que fim
     if (novaManutencao.data_inicio > novaManutencao.data_fim) {
       showToast('A data de início deve ser anterior ou igual à data de fim', 'error');
       return;
     }
-    // Validação opcional: permitir qualquer horário (sem comparar inicio vs fim)
     try {
       const res = await fetch('http://localhost:5000/api/manutencoes', {
         method: 'POST',
@@ -536,6 +606,17 @@ function App() {
       if (!res.ok) showToast(data.erro || 'Erro ao criar bloqueio', 'error');
       else {
         showToast('Bloqueio criado com sucesso', 'success');
+        if (data.reservas_afetadas && data.reservas_afetadas.length) {
+          data.reservas_afetadas.forEach(reserva => {
+       
+          });
+          if (data.reservas_afetadas.some(r => r.email === currentUser?.email)) {
+            loadReservas();
+          }
+        }
+        await loadManutencoes();
+        await loadSalas();
+        setFormManutAberto(false);
         setNovaManutencao({
           sala_id: '',
           data_inicio: '',
@@ -544,8 +625,6 @@ function App() {
           hora_fim: '09:00',
           motivo: '',
         });
-        await loadManutencoes();
-        await loadSalas();
       }
     } catch (err) {
       showToast('Erro de conexão', 'error');
@@ -580,6 +659,7 @@ function App() {
     showToast('Sala liberada para uso', 'success');
   };
 
+  // ========== GERENCIAR USUÁRIOS ==========
   const handleUpdateUser = async (userId, data) => {
     const res = await updateUser(userId, data);
     if (res.erro) showToast(res.erro, 'error');
@@ -597,24 +677,33 @@ function App() {
     }
   };
 
-  const handleAprovarSolicitacao = async (id) => {
+  // ========== SOLICITAÇÕES (aprovação/rejeição com notificação) ==========
+  const handleAprovarSolicitacao = async (id, emailUsuario, titulo) => {
     const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/aprovar`, { method: 'POST', credentials: 'include' });
     if (res.ok) {
       showToast('Reserva aprovada!', 'success');
+     
       loadSolicitacoes();
       loadAllReservas();
+      if (currentUser?.email === emailUsuario) {
+        loadReservas();
+      }
     } else {
       const err = await res.json();
       showToast(err.erro || 'Erro ao aprovar', 'error');
     }
   };
-  const handleRejeitarSolicitacao = async (id) => {
+  const handleRejeitarSolicitacao = async (id, emailUsuario, titulo) => {
     if (window.confirm('Rejeitar esta solicitação?')) {
       const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/rejeitar`, { method: 'POST', credentials: 'include' });
       if (res.ok) {
         showToast('Solicitação rejeitada', 'success');
+    
         loadSolicitacoes();
         loadRejeitadas();
+        if (currentUser?.email === emailUsuario) {
+          loadReservas();
+        }
       } else {
         const err = await res.json();
         showToast(err.erro || 'Erro ao rejeitar', 'error');
@@ -626,7 +715,7 @@ function App() {
     return [...salas].sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
   }, [salas]);
 
-  // ========== FUNÇÕES DOS RELATÓRIOS ==========
+  // ========== RELATÓRIOS ==========
   const getReservasPorPeriodo = () => {
     if (periodoRelatorio === 'custom' && periodoCustomAplicado && dataInicioCustom && dataFimCustom) {
       const inicio = new Date(dataInicioCustom);
@@ -704,77 +793,92 @@ function App() {
     }
   };
 
+  const handleModalClose = () => {
+    setModalReservaAberto(false);
+    setSelectedSalaId(null);
+  };
+
   if (!currentUser) return <div>Carregando...</div>;
 
   // ========== RENDERIZAÇÃO DAS VIEWS ==========
   const renderMainContent = () => {
-    // VIEW INÍCIO
+    // --- VIEW INÍCIO (Mapa de Salas) ---
     if (activeView === 'inicio') {
-  const salaSelecionada = !!form.sala_id;
+      const handleSalaClick = (sala) => {
+        if (sala.em_manutencao) {
+          showToast('Esta sala está em manutenção e não pode ser reservada.', 'error');
+          return;
+        }
+        setSelectedSalaId(sala.id);
+        setReservaData({
+          sala_id: sala.id,
+          data: '',
+          hora_inicio: '',
+          hora_fim: '',
+          titulo: '',
+        });
+        setModalReservaAberto(true);
+      };
 
-  return (
-    <section
-      className="box mapa-salas-prototipo"
-      onClick={() => setForm((prev) => ({ ...prev, sala_id: '' }))}
-    >
-      <div className="gs-header">
-        <div>
-          <h2 className="gs-titulo">Mapa das Salas</h2>
-          <p className="gs-subtitulo">Clique em uma sala para iniciar uma solicitação de reserva.</p>
-        </div>
-        <button
-          className={`btn-solicitar-reserva-inicio ${salaSelecionada ? 'ativo' : 'inativo'}`}
-          disabled={!salaSelecionada}
-          onClick={(e) => { e.stopPropagation(); setModalReservaAberto(true); }}
-        >
-          + Solicitar Reserva
-        </button>
-      </div>
-
-      <div className="salas-grid-mapa">
-        {salasOrdenadas.map((sala) => {
-          const isSelecionada = form.sala_id == sala.id;
-
-          return (
-            <div
-              key={sala.id}
-              className={`sala-card-mapa ${isSelecionada ? 'selecionada' : ''} ${sala.em_manutencao ? 'manutencao' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setForm((prev) => ({ ...prev, sala_id: sala.id })); }}
-            >
-              {isSelecionada && <div className="badge-selecionada">SELECIONADA</div>}
-
-              <div className="sala-nome-destaque">{sala.nome}</div>
-              <div className="sala-localizacao-texto">
-                Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}
-              </div>
-              <div className="sala-localizacao-texto">
-                Capacidade: {sala.capacidade || '?'} pessoas
-              </div>
-
-              {sala.equipamentos && (
-                <div className="sala-equipamentos-lista">
-                  <div className="equipamentos-titulo">EQUIPAMENTOS</div>
-                  <ul>
-                    {sala.equipamentos.split(',').map((item, idx) => (
-                      <li key={idx}>
-                        <span className="quadrado-roxo"></span>
-                        {item.trim()}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {sala.em_manutencao && <div className="badge-manutencao">🔧 Em manutenção</div>}
+      return (
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h1>Início</h1>
+              <p className="subtitulo"><span style={{ fontWeight: 700, color: '#2c3e50' }}>Mapa das Salas</span><br />Clique em uma sala para solicitar reserva.</p>
             </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
+            <button
+              className="btn-padrao btn-primary"
+              onClick={() => {
+                setReservaData({
+                  sala_id: '',
+                  data: '',
+                  hora_inicio: '',
+                  hora_fim: '',
+                  titulo: '',
+                });
+                setModalReservaAberto(true);
+              }}
+            >
+              + Solicitar reserva
+            </button>
+          </div>
+          <div className="salas-grid-mapa">
+            {salasOrdenadas.map((sala) => (
+              <div
+                key={sala.id}
+                className={`sala-card-mapa ${selectedSalaId === sala.id ? 'selecionada' : ''} ${sala.em_manutencao ? 'manutencao' : ''}`}
+                onClick={() => handleSalaClick(sala)}
+              >
+                <div className="sala-nome-destaque">{sala.nome}</div>
+                <div className="sala-localizacao-texto">
+                  Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}
+                </div>
+                <div className="sala-localizacao-texto">
+                  Capacidade: {sala.capacidade || '?'} pessoas
+                </div>
+                {sala.equipamentos && (
+                  <div className="sala-equipamentos-lista">
+                    <div className="equipamentos-titulo">EQUIPAMENTOS</div>
+                    <ul>
+                      {sala.equipamentos.split(',').map((item, idx) => (
+                        <li key={idx}>
+                          <span className="quadrado-roxo"></span>
+                          {item.trim()}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {sala.em_manutencao && <div className="badge-manutencao">Em manutenção</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
 
-    // MINHAS RESERVAS (com abas e horário Brasília)
+    // --- MINHAS RESERVAS ---
     if (activeView === 'minhas-reservas') {
       const agora = new Date();
       const hojeLocal = agora.toLocaleDateString('en-CA');
@@ -792,7 +896,6 @@ function App() {
       });
 
       const reservasPendentes = solicitacoesPendentes;
-
       const reservasHistorico = reservas.filter(r => {
         if (r.status === 'rejeitada' || r.status === 'cancelada' || r.status === 'expirada') return true;
         if (r.status !== 'aprovada') return false;
@@ -832,14 +935,14 @@ function App() {
             {!isHistorico && (
               <div className="reserva-actions-minhas">
                 {(currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente' || reserva.email === currentUser?.email) &&
-                  <button className="edit-reserva-btn" onClick={() => handleEditarReserva(reserva)}>Editar solicitação</button>}
-                {reserva.grupo_id && <button className="cancel-group-btn" onClick={() => handleCancelarGrupo(reserva.grupo_id, true)}>Cancelar série</button>}
-                <button className="cancel-reserva-btn" onClick={() => handleCancelarReserva(reserva.id, reserva.titulo)}>Cancelar solicitação</button>
+                  <button className="btn-padrao btn-edit" onClick={() => handleEditarReserva(reserva)}>Editar solicitação</button>}
+                {reserva.grupo_id && <button className="btn-padrao btn-warning" onClick={() => handleCancelarGrupo(reserva.grupo_id, true, reserva.email, reserva.titulo)}>Cancelar série</button>}
+                <button className="btn-padrao btn-danger" onClick={() => handleCancelarReserva(reserva.id, reserva.titulo, reserva.email)}>Cancelar solicitação</button>
               </div>
             )}
             {isHistorico && (
               <div className="reserva-actions-minhas">
-                <button className="detalhes-reserva-btn" onClick={() => alert(`Detalhes da reserva:\nTítulo: ${reserva.titulo}\nSala: ${reserva.sala_nome}\nData: ${dataFormatada}\nHorário: ${reserva.hora_inicio} - ${reserva.hora_fim}`)}>Ver detalhes</button>
+                <button className="btn-padrao btn-secondary" onClick={() => alert(`Detalhes da reserva:\nTítulo: ${reserva.titulo}\nSala: ${reserva.sala_nome}\nData: ${dataFormatada}\nHorário: ${reserva.hora_inicio} - ${reserva.hora_fim}`)}>Ver detalhes</button>
               </div>
             )}
           </div>
@@ -847,28 +950,15 @@ function App() {
       };
 
       return (
-        <div className="gs-container">
-          <div className="gs-header">
-            <div>
-              <h2 className="gs-titulo">Minhas reservas</h2>
-              <p className="gs-subtitulo">Acompanhe o status das suas solicitações de reserva.</p>
-            </div>
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao">
+            <h1>Minhas reservas</h1>
+            <p className="subtitulo">Acompanhe o status das suas solicitações de reserva.</p>
           </div>
-          <div className="modo-consulta" style={{ marginBottom: '1.5rem' }}>
-            <label className={`modo-radio ${tabReservas === 'ativas' ? 'active' : ''}`}>
-              <input type="radio" name="tabReservas" value="ativas" checked={tabReservas === 'ativas'} onChange={() => setTabReservas('ativas')} />
-              <span>Ativas ({reservasAtivas.length})</span>
-            </label>
-            {isExterno && (
-              <label className={`modo-radio ${tabReservas === 'pendentes' ? 'active' : ''}`}>
-                <input type="radio" name="tabReservas" value="pendentes" checked={tabReservas === 'pendentes'} onChange={() => setTabReservas('pendentes')} />
-                <span>Pendentes ({reservasPendentes.length})</span>
-              </label>
-            )}
-            <label className={`modo-radio ${tabReservas === 'historico' ? 'active' : ''}`}>
-              <input type="radio" name="tabReservas" value="historico" checked={tabReservas === 'historico'} onChange={() => setTabReservas('historico')} />
-              <span>Histórico ({reservasHistorico.length})</span>
-            </label>
+          <div className="cd-tabs" style={{ marginBottom: '1.5rem' }}>
+            <button className={`cd-tab ${tabReservas === 'ativas' ? 'cd-tab-ativo' : ''}`} onClick={() => setTabReservas('ativas')}>Ativas ({reservasAtivas.length})</button>
+            {isExterno && <button className={`cd-tab ${tabReservas === 'pendentes' ? 'cd-tab-ativo' : ''}`} onClick={() => setTabReservas('pendentes')}>Pendentes ({reservasPendentes.length})</button>}
+            <button className={`cd-tab ${tabReservas === 'historico' ? 'cd-tab-ativo' : ''}`} onClick={() => setTabReservas('historico')}>Histórico ({reservasHistorico.length})</button>
           </div>
           <div className="reservas-lista">
             {tabReservas === 'ativas' && (reservasAtivas.length === 0 ? <p className="sem-reservas">Nenhuma reserva ativa.</p> : reservasAtivas.map(r => renderReservaCard(r, false)))}
@@ -879,7 +969,7 @@ function App() {
       );
     }
 
-    // GERENCIAR RESERVAS (ADMIN/GERENTE) – com filtros
+    // --- GERENCIAR RESERVAS (ADMIN) ---
     if (activeView === 'admin-reservas' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       const statusOptions = [
         { value: 'todas', label: 'Todas' },
@@ -926,19 +1016,15 @@ function App() {
       });
 
       const recorrentesNoFiltro = reservasFiltradas.filter(r => r.grupo_id).length;
+      const salasOptions = [{ value: 'todas', label: 'Todas' }, ...salas.map(s => ({ value: s.id.toString(), label: s.nome }))];
 
       const exportarCSV = () => {
         const headers = ['Usuário', 'E-mail', 'Sala', 'Data', 'Horário', 'Status', 'Título', 'Descrição', 'Grupo ID'];
         const rows = reservasFiltradas.map(r => [
-          r.responsavel,
-          r.email,
-          r.sala_nome,
-          formatarData(r.data),
-          `${r.hora_inicio} - ${r.hora_fim}`,
+          r.responsavel, r.email, r.sala_nome,
+          formatarData(r.data), `${r.hora_inicio} - ${r.hora_fim}`,
           r.status === 'aprovada' ? 'Confirmada' : (r.status === 'pendente' ? 'Pendente' : (r.status === 'rejeitada' ? 'Rejeitada' : 'Cancelada')),
-          r.titulo,
-          r.descricao || '',
-          r.grupo_id || '',
+          r.titulo, r.descricao || '', r.grupo_id || '',
         ]);
         const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
         const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -949,18 +1035,14 @@ function App() {
         URL.revokeObjectURL(link.href);
       };
 
-      const salasOptions = [{ value: 'todas', label: 'Todas' }, ...salas.map(s => ({ value: s.id.toString(), label: s.nome }))];
-
       return (
-        <div className="gs-container">
-          <div className="gs-header">
-            <div>
-              <h2 className="gs-titulo">Gerenciar Reservas</h2>
-              <p className="gs-subtitulo">Visualize e gerencie todas as reservas do sistema.</p>
-            </div>
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao">
+            <h1>Gerenciar Reservas</h1>
+            <p className="subtitulo">Visualize e gerencie todas as reservas do sistema.</p>
           </div>
           <div className="gs-filtros">
-            <input className="gs-filtros-busca" type="text" placeholder="⌕ Buscar por usuário ou sala..." value={filtroTexto} onChange={e => setFiltroTexto(e.target.value)} />
+            <input className="gs-filtros-busca" type="text" placeholder="Buscar por usuário ou sala..." value={filtroTexto} onChange={e => setFiltroTexto(e.target.value)} />
             <select className="filtros-select" value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
               {statusOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
@@ -970,13 +1052,8 @@ function App() {
             <select className="filtros-select" value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)}>
               {periodoOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
-            <button className="gs-btn-exportar" onClick={exportarCSV}>Exportar CSV</button>
+            <button className="btn-padrao btn-secondary" onClick={exportarCSV}>Exportar CSV</button>
           </div>
-          <div className="gs-stats-bar">
-            <span className="gs-stats-total">Mostrando {reservasFiltradas.length}</span>
-            <span className="gs-stats-detail">de {allReservas.length} reservas{recorrentesNoFiltro > 0 ? ` · ${recorrentesNoFiltro} recorrente(s) no período` : ''}</span>
-          </div>
-
           <div className="gu-table-header">
             <span style={{flex:'0 0 230px'}}>USUÁRIO</span>
             <span style={{flex:2}}>SALA</span>
@@ -1015,9 +1092,9 @@ function App() {
                     <span className="gu-status-badge" style={{background:statusBg}}>{statusTxt}</span>
                   </div>
                   <div style={{flex:'0 0 170px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
-                    <button className="gu-btn-papel" onClick={() => handleEditarReserva(r)}>Editar</button>
-                    {r.grupo_id && <button className="gu-btn-sec" onClick={() => handleCancelarGrupo(r.grupo_id, false)}>Série</button>}
-                    <button className="gu-btn-sec" onClick={() => handleCancelarReserva(r.id, r.titulo)}>Cancelar</button>
+                    <button className="btn-padrao btn-edit" onClick={() => handleEditarReserva(r)}>Editar</button>
+                    {r.grupo_id && <button className="btn-padrao btn-warning" onClick={() => handleCancelarGrupo(r.grupo_id, false, r.email, r.titulo)}>Cancelar Série de Reservas</button>}
+                    <button className="btn-padrao btn-danger" onClick={() => handleCancelarReserva(r.id, r.titulo, r.email)}>Cancelar</button>
                   </div>
                 </div>
               );
@@ -1027,18 +1104,27 @@ function App() {
       );
     }
 
-    // RELATÓRIOS (admin/gerente)
+    const buscarReserva = async (id) => {
+  if (reservasDetalhe[id]) return;
+  try {
+    const res = await fetch(`http://localhost:5000/api/reservas/${id}`, { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json();
+      setReservasDetalhe(prev => ({ ...prev, [id]: data }));
+    }
+  } catch (err) {
+    console.error('Erro ao buscar reserva', err);
+  }
+};
+
+    // --- RELATÓRIOS ---
     if (activeView === 'relatorios' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       return (
-        <div className="gs-container">
-          <div className="gs-header">
-            <div>
-              <h2 className="gs-titulo">Relatórios</h2>
-              <p className="gs-subtitulo">Estatísticas de reservas por período — total, horas, média diária e usuários.</p>
-            </div>
-            <button className="gs-btn-novo" onClick={exportarRelatorioCSV}>Exportar CSV</button>
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao">
+            <h1>Relatórios</h1>
+            <p className="subtitulo">Estatísticas de reservas por período — total, horas, média diária e usuários.</p>
           </div>
-
           <div className="gs-filtros" style={{alignItems:'center'}}>
             <span style={{fontSize:'13px',fontWeight:700,color:'#4B3A6B'}}>Período:</span>
             <select className="filtros-select" value={periodoRelatorio} onChange={e => {
@@ -1056,18 +1142,17 @@ function App() {
                 <input className="modal-input" type="date" value={dataInicioCustom} onChange={e => setDataInicioCustom(e.target.value)} style={{width:'auto'}} />
                 <span style={{color:'#6B5F7A'}}>a</span>
                 <input className="modal-input" type="date" value={dataFimCustom} onChange={e => setDataFimCustom(e.target.value)} style={{width:'auto'}} />
-                <button className="gs-btn-novo" onClick={aplicarPeriodoCustom}>Aplicar</button>
+                <button className="btn-padrao btn-primary" onClick={aplicarPeriodoCustom}>Aplicar</button>
               </>
             )}
+            <button className="btn-padrao btn-secondary" onClick={exportarRelatorioCSV} style={{marginLeft:'auto'}}>Exportar CSV</button>
           </div>
-
           <div className="relatorio-metricas">
             <div className="metrica-card"><h3>Total reservas</h3><p>{metricas.totalReservas}</p><small>Todos os status no período.</small></div>
             <div className="metrica-card"><h3>Horas reservadas</h3><p>{metricas.totalHoras}</p><small>Reservas confirmadas.</small></div>
             <div className="metrica-card"><h3>Média diária</h3><p>{metricas.mediaDiaria}</p><small>Confirmadas por dia.</small></div>
             <div className="metrica-card"><h3>Usuários distintos</h3><p>{metricas.usuariosDistintos}</p><small>Usuários que reservaram.</small></div>
           </div>
-
           <div style={{marginTop:'24px'}}>
             <div className="gs-stats-bar" style={{marginBottom:'12px'}}>
               <span className="gs-stats-total">Salas mais reservadas</span>
@@ -1085,7 +1170,7 @@ function App() {
       );
     }
 
-    // CONSULTAR DISPONIBILIDADE
+    // --- CONSULTAR DISPONIBILIDADE ---
     if (activeView === 'consultar-disponibilidade') {
       const salaSelecionadaObj = salas.find(s => Number(s.id) === Number(form.sala_id));
       const dateObj = form.data ? new Date(form.data + 'T12:00:00') : null;
@@ -1093,19 +1178,15 @@ function App() {
       const mesAbrev = dateObj ? dateObj.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') : null;
       const diaSemana = dateObj ? dateObj.toLocaleDateString('pt-BR', { weekday: 'long' }).toUpperCase() : null;
       return (
-        <div className="gs-container">
-          <div className="gs-header">
-            <div>
-              <h2 className="gs-titulo">Consultar disponibilidade</h2>
-              <p className="gs-subtitulo">Clique em um horário disponível para solicitar reserva · blocos de 30 min.</p>
-            </div>
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao">
+            <h1>Consultar disponibilidade</h1>
+            <p className="subtitulo">Clique em um horário disponível para solicitar reserva · blocos de 30 min.</p>
           </div>
-
           <div className="cd-tabs">
             <button className={`cd-tab ${modoDisponibilidade === 'sala' ? 'cd-tab-ativo' : ''}`} onClick={() => setModoDisponibilidade('sala')}>Por sala</button>
             <button className={`cd-tab ${modoDisponibilidade === 'data_hora' ? 'cd-tab-ativo' : ''}`} onClick={() => setModoDisponibilidade('data_hora')}>Por data e hora</button>
           </div>
-
           {modoDisponibilidade === 'sala' && (
             <>
               <div className="cd-filtro-card">
@@ -1120,9 +1201,8 @@ function App() {
                   <label className="cd-filtro-label">DATA</label>
                   <input className="cd-filtro-input" type="date" value={form.data} onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))} />
                 </div>
-                <button className="cd-filtro-btn" onClick={handleDisponibilidade}>Ver horários</button>
+                <button className="btn-padrao btn-primary" onClick={handleDisponibilidade}>Ver horários</button>
               </div>
-
               {disponibilidade && (
                 <div className="cd-resultado">
                   <div className="cd-sala-info">
@@ -1178,7 +1258,7 @@ function App() {
                     <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-manut"></span>Indisponível</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <button className="solicitar-reserva-btn" onClick={() => {
+                    <button className="btn-padrao btn-primary" onClick={() => {
                       if (selectedStart && selectedEnd) {
                         setReservaData({ sala_id: form.sala_id, data: form.data, hora_inicio: selectedStart.hora_inicio, hora_fim: selectedEnd.hora_fim, titulo: '' });
                         setModalReservaAberto(true);
@@ -1193,7 +1273,6 @@ function App() {
               )}
             </>
           )}
-
           {modoDisponibilidade === 'data_hora' && (
             <>
               <div className="cd-filtro-card">
@@ -1213,9 +1292,8 @@ function App() {
                     {todosFins.filter(f => timeToMinutes(f) > timeToMinutes(horaConsulta)).map(h => <option key={h}>{h}</option>)}
                   </select>
                 </div>
-                <button className="cd-filtro-btn" onClick={handleConsultarDisponibilidadeDataHora}>Buscar salas</button>
+                <button className="btn-padrao btn-primary" onClick={handleConsultarDisponibilidadeDataHora}>Buscar salas</button>
               </div>
-
               {disponibilidadeDataHora && (
                 <div className="cd-resultado">
                   <p className="cd-resultado-titulo">Salas disponíveis em {formatarData(dataConsulta)} das {horaConsulta} às {horaFimConsulta}</p>
@@ -1249,12 +1327,67 @@ function App() {
       );
     }
 
-    // GERENCIAR SALAS (admin)
+    // --- GERENCIAR SALAS (admin) ---
     if (activeView === 'gerenciar-salas' && currentUser?.cargo === 'admin') {
       const totalOp = salas.filter(s => !s.em_manutencao).length;
       const totalMn = salas.filter(s => s.em_manutencao).length;
       return (
-        <div className="gs-container">
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao">
+            <h1>Gerenciar salas</h1>
+            <p className="subtitulo">Cadastre, edite ou desative salas do Centro de Biotecnologia.</p>
+          </div>
+          <div style={{ marginBottom: '1rem', textAlign: 'right' }}>
+            <button className="btn-padrao btn-primary" onClick={() => { handleCancelarEdicaoSala(); setFormSalaAberto(true); }}>+ Cadastrar nova sala</button>
+          </div>
+          <div className="gs-stats-bar">
+            <span className="gs-stats-total">{salas.length} salas cadastradas</span>
+            <span className="gs-stats-detail">· {totalOp} operacionais · {totalMn} em manutenção</span>
+          </div>
+          <div className="gs-grid">
+            {salas.map(sala => {
+              const manutAtiva = manutencoes.find(m => m.sala_id === sala.id);
+              return (
+                <div key={sala.id} className={`gs-card${sala.em_manutencao ? ' manut' : ''}`}>
+                  <div className="gs-card-faixa" />
+                  <div className="gs-card-body">
+                    <div className="gs-card-topo">
+                      <span className="gs-sala-nome">{sala.nome}</span>
+                      <span className={`gs-badge${sala.em_manutencao ? ' manut' : ' ok'}`}>
+                        {sala.em_manutencao ? 'EM MANUTENÇÃO' : 'OPERACIONAL'}
+                      </span>
+                    </div>
+                    <div className="gs-sala-info">
+                      {sala.andar ? sala.andar.toUpperCase() : 'ANDAR NÃO INFORMADO'} · CAPACIDADE: {sala.capacidade || '?'} PESSOAS
+                    </div>
+                    {sala.equipamentos && (
+                      <div className="gs-equipamentos">
+                        <div className="gs-equip-titulo">EQUIPAMENTOS</div>
+                        <div>{sala.equipamentos.split(',').map(e => e.trim()).join(' · ')}</div>
+                      </div>
+                    )}
+                    {sala.em_manutencao && manutAtiva && (
+                      <div className="gs-aviso-manut">
+                        Manutenção: {formatarData(manutAtiva.data_inicio)} a {formatarData(manutAtiva.data_fim)} · {manutAtiva.motivo || 'não pode ser reservada'}
+                      </div>
+                    )}
+                    <div className="gs-card-acoes">
+                      <button className="btn-padrao btn-edit" onClick={() => { handleEditarSala(sala); setFormSalaAberto(true); }}>Editar</button>
+                      {sala.em_manutencao ? (
+                        <button className="btn-padrao btn-success" onClick={() => handleLiberarSala(sala.id)}>Liberar para uso</button>
+                      ) : (
+                        <button className="btn-padrao btn-warning" onClick={() => { setNovaManutencao(prev => ({ ...prev, sala_id: sala.id })); setFormManutAberto(true); }}>Tornar indisponível</button>
+                      )}
+                      <button className="btn-padrao btn-danger" onClick={() => handleDeletarSala(sala.id, sala.nome)}>Remover</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {salas.length === 0 && <p className="admin-req-vazio">Nenhuma sala cadastrada.</p>}
+
+          {/* Modais */}
           {(formSalaAberto || editandoSala) && (
             <div className="modal-overlay" onClick={() => { setFormSalaAberto(false); handleCancelarEdicaoSala(); }}>
               <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -1274,15 +1407,14 @@ function App() {
                 <label className="modal-label">Capacidade<input className="modal-input" name="capacidade" type="number" placeholder="Nº de pessoas" value={novaSala.capacidade} onChange={handleChangeSala} /></label>
                 <label className="modal-label">Equipamentos<textarea className="modal-input" name="equipamentos" rows="2" placeholder="Separados por vírgula" value={novaSala.equipamentos} onChange={handleChangeSala} /></label>
                 <div className="modal-buttons">
-                  <button className="secondary" onClick={() => { setFormSalaAberto(false); handleCancelarEdicaoSala(); }}>Cancelar</button>
-                  <button onClick={async () => { editandoSala ? await handleUpdateSala() : await handleAdicionarSala(); setFormSalaAberto(false); }}>
+                  <button className="btn-padrao btn-secondary" onClick={() => { setFormSalaAberto(false); handleCancelarEdicaoSala(); }}>Cancelar</button>
+                  <button className="btn-padrao btn-primary" onClick={async () => { editandoSala ? await handleUpdateSala() : await handleAdicionarSala(); setFormSalaAberto(false); }}>
                     {editandoSala ? 'Salvar alterações' : 'Cadastrar'}
                   </button>
                 </div>
               </div>
             </div>
           )}
-
           {formManutAberto && (
             <div className="modal-overlay" onClick={() => setFormManutAberto(false)}>
               <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -1314,79 +1446,86 @@ function App() {
                 </div>
                 <label className="modal-label">Motivo<input className="modal-input" name="motivo" placeholder="Ex.: reforma, manutenção elétrica" value={novaManutencao.motivo} onChange={handleChangeManutencao} /></label>
                 <div className="modal-buttons">
-                  <button className="secondary" onClick={() => setFormManutAberto(false)}>Cancelar</button>
-                  <button onClick={async () => { await handleCriarManutencao(); setFormManutAberto(false); }}>Bloquear</button>
+                  <button className="btn-padrao btn-secondary" onClick={() => setFormManutAberto(false)}>Cancelar</button>
+                  <button className="btn-padrao btn-primary" onClick={async () => { await handleCriarManutencao(); setFormManutAberto(false); }}>Bloquear</button>
                 </div>
               </div>
             </div>
           )}
-
-          <div className="gs-header">
-            <div>
-              <h2 className="gs-titulo">Gerenciar salas</h2>
-              <p className="gs-subtitulo">Cadastre, edite ou desative salas do Centro de Biotecnologia.</p>
-            </div>
-            <button className="gs-btn-novo" onClick={() => { handleCancelarEdicaoSala(); setFormSalaAberto(true); }}>+ Cadastrar nova sala</button>
-          </div>
-
-          <div className="gs-stats-bar">
-            <span className="gs-stats-total">{salas.length} salas cadastradas</span>
-            <span className="gs-stats-detail">· {totalOp} operacionais · {totalMn} em manutenção</span>
-          </div>
-
-          <div className="gs-grid">
-            {salas.map(sala => {
-              const manutAtiva = manutencoes.find(m => m.sala_id === sala.id);
-              return (
-                <div key={sala.id} className={`gs-card${sala.em_manutencao ? ' manut' : ''}`}>
-                  <div className="gs-card-faixa" />
-                  <div className="gs-card-body">
-                    <div className="gs-card-topo">
-                      <span className="gs-sala-nome">{sala.nome}</span>
-                      <span className={`gs-badge${sala.em_manutencao ? ' manut' : ' ok'}`}>
-                        {sala.em_manutencao ? 'EM MANUTENÇÃO' : 'OPERACIONAL'}
-                      </span>
-                    </div>
-                    <div className="gs-sala-info">
-                      {sala.andar ? sala.andar.toUpperCase() : 'ANDAR NÃO INFORMADO'} · CAPACIDADE: {sala.capacidade || '?'} PESSOAS
-                    </div>
-                    {sala.equipamentos && (
-                      <div className="gs-equipamentos">
-                        <div className="gs-equip-titulo">EQUIPAMENTOS</div>
-                        <div>{sala.equipamentos.split(',').map(e => e.trim()).join(' · ')}</div>
-                      </div>
-                    )}
-                    {sala.em_manutencao && manutAtiva && (
-                      <div className="gs-aviso-manut">
-                        ⚠ Manutenção: {formatarData(manutAtiva.data_inicio)} a {formatarData(manutAtiva.data_fim)} · {manutAtiva.motivo || 'não pode ser reservada'}
-                      </div>
-                    )}
-                    <div className="gs-card-acoes">
-                      <button className="gs-btn-editar" onClick={() => { handleEditarSala(sala); setFormSalaAberto(true); }}>Editar</button>
-                      {sala.em_manutencao ? (
-                        <button className="gs-btn-liberar" onClick={() => handleLiberarSala(sala.id)}>Liberar para uso</button>
-                      ) : (
-                        <button className="gs-btn-manut" onClick={() => { setNovaManutencao(prev => ({ ...prev, sala_id: sala.id })); setFormManutAberto(true); }}>Tornar indisponível</button>
-                      )}
-                      <button className="gs-btn-remover" onClick={() => handleDeletarSala(sala.id, sala.nome)}>Remover</button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {salas.length === 0 && <p className="admin-req-vazio">Nenhuma sala cadastrada.</p>}
         </div>
       );
     }
 
-    // GERENCIAR USUÁRIOS (admin)
+    // --- GERENCIAR USUÁRIOS (admin) ---
     if (activeView === 'gerenciar-usuarios' && currentUser?.cargo === 'admin') {
       const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', usuario_comum: 'Usuário CBiot', usuario_externo: 'Usuário Externo' };
       const cargoBg = { admin: '#844BD4', gerente: '#3498DB', usuario_comum: '#ECE6F7', usuario_externo: '#ECE6F7' };
       const cargoFg = { admin: '#fff', gerente: '#fff', usuario_comum: '#6B5F7A', usuario_externo: '#6B5F7A' };
       return (
-        <div className="gs-container">
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao">
+            <h1>Gerenciar usuários</h1>
+            <p className="subtitulo">Gerencie os acessos e papéis dos usuários do sistema.</p>
+          </div>
+          <div className="gs-stats-bar">
+            <span className="gs-stats-total">{users.length} usuários cadastrados</span>
+            <span className="gs-stats-detail">
+              · {users.filter(u=>u.cargo==='admin').length} administradores
+              · {users.filter(u=>u.cargo==='gerente').length} gerentes
+              · {users.filter(u=>u.cargo==='usuario_comum').length} usuários CBiot
+            </span>
+          </div>
+          <div className="gu-table-header">
+            <span style={{flex:3}}>USUÁRIO</span>
+            <span style={{flex:3}}>E-MAIL</span>
+            <span style={{flex:2}}>PAPEL</span>
+            <span style={{flex:1}}>STATUS</span>
+            <span style={{flex:'0 0 220px'}}>AÇÕES</span>
+          </div>
+          <div className="gu-rows">
+            {users.map(u => (
+              <div key={u.id} className="gu-row">
+                <div style={{flex:3,display:'flex',alignItems:'center',gap:'10px'}}>
+                  <div className="gu-avatar">{u.nome.substring(0,2).toUpperCase()}</div>
+                  <div>
+                    <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'14px',lineHeight:1.3}}>{u.nome}</div>
+                    {u.id === currentUser.id && <span className="gu-voce">você</span>}
+                  </div>
+                </div>
+                <span style={{flex:3,color:'#6B5F7A',fontSize:'13px'}}>{u.email}</span>
+                <span style={{flex:2}}>
+                  <span className="gu-cargo-badge" style={{background:cargoBg[u.cargo]||'#ECE6F7',color:cargoFg[u.cargo]||'#6B5F7A'}}>
+                    {(cargoLabel[u.cargo]||u.cargo).toUpperCase()}
+                  </span>
+                </span>
+                <span style={{flex:1}}>
+                  <span className="gu-status-badge" style={{background:u.status==='aprovado'?'#2ECC71':u.status==='pendente'?'#F39C12':'#95A5A6'}}>
+                    {u.status==='aprovado'?'ATIVO':u.status==='pendente'?'PENDENTE':'INATIVO'}
+                  </span>
+                </span>
+                <div style={{flex:'0 0 220px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
+                  {u.id !== currentUser.id && (
+                    <button className="btn-padrao btn-primary" onClick={() => { setAlterandoPapelUser(u); setNovoPapelSelecionado(u.cargo); }}>Alterar papel</button>
+                  )}
+                  {u.status === 'pendente' && (
+                    <>
+                      <button className="btn-padrao btn-success" onClick={() => handleApproveUser(u.id, u.cargo)}>Aprovar</button>
+                      <button className="btn-padrao btn-danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Rejeitar</button>
+                    </>
+                  )}
+                  {u.status === 'aprovado' && u.id !== currentUser.id && (
+                    <button className="btn-padrao btn-danger" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Desativar</button>
+                  )}
+                  {u.status === 'rejeitado' && (
+                    <button className="btn-padrao btn-success" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>Reativar</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {users.length === 0 && <p className="admin-req-vazio">Nenhum usuário cadastrado.</p>}
+
+          {/* Modal alterar papel */}
           {alterandoPapelUser && (
             <div className="modal-overlay" onClick={() => setAlterandoPapelUser(null)}>
               <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -1419,231 +1558,208 @@ function App() {
                   </div>
                 </div>
                 <div className="modal-buttons">
-                  <button className="secondary" onClick={() => setAlterandoPapelUser(null)}>Cancelar</button>
-                  <button onClick={async () => { await handleUpdateUser(alterandoPapelUser.id, { cargo: novoPapelSelecionado }); setAlterandoPapelUser(null); }}>Confirmar alteração</button>
+                  <button className="btn-padrao btn-secondary" onClick={() => setAlterandoPapelUser(null)}>Cancelar</button>
+                  <button className="btn-padrao btn-primary" onClick={async () => { await handleUpdateUser(alterandoPapelUser.id, { cargo: novoPapelSelecionado }); setAlterandoPapelUser(null); }}>Confirmar alteração</button>
                 </div>
               </div>
             </div>
           )}
-
-          <div className="gs-header">
-            <div>
-              <h2 className="gs-titulo">Gerenciar usuários</h2>
-              <p className="gs-subtitulo">Gerencie os acessos e papéis dos usuários do sistema.</p>
-            </div>
-          </div>
-
-          <div className="gs-stats-bar">
-            <span className="gs-stats-total">{users.length} usuários cadastrados</span>
-            <span className="gs-stats-detail">
-              · {users.filter(u=>u.cargo==='admin').length} administradores
-              · {users.filter(u=>u.cargo==='gerente').length} gerentes
-              · {users.filter(u=>u.cargo==='usuario_comum').length} usuários CBiot
-            </span>
-          </div>
-
-          <div className="gu-table-header">
-            <span style={{flex:3}}>USUÁRIO</span>
-            <span style={{flex:3}}>E-MAIL</span>
-            <span style={{flex:2}}>PAPEL</span>
-            <span style={{flex:1}}>STATUS</span>
-            <span style={{flex:'0 0 220px'}}>AÇÕES</span>
-          </div>
-
-          <div className="gu-rows">
-            {users.map(u => (
-              <div key={u.id} className="gu-row">
-                <div style={{flex:3,display:'flex',alignItems:'center',gap:'10px'}}>
-                  <div className="gu-avatar">{u.nome.substring(0,2).toUpperCase()}</div>
-                  <div>
-                    <div style={{fontWeight:700,color:'#1A0F2B',fontSize:'14px',lineHeight:1.3}}>{u.nome}</div>
-                    {u.id === currentUser.id && <span className="gu-voce">você</span>}
-                  </div>
-                </div>
-                <span style={{flex:3,color:'#6B5F7A',fontSize:'13px'}}>{u.email}</span>
-                <span style={{flex:2}}>
-                  <span className="gu-cargo-badge" style={{background:cargoBg[u.cargo]||'#ECE6F7',color:cargoFg[u.cargo]||'#6B5F7A'}}>
-                    {(cargoLabel[u.cargo]||u.cargo).toUpperCase()}
-                  </span>
-                </span>
-                <span style={{flex:1}}>
-                  <span className="gu-status-badge" style={{background:u.status==='aprovado'?'#2ECC71':u.status==='pendente'?'#F39C12':'#95A5A6'}}>
-                    {u.status==='aprovado'?'ATIVO':u.status==='pendente'?'PENDENTE':'INATIVO'}
-                  </span>
-                </span>
-                <div style={{flex:'0 0 220px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}}>
-                  {u.id !== currentUser.id && (
-                    <button className="gu-btn-papel" onClick={() => { setAlterandoPapelUser(u); setNovoPapelSelecionado(u.cargo); }}>Alterar papel</button>
-                  )}
-                  {u.status === 'pendente' && (
-                    <>
-                      <button className="gu-btn-aprovar" onClick={() => handleApproveUser(u.id, u.cargo)}>Aprovar</button>
-                      <button className="gu-btn-sec" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Rejeitar</button>
-                    </>
-                  )}
-                  {u.status === 'aprovado' && u.id !== currentUser.id && (
-                    <button className="gu-btn-sec" onClick={() => handleUpdateUser(u.id, { status: 'rejeitado' })}>Desativar</button>
-                  )}
-                  {u.status === 'rejeitado' && (
-                    <button className="gu-btn-sec" onClick={() => handleUpdateUser(u.id, { status: 'aprovado' })}>Reativar</button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          {users.length === 0 && <p className="admin-req-vazio">Nenhum usuário cadastrado.</p>}
         </div>
       );
     }
 
+    // --- SOLICITAÇÕES DE RESERVA (admin/gerente) ---
     if (activeView === 'solicitacoes-reserva' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
+      return (
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao">
+            <h1>{tabSolicitacoes === 'pendentes' ? 'Solicitações pendentes' : 'Histórico de solicitações'}</h1>
+            <p className="subtitulo">
+              {tabSolicitacoes === 'pendentes'
+                ? `${solicitacoes.length} solicitações de reserva aguardando análise.`
+                : 'Visualizando o histórico de reservas processadas.'}
+            </p>
+          </div>
+          <div className="admin-req-abas" style={{ marginBottom: '1rem' }}>
+            <button className={`req-aba-btn ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`} onClick={() => setTabSolicitacoes('pendentes')}>Pendentes</button>
+            <button className={`req-aba-btn ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`} onClick={() => setTabSolicitacoes('rejeitadas')}>Histórico</button>
+          </div>
+          <div className="admin-req-lista">
+            {tabSolicitacoes === 'pendentes' && (
+              <>
+                {solicitacoes.length === 0 && <p className="admin-req-vazio">Nenhuma solicitação pendente.</p>}
+                {solicitacoes.map((s) => {
+                  const sala = salas.find(sl => sl.id === s.sala_id);
+                  return (
+                    <div className="req-card" key={s.id}>
+                      <div className="req-card-faixa"></div>
+                      <div className="req-card-topo">
+                        <div className="req-user-info">
+                          <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
+                          <div className="req-user-texto">
+                            <strong>{s.responsavel}</strong>
+                            <span>{s.email} · {formatarData(s.data)}</span>
+                          </div>
+                        </div>
+                        <div className="req-tags">
+                          {s.grupo_id && <span className="req-tag-azul">RECORRENTE</span>}
+                          <span className="req-tag-laranja">PENDENTE</span>
+                        </div>
+                      </div>
+                      <div className="req-card-miolo">
+                        <div className="req-coluna-sala">
+                          <span className="req-coluna-titulo">SALA</span>
+                          <strong className="req-sala-nome">{s.sala_nome}</strong>
+                          <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
+                          {sala && <span className="req-sala-bloco">Bloco {sala.bloco || '?'} · Andar {sala.andar || '?'}</span>}
+                        </div>
+                        <div className="req-coluna-finalidade">
+                          <span className="req-coluna-titulo">FINALIDADE</span>
+                          <p>{s.titulo}</p>
+                          {s.descricao && <p className="req-descricao-extra">{s.descricao}</p>}
+                        </div>
+                      </div>
+                      <div className="req-card-acoes">
+                        <button className="btn-padrao btn-danger" onClick={() => handleRejeitarSolicitacao(s.id, s.email, s.titulo)}>Rejeitar</button>
+                        <button className="btn-padrao btn-success" onClick={() => handleAprovarSolicitacao(s.id, s.email, s.titulo)}>Aprovar solicitação</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+            {tabSolicitacoes === 'rejeitadas' && (
+              <>
+                {rejeitadas.length === 0 && <p className="admin-req-vazio">Nenhum histórico encontrado.</p>}
+                {rejeitadas.map((s) => {
+                  const sala = salas.find(sl => sl.id === s.sala_id);
+                  return (
+                    <div className="req-card rejeitado" key={s.id}>
+                      <div className="req-card-faixa vermelha"></div>
+                      <div className="req-card-topo">
+                        <div className="req-user-info">
+                          <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
+                          <div className="req-user-texto">
+                            <strong>{s.responsavel}</strong>
+                            <span>{s.email}</span>
+                          </div>
+                        </div>
+                        <div className="req-tags">
+                          <span className="req-tag-vermelha">REJEITADA</span>
+                        </div>
+                      </div>
+                      <div className="req-card-miolo">
+                        <div className="req-coluna-sala">
+                          <span className="req-coluna-titulo">SALA</span>
+                          <strong className="req-sala-nome">{s.sala_nome}</strong>
+                          <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
+                        </div>
+                        <div className="req-coluna-finalidade">
+                          <span className="req-coluna-titulo">MOTIVO / FINALIDADE</span>
+                          <p>{s.titulo}</p>
+                        </div>
+                      </div>
+                      <div className="req-card-acoes historico-auditoria">
+                        <span>Processado por <strong>{s.aprovador}</strong> em {new Date(s.data_aprovacao).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // --- NOTIFICAÇÕES ---
+ 
+if (activeView === 'notificacoes') {
+  const naoLidas = notificacoes.filter(n => !n.lida);
+  const lidas = notificacoes.filter(n => n.lida);
+
+  // Função para definir a cor do badge conforme o tipo
+  const getBadgeStyle = (tipo) => {
+    switch (tipo) {
+      case 'aprovacao': return { bg: '#2ECC71', text: 'APROVADA' };
+      case 'rejeicao': return { bg: '#E74C3C', text: 'REJEITADA' };
+      case 'cancelamento': return { bg: '#E74C3C', text: 'CANCELADA' };
+      case 'cancelamento_manutencao': return { bg: '#F39C12', text: 'MANUTENÇÃO' };
+      case 'edicao': return { bg: '#F1C40F', text: 'EDITADA' };
+      default: return { bg: '#95A5A6', text: 'INFO' };
+    }
+  };
+
   return (
-    <div className="gs-container">
-      <div className="gs-header">
-        <div>
-          <h2 className="gs-titulo">{tabSolicitacoes === 'pendentes' ? 'Solicitações pendentes' : 'Histórico de solicitações'}</h2>
-          <p className="gs-subtitulo">
-            {tabSolicitacoes === 'pendentes'
-              ? `${solicitacoes.length} solicitações de reserva aguardando análise.`
-              : 'Visualizando o histórico de reservas processadas.'}
-          </p>
-        </div>
-        <div className="admin-req-abas">
-          <button
-            className={`req-aba-btn ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`}
-            onClick={() => setTabSolicitacoes('pendentes')}
-          >
-            Pendentes
-          </button>
-          <button
-            className={`req-aba-btn ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`}
-            onClick={() => setTabSolicitacoes('rejeitadas')}
-          >
-            Histórico
-          </button>
-        </div>
+    <div className="conteudo-mapa-padrao">
+      <div className="cabecalho-mapa-padrao">
+        <h1>Notificações</h1>
+        <p className="subtitulo">Eventos recentes sobre suas reservas.</p>
       </div>
-
-      <div className="admin-req-filtros">
-        <div className="filtros-esq">
-          <span className="filtros-label">ORDENAR POR:</span>
-          <select className="filtros-select">
-            <option>Mais recente</option>
-            <option>Mais antiga</option>
-          </select>
-          <select className="filtros-select">
-            <option>Tipo: Todos</option>
-            <option>Apenas Recorrentes</option>
-          </select>
+      {naoLidas.length > 0 && (
+        <div className="gs-stats-bar" style={{ justifyContent: 'space-between', marginBottom: '1rem' }}>
+          <span>{naoLidas.length} não lida(s)</span>
+          <button className="btn-padrao btn-secondary" onClick={marcarTodasComoLidas}>Marcar todas como lidas</button>
         </div>
-        <div className="filtros-dir">
-          <span className="filtros-contagem">
-            {tabSolicitacoes === 'pendentes' ? `${solicitacoes.length} pendentes` : ''}
-          </span>
-        </div>
-      </div>
+      )}
+      <div className="reservas-lista">
+        {notificacoes.length === 0 && <p className="sem-reservas">Nenhuma notificação.</p>}
+        {notificacoes.map(notif => {
+          const badge = getBadgeStyle(notif.tipo);
+          // Buscar reserva apenas se tiver reservaId e ainda não foi carregada
+          if (notif.reservaId && !reservasDetalhe[notif.reservaId]) {
+            buscarReserva(notif.reservaId);
+          }
+          const reserva = reservasDetalhe[notif.reservaId];
+          const dataFormatada = new Date(notif.data).toLocaleString();
 
-      <div className="admin-req-lista">
-        {tabSolicitacoes === 'pendentes' && (
-          <>
-            {solicitacoes.length === 0 && <p className="admin-req-vazio">Nenhuma solicitação pendente.</p>}
-            {solicitacoes.map((s) => {
-              const sala = salas.find(sl => sl.id === s.sala_id);
-              return (
-                <div className="req-card" key={s.id}>
-                  <div className="req-card-faixa"></div>
-                  <div className="req-card-topo">
-                    <div className="req-user-info">
-                      <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
-                      <div className="req-user-texto">
-                        <strong>{s.responsavel}</strong>
-                        <span>{s.email} · {formatarData(s.data)}</span>
-                      </div>
-                    </div>
-                    <div className="req-tags">
-                      {s.grupo_id && <span className="req-tag-azul">RECORRENTE</span>}
-                      <span className="req-tag-laranja">PENDENTE</span>
-                    </div>
+          return (
+            <div key={notif.id} className={`reserva-card-minha ${!notif.lida ? 'nao-lida' : ''}`} style={{ borderLeft: notif.lida ? '' : '4px solid #844BD4' }}>
+              <div className="reserva-card-header">
+                <h3>
+                  {reserva?.sala_nome || 'Reserva'}
+                  {reserva && <span className="sala-localizacao-card" style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}> · {reserva.sala_nome}</span>}
+                </h3>
+                <span className="reserva-status" style={{ background: badge.bg, color: '#fff', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem' }}>
+                  {badge.text}
+                </span>
+              </div>
+              <div className="reserva-card-info">
+                <p><strong>{dataFormatada}</strong></p>
+                <p className="reserva-titulo">{notif.mensagem}</p>
+                {reserva && (
+                  <div style={{ marginTop: '0.5rem', background: '#F8F9FA', padding: '0.5rem', borderRadius: '8px' }}>
+                    <p><strong>Sala:</strong> {reserva.sala_nome}</p>
+                    <p><strong>Data original:</strong> {formatarData(reserva.data)} – {reserva.hora_inicio} às {reserva.hora_fim}</p>
+                    {reserva.titulo && <p><strong>Título:</strong> {reserva.titulo}</p>}
+                    {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
                   </div>
-                  <div className="req-card-miolo">
-                    <div className="req-coluna-sala">
-                      <span className="req-coluna-titulo">SALA</span>
-                      <strong className="req-sala-nome">{s.sala_nome}</strong>
-                      <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
-                      {sala && <span className="req-sala-bloco">Bloco {sala.bloco || '?'} · Andar {sala.andar || '?'}</span>}
-                    </div>
-                    <div className="req-coluna-finalidade">
-                      <span className="req-coluna-titulo">FINALIDADE</span>
-                      <p>{s.titulo}</p>
-                      {s.descricao && <p className="req-descricao-extra">{s.descricao}</p>}
-                    </div>
-                  </div>
-                  <div className="req-card-acoes">
-                    <button className="req-btn-rejeitar" onClick={() => handleRejeitarSolicitacao(s.id)}>Rejeitar</button>
-                    <button className="req-btn-aprovar" onClick={() => handleAprovarSolicitacao(s.id)}>Aprovar solicitação</button>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {tabSolicitacoes === 'rejeitadas' && (
-          <>
-            {rejeitadas.length === 0 && <p className="admin-req-vazio">Nenhum histórico encontrado.</p>}
-            {rejeitadas.map((s) => {
-              const sala = salas.find(sl => sl.id === s.sala_id);
-              return (
-                <div className="req-card rejeitado" key={s.id}>
-                  <div className="req-card-faixa vermelha"></div>
-                  <div className="req-card-topo">
-                    <div className="req-user-info">
-                      <div className="req-avatar">{s.responsavel ? s.responsavel.substring(0, 2).toUpperCase() : 'US'}</div>
-                      <div className="req-user-texto">
-                        <strong>{s.responsavel}</strong>
-                        <span>{s.email}</span>
-                      </div>
-                    </div>
-                    <div className="req-tags">
-                      <span className="req-tag-vermelha">REJEITADA</span>
-                    </div>
-                  </div>
-                  <div className="req-card-miolo">
-                    <div className="req-coluna-sala">
-                      <span className="req-coluna-titulo">SALA</span>
-                      <strong className="req-sala-nome">{s.sala_nome}</strong>
-                      <span className="req-sala-data">{formatarData(s.data)} · {s.hora_inicio} às {s.hora_fim}</span>
-                    </div>
-                    <div className="req-coluna-finalidade">
-                      <span className="req-coluna-titulo">MOTIVO / FINALIDADE</span>
-                      <p>{s.titulo}</p>
-                    </div>
-                  </div>
-                  <div className="req-card-acoes historico-auditoria">
-                    <span>Processado por <strong>{s.aprovador}</strong> em {new Date(s.data_aprovacao).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
+                )}
+              </div>
+              <div className="reserva-actions-minhas">
+                {!notif.lida && (
+                  <button className="btn-padrao btn-success" onClick={() => marcarNotificacaoComoLida(notif.id)}>Marcar como lida</button>
+                )}
+                <button className="btn-padrao btn-secondary" onClick={() => removerNotificacaoLida(notif.id)}>Remover</button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-    // MEUS DADOS
+    // --- MEUS DADOS ---
     if (activeView === 'meus-dados') {
       const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', usuario_comum: 'Usuário CBiot', usuario_externo: 'Usuário Externo' };
       const cargoBg = { admin: '#844BD4', gerente: '#3498DB', usuario_comum: '#ECE6F7', usuario_externo: '#ECE6F7' };
       const cargoFg = { admin: '#fff', gerente: '#fff', usuario_comum: '#6B5F7A', usuario_externo: '#6B5F7A' };
       return (
-        <div className="gs-container">
-          <div className="gs-header">
-            <div>
-              <h2 className="gs-titulo">Meus Dados</h2>
-              <p className="gs-subtitulo">Informações da sua conta no sistema.</p>
-            </div>
+        <div className="conteudo-mapa-padrao">
+          <div className="cabecalho-mapa-padrao">
+            <h1>Meus Dados</h1>
+            <p className="subtitulo">Informações da sua conta no sistema.</p>
           </div>
           <div className="meus-dados-card">
             <div className="meus-dados-avatar">{currentUser.nome.substring(0,2).toUpperCase()}</div>
@@ -1662,6 +1778,9 @@ function App() {
     return <div>Selecione uma opção no menu.</div>;
   };
 
+  // ========== RENDERIZAÇÃO PRINCIPAL ==========
+  const notificacoesNaoLidas = notificacoes.filter(n => !n.lida).length;
+
   return (
     <div className="app-layout">
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
@@ -1669,24 +1788,85 @@ function App() {
         <div className="modal-overlay" onClick={() => setEditandoReserva(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Editar Reserva</h3>
-            <label>Título: <input type="text" value={editForm.titulo} onChange={(e) => setEditForm({ ...editForm, titulo: e.target.value })} /></label>
-            <label>Data: <input type="date" value={editForm.data} onChange={(e) => setEditForm({ ...editForm, data: e.target.value })} /></label>
-            <label>Início: <select value={editForm.hora_inicio} onChange={(e) => setEditForm({ ...editForm, hora_inicio: e.target.value })}>{todosInicios.map(h => <option key={h}>{h}</option>)}</select></label>
-            <label>Fim: <select value={editForm.hora_fim} onChange={(e) => setEditForm({ ...editForm, hora_fim: e.target.value })}>{todosFins.filter(f => timeToMinutes(f) > timeToMinutes(editForm.hora_inicio)).map(h => <option key={h}>{h}</option>)}</select></label>
-            <label>Descrição: <textarea value={editForm.descricao} onChange={(e) => setEditForm({ ...editForm, descricao: e.target.value })} rows="2" /></label>
-            <div className="modal-buttons"><button onClick={handleUpdateReserva}>Salvar</button><button onClick={() => setEditandoReserva(null)}>Cancelar</button></div>
+            <label>
+              Título:
+              <input
+                type="text"
+                value={editForm.titulo}
+                onChange={(e) => setEditForm({ ...editForm, titulo: e.target.value })}
+              />
+            </label>
+            <label>
+              Data:
+              <input
+                type="date"
+                value={editForm.data}
+                onChange={(e) => setEditForm({ ...editForm, data: e.target.value })}
+              />
+            </label>
+            <label>
+              Início:
+              <select
+                value={editForm.hora_inicio}
+                onChange={(e) => setEditForm({ ...editForm, hora_inicio: e.target.value })}
+              >
+                {todosInicios.map(h => <option key={h}>{h}</option>)}
+              </select>
+            </label>
+            <label>
+              Fim:
+              <select
+                value={editForm.hora_fim}
+                onChange={(e) => setEditForm({ ...editForm, hora_fim: e.target.value })}
+              >
+                {todosFins.filter(f => timeToMinutes(f) > timeToMinutes(editForm.hora_inicio)).map(h => (
+                  <option key={h}>{h}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Descrição:
+              <textarea
+                value={editForm.descricao}
+                onChange={(e) => setEditForm({ ...editForm, descricao: e.target.value })}
+                rows="2"
+              />
+            </label>
+            <div className="modal-buttons">
+              <button className="btn-padrao btn-primary" onClick={() => handleUpdateReserva(editandoReserva)}>
+                Salvar
+              </button>
+              <button className="btn-padrao btn-secondary" onClick={() => setEditandoReserva(null)}>
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
-      <ReservaModal isOpen={modalReservaAberto} onClose={() => setModalReservaAberto(false)} salas={salas} currentUser={currentUser} userRole={currentUser.cargo === 'usuario_externo' ? 'externo' : 'interno'} initialData={reservaData} />
+      <ReservaModal
+        isOpen={modalReservaAberto}
+        onClose={handleModalClose}
+        salas={salas}
+        currentUser={currentUser}
+        userRole={currentUser.cargo === 'usuario_externo' ? 'externo' : 'interno'}
+        initialData={reservaData}
+      />
       <aside className="sidebar">
-        <div className="sidebar-brand"><img src="/CBiot_logo.jpg" alt="CBiot" className="logo-sidebar" /><div><strong>CBiot</strong><span>Reserva de salas</span></div></div>
+        <div className="sidebar-brand">
+          <img src="/CBiot_logo.jpg" alt="CBiot" className="logo-sidebar" />
+          <div>
+            <strong>CBiot</strong>
+            <span>Reserva de salas</span>
+          </div>
+        </div>
+
         <div className="sidebar-section">
           <div className="sidebar-section-title">PRINCIPAL</div>
           <button className={`sidebar-item ${activeView === 'inicio' ? 'active' : ''}`} onClick={() => setActiveView('inicio')}>Início</button>
           <button className={`sidebar-item ${activeView === 'consultar-disponibilidade' ? 'active' : ''}`} onClick={() => setActiveView('consultar-disponibilidade')}>Consultar disponibilidade</button>
           <button className={`sidebar-item ${activeView === 'minhas-reservas' ? 'active' : ''}`} onClick={() => setActiveView('minhas-reservas')}>Minhas reservas</button>
         </div>
+
         {(currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') && (
           <div className="sidebar-section">
             <div className="sidebar-section-title">ADMINISTRATIVO</div>
@@ -1701,14 +1881,23 @@ function App() {
             <button className={`sidebar-item ${activeView === 'relatorios' ? 'active' : ''}`} onClick={() => setActiveView('relatorios')}>Relatórios</button>
           </div>
         )}
+
         <div className="sidebar-section">
           <div className="sidebar-section-title">CONTA</div>
           <button className={`sidebar-item ${activeView === 'meus-dados' ? 'active' : ''}`} onClick={() => setActiveView('meus-dados')}>Meus Dados</button>
-          <button className="sidebar-item" onClick={handleLogout}>Sair</button>
+          <button className={`sidebar-item ${activeView === 'notificacoes' ? 'active' : ''}`} onClick={() => setActiveView('notificacoes')}>
+            Notificações
+            {notificacoesNaoLidas > 0 && <span className="badge-notificacao">{notificacoesNaoLidas}</span>}
+          </button>
+          <button className="sidebar-item" onClick={handleLogout}>Voltar ao Portal</button>
         </div>
+
         <div className="sidebar-footer">
           <div className="sidebar-avatar">{currentUser?.nome?.charAt(0) || 'U'}</div>
-          <div><div style={{ fontWeight: 600 }}>{currentUser?.nome}</div><div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{currentUser?.cargo}</div></div>
+          <div>
+            <div style={{ fontWeight: 600 }}>{currentUser?.nome}</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{currentUser?.cargo}</div>
+          </div>
         </div>
       </aside>
       <main className="main-content">{renderMainContent()}</main>

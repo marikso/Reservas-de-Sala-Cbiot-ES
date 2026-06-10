@@ -38,13 +38,14 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
   const [dataFim, setDataFim] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState(''); // 'error', 'success', 'warning'
+  const [messageType, setMessageType] = useState('');
   const [showConflictWarning, setShowConflictWarning] = useState(false);
   const [conflictData, setConflictData] = useState({ conflitos: [], grupo_id: null, reservasCriadas: [] });
   const [disponibilidade, setDisponibilidade] = useState(null);
   const [horariosLivres, setHorariosLivres] = useState([]);
   const [horariosFimPossiveis, setHorariosFimPossiveis] = useState([]);
 
+  // Inicializa com os dados recebidos
   useEffect(() => {
     if (isOpen && initialData) {
       setForm({
@@ -58,6 +59,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     }
   }, [isOpen, initialData]);
 
+  // Reseta mensagens e conflitos ao abrir
   useEffect(() => {
     if (isOpen) {
       setMessage('');
@@ -67,6 +69,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     }
   }, [isOpen]);
 
+  // Busca disponibilidade apenas para reserva não recorrente
   useEffect(() => {
     if (!recorrente && form.sala_id && form.data) {
       getDisponibilidade(form.sala_id, form.data).then((res) => {
@@ -96,6 +99,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     }
   }, [form.sala_id, form.data, recorrente]);
 
+  // Atualiza horários de fim possíveis (não recorrente)
   useEffect(() => {
     if (recorrente) {
       setHorariosFimPossiveis([]);
@@ -123,6 +127,40 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
       setForm(prev => ({ ...prev, hora_fim: '' }));
     }
   }, [form.hora_inicio, disponibilidade, recorrente]);
+
+  // ================= NOVA LÓGICA: PRÉ-SELEÇÃO DE DIAS BASEADA NA DATA =================
+  // Mapeamento: getDay() retorna 0=domingo ... 6=sábado. Nosso array de dias usa 0=segunda,1=terça,...,4=sexta
+  const mapDateToDiasSelecionados = (dateStr) => {
+    if (!dateStr) return [];
+    const date = new Date(dateStr);
+    const weekday = date.getUTCDay(); // 0=domingo, 1=segunda, ..., 6=sábado
+    // Segunda = 1, Terça = 2, Quarta = 3, Quinta = 4, Sexta = 5
+    if (weekday >= 1 && weekday <= 5) {
+      return [weekday - 1]; // nosso índice 0=segunda, 1=terça, 2=quarta, 3=quinta, 4=sexta
+    }
+    return []; // fim de semana não seleciona nenhum
+  };
+
+  // Quando o usuário marca "Recorrente", pré-seleciona os dias com base na data atual
+  const handleRecorrenteChange = (checked) => {
+    setRecorrente(checked);
+    if (checked && form.data) {
+      const dias = mapDateToDiasSelecionados(form.data);
+      setDiasSelecionados(dias);
+    } else if (!checked) {
+      setDiasSelecionados([]);
+    }
+  };
+
+  // Quando a data é alterada, se estiver no modo recorrente, recalcula os dias selecionados
+  const handleDataChange = (novaData) => {
+    setForm({ ...form, data: novaData, hora_inicio: '', hora_fim: '' });
+    if (recorrente && novaData) {
+      const dias = mapDateToDiasSelecionados(novaData);
+      setDiasSelecionados(dias);
+    }
+  };
+  // =============================================================================
 
   if (!isOpen) return null;
 
@@ -242,7 +280,6 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     } else {
       const msg = response.mensagem || 'Reserva criada com sucesso!';
       setMessage(msg);
-      // Define a cor: amarelo para usuários externos (pendente), verde para internos (aprovada)
       setMessageType(isExterno ? 'warning' : 'success');
       setLoading(false);
       setTimeout(() => {
@@ -366,17 +403,16 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
                     {salas?.map((s) => (<option key={s.id} value={s.id}>{s.nome}</option>))}
                   </select>
                 </div>
-                {!recorrente && (
-                  <div className="reserva-field">
-                    <label>DATA</label>
-                    <input
-                      type="date"
-                      value={form.data}
-                      onChange={(e) => setForm({ ...form, data: e.target.value, hora_inicio: '', hora_fim: '' })}
-                      required={!recorrente}
-                    />
-                  </div>
-                )}
+                {/* CAMPO DATA SEMPRE VISÍVEL */}
+                <div className="reserva-field">
+                  <label>{recorrente ? 'DATA DA PRIMEIRA OCORRÊNCIA' : 'DATA'}</label>
+                  <input
+                    type="date"
+                    value={form.data}
+                    onChange={(e) => handleDataChange(e.target.value)}
+                    required={!recorrente}
+                  />
+                </div>
               </div>
 
               <div className="reserva-time-section">
@@ -432,7 +468,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
 
             <div className={`reserva-recorrente-section ${recorrente ? 'active' : ''}`}>
               <label className="reserva-checkbox-horizontal">
-                <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
+                <input type="checkbox" checked={recorrente} onChange={(e) => handleRecorrenteChange(e.target.checked)} />
                 <span className="reserva-custom-box"></span>
                 <span className="reserva-label-text">Solicitação recorrente</span>
               </label>
@@ -472,8 +508,8 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
             </div>
 
             <div className="reserva-footer-actions">
-              <button type="button" className="btn-cancel-flat" onClick={onClose}>Cancelar</button>
-              <button type="submit" className="btn-submit-purple" disabled={loading}>
+              <button type="button" className="btn-padrao btn-secondary" onClick={onClose}>Cancelar</button>
+              <button type="submit" className="btn-padrao btn-primary" disabled={loading}>
                 {loading ? 'Enviando...' : recorrente ? `Enviar ${numeroOcorrencias} solicitações` : 'Enviar solicitação'}
               </button>
             </div>

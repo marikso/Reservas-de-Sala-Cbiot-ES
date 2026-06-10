@@ -1,6 +1,7 @@
 from database import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 class Sala(db.Model):
     __tablename__ = 'salas'
@@ -42,6 +43,7 @@ class Reserva(db.Model):
     status = db.Column(db.String(20), nullable=False, default='aprovada')  # pendente, aprovada, rejeitada
     aprovador = db.Column(db.String(100), nullable=True)       # quem aprovou/rejeitou
     data_aprovacao = db.Column(db.DateTime, nullable=True)
+    notificacoes = db.relationship('Notificacao', back_populates='reserva', cascade='all, delete-orphan')
 
     def to_dict(self):
         return {
@@ -93,6 +95,8 @@ class User(db.Model):
     password_hash = db.Column(db.String(200), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='pendente')
 
+    notificacoes = db.relationship('Notificacao', back_populates='usuario', cascade='all, delete-orphan')
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -111,3 +115,27 @@ class User(db.Model):
         if include_status:
             data['status'] = self.status
         return data
+    
+class Notificacao(db.Model):
+    __tablename__ = 'notificacoes'
+    __table_args__ = {'extend_existing': True}
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_email = db.Column(db.String(120), db.ForeignKey('users.email'), nullable=False)
+    mensagem = db.Column(db.Text, nullable=False)
+    tipo = db.Column(db.String(50), nullable=False)
+    reserva_id = db.Column(db.Integer, db.ForeignKey('reservas.id', ondelete='CASCADE'), nullable=True)
+    lida = db.Column(db.Boolean, default=False)
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+
+    usuario = db.relationship('User', back_populates='notificacoes')
+    reserva = db.relationship('Reserva', back_populates='notificacoes')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'mensagem': self.mensagem,
+            'tipo': self.tipo,
+            'reservaId': self.reserva_id,
+            'lida': self.lida,
+            'data': self.data_criacao.isoformat()
+        }
