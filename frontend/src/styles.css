@@ -887,17 +887,6 @@ button.secondary:hover {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
 .reserva-overlay {
   position: fixed;
   top: 0;
@@ -3903,3 +3892,262 @@ body {
 .cd-leg-selecionado { background: #844BD4; }
 .cd-leg-reservado { background: #FF8181; }
 .cd-leg-manut { background: #FDECEA; outline: 2px solid #E74C3C; }
+
+/* ===== LAYOUT PADRÃO IGUAL AO MAPA DE SALAS ===== */
+.conteudo-mapa-padrao {
+  background: #FCF8FF;        /* mesmo fundo do mapa de salas */
+  border-radius: 0;           /* se quiser bordas arredondadas apenas nos elementos internos */
+  padding: 0;                 /* o espaçamento vem do elemento pai ou do cabeçalho */
+  width: 100%;
+}
+
+
+
+/* Garantir que o fundo do main-content seja sempre o mesmo */
+.main-content {
+  background: #FCF8FF !important;
+}
+
+/* Remover fundos conflitantes de containers internos antigos */
+.box,
+.admin-req-container,
+.gs-container,
+.minhas-reservas-box,
+.disponibilidade-box {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Adaptar os cards internos para ficarem com o mesmo estilo visual dos cards de sala (opcional) */
+/* Exemplo: cards de reserva, salas na consulta, etc. */
+.reserva-card-minha,
+.req-card,
+.gs-card,
+.cd-sala-info,
+.sala-card-horario {
+  background: white;
+  border: 1px solid #E6D9F4;
+  border-radius: 4px;
+  transition: 0.2s;
+}
+
+/* ===== FUNDO BRANCO COM BORDAS ARREDONDADAS (estilo original) ===== */
+
+/* Container principal que envolve todo o conteúdo (título + funções) */
+.conteudo-mapa-padrao {
+  background: #ffffff;
+  border-radius: 28px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+  padding: 2rem;
+  margin-bottom: 1rem;
+  transition: all 0.2s;
+}
+
+/* O cabeçalho (título) mantém a linha separadora, mas sem borda extra */
+.cabecalho-mapa-padrao {
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #E6D9F4;
+}
+
+/* Garante que o fundo do main-content também seja branco (caso haja herança) */
+.main-content {
+  background: #ffffff !important;
+}
+
+/* Remove fundos extras de containers internos que possam quebrar o arredondado */
+.box, .admin-req-container, .gs-container, .minhas-reservas-box, .disponibilidade-box {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Para os cards internos (mapa, reservas, etc.) manter o arredondamento e fundo branco */
+.sala-card-mapa, .reserva-card-minha, .req-card, .gs-card, .cd-sala-info, .sala-card-horario {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+body {
+  background: #f4f6f9;  /* cinza muito claro, suave */
+  /* ou use um tom como #f0f2f5, #eef2f6, etc. */
+}
+
+.mapa-titulo-preto-fosco {
+  font-weight: 700;         /* negrito */
+  color: #2c3e50;           /* preto meio fosco (cinza escuro suave) */
+  letter-spacing: -0.2px;
+}
+
+/* Botão padrão "Solicitar reserva" – igual ao do Início */
+.btn-solicitar-reserva {
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  background: #844BD4;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-solicitar-reserva:hover {
+  background: #6a35b0;
+  transform: translateY(-1px);
+}
+.btn-solicitar-reserva:active {
+  transform: translateY(1px);
+}
+
+/* Padrão de botões (igual ao botão Solicitar reserva do início) */
+.btn-padrao {
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-padrao:hover {
+  transform: translateY(-1px);
+}
+.btn-padrao:active {
+  transform: translateY(1px);
+}
+
+/* Variantes de cor */
+.btn-primary {
+  background: #844BD4;
+  color: white;
+}
+.btn-primary:hover {
+  background: #6a35b0;
+}
+
+.btn-secondary {
+  background: #f1f5f9;
+  color: #1e2a3a;
+  border: 1px solid #cbd5e1;
+}
+.btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: white;
+}
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
+.btn-success {
+  background: #10b981;
+  color: white;
+}
+.btn-success:hover {
+  background: #059669;
+}
+
+.btn-warning {
+  background: #f59e0b;
+  color: white;
+}
+.btn-warning:hover {
+  background: #d97706;
+}
+
+.btn-edit {
+  background: #3b82f6;
+  color: white;
+}
+.btn-edit:hover {
+  background: #2563eb;
+}
+
+.btn-padrao {
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-padrao:hover {
+  transform: translateY(-1px);
+}
+.btn-primary {
+  background: #844BD4;
+  color: white;
+}
+.btn-primary:hover {
+  background: #6a35b0;
+}
+.btn-secondary {
+  background: #f1f5f9;
+  color: #1e2a3a;
+  border: 1px solid #cbd5e1;
+}
+.btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+/* Badge de notificações */
+.badge-notificacao {
+  background-color: #ef4444;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: bold;
+  margin-left: 8px;
+  display: inline-block;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* Cards de notificação */
+.notificacao-card {
+  background: white;
+  border: 1px solid #E6D9F4;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.notificacao-card.nao-lida {
+  background: #FCF8FF;
+  border-left: 4px solid #844BD4;
+}
+.notificacao-mensagem {
+  flex: 2;
+  font-weight: 500;
+}
+.notificacao-data {
+  font-size: 0.75rem;
+  color: #6B5F7A;
+}
