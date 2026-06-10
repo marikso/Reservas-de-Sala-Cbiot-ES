@@ -454,6 +454,11 @@ def update_reserva(reserva_id):
 
     return jsonify(formatReserva(reserva)), 200
 
+@app.route('/api/reservas/<int:reserva_id>', methods=['GET'])
+def get_reserva(reserva_id):
+    reserva = Reserva.query.get_or_404(reserva_id)
+    return jsonify(formatReserva(reserva))
+
 # ========== ROTA DE CANCELAMENTO INDIVIDUAL ==========
 @app.route('/api/reservas/<int:reserva_id>', methods=['DELETE'])
 def delete_reserva(reserva_id):

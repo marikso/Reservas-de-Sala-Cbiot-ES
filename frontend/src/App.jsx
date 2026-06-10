@@ -81,6 +81,8 @@ function App() {
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dataFim, setDataFim] = useState('');
 
+  const [reservasDetalhe, setReservasDetalhe] = useState({});
+
   const [tabSolicitacoes, setTabSolicitacoes] = useState('pendentes');
   const [tabReservas, setTabReservas] = useState('ativas');
 
@@ -1102,6 +1104,19 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
       );
     }
 
+    const buscarReserva = async (id) => {
+  if (reservasDetalhe[id]) return;
+  try {
+    const res = await fetch(`http://localhost:5000/api/reservas/${id}`, { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json();
+      setReservasDetalhe(prev => ({ ...prev, [id]: data }));
+    }
+  } catch (err) {
+    console.error('Erro ao buscar reserva', err);
+  }
+};
+
     // --- RELATÓRIOS ---
     if (activeView === 'relatorios' && (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente')) {
       return (
@@ -1658,39 +1673,82 @@ const handleCancelarGrupo = async (grupoId, isOwner = false, emailUsuario, titul
     }
 
     // --- NOTIFICAÇÕES ---
-    if (activeView === 'notificacoes') {
-      const naoLidas = notificacoes.filter(n => !n.lida);
-      const lidas = notificacoes.filter(n => n.lida);
-      return (
-        <div className="conteudo-mapa-padrao">
-          <div className="cabecalho-mapa-padrao">
-            <h1>Notificações</h1>
-            <p className="subtitulo">Eventos recentes sobre suas reservas.</p>
-          </div>
-          {naoLidas.length > 0 && (
-            <div className="gs-stats-bar" style={{ justifyContent: 'space-between' }}>
-              <span>{naoLidas.length} não lida(s)</span>
-              <button className="btn-padrao btn-secondary" onClick={marcarTodasComoLidas}>Marcar todas como lidas</button>
-            </div>
-          )}
-          <div className="notificacoes-lista">
-            {notificacoes.length === 0 && <p className="sem-reservas">Nenhuma notificação.</p>}
-            {notificacoes.map(notif => (
-              <div key={notif.id} className={`notificacao-card ${notif.lida ? 'lida' : 'nao-lida'}`}>
-                <div className="notificacao-mensagem">{notif.mensagem}</div>
-                <div className="notificacao-data">{new Date(notif.data).toLocaleString()}</div>
+ 
+if (activeView === 'notificacoes') {
+  const naoLidas = notificacoes.filter(n => !n.lida);
+  const lidas = notificacoes.filter(n => n.lida);
+
+  // Função para definir a cor do badge conforme o tipo
+  const getBadgeStyle = (tipo) => {
+    switch (tipo) {
+      case 'aprovacao': return { bg: '#2ECC71', text: 'APROVADA' };
+      case 'rejeicao': return { bg: '#E74C3C', text: 'REJEITADA' };
+      case 'cancelamento': return { bg: '#E74C3C', text: 'CANCELADA' };
+      case 'cancelamento_manutencao': return { bg: '#F39C12', text: 'MANUTENÇÃO' };
+      case 'edicao': return { bg: '#F1C40F', text: 'EDITADA' };
+      default: return { bg: '#95A5A6', text: 'INFO' };
+    }
+  };
+
+  return (
+    <div className="conteudo-mapa-padrao">
+      <div className="cabecalho-mapa-padrao">
+        <h1>Notificações</h1>
+        <p className="subtitulo">Eventos recentes sobre suas reservas.</p>
+      </div>
+      {naoLidas.length > 0 && (
+        <div className="gs-stats-bar" style={{ justifyContent: 'space-between', marginBottom: '1rem' }}>
+          <span>{naoLidas.length} não lida(s)</span>
+          <button className="btn-padrao btn-secondary" onClick={marcarTodasComoLidas}>Marcar todas como lidas</button>
+        </div>
+      )}
+      <div className="reservas-lista">
+        {notificacoes.length === 0 && <p className="sem-reservas">Nenhuma notificação.</p>}
+        {notificacoes.map(notif => {
+          const badge = getBadgeStyle(notif.tipo);
+          // Buscar reserva apenas se tiver reservaId e ainda não foi carregada
+          if (notif.reservaId && !reservasDetalhe[notif.reservaId]) {
+            buscarReserva(notif.reservaId);
+          }
+          const reserva = reservasDetalhe[notif.reservaId];
+          const dataFormatada = new Date(notif.data).toLocaleString();
+
+          return (
+            <div key={notif.id} className={`reserva-card-minha ${!notif.lida ? 'nao-lida' : ''}`} style={{ borderLeft: notif.lida ? '' : '4px solid #844BD4' }}>
+              <div className="reserva-card-header">
+                <h3>
+                  {reserva?.sala_nome || 'Reserva'}
+                  {reserva && <span className="sala-localizacao-card" style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}> · {reserva.sala_nome}</span>}
+                </h3>
+                <span className="reserva-status" style={{ background: badge.bg, color: '#fff', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem' }}>
+                  {badge.text}
+                </span>
+              </div>
+              <div className="reserva-card-info">
+                <p><strong>{dataFormatada}</strong></p>
+                <p className="reserva-titulo">{notif.mensagem}</p>
+                {reserva && (
+                  <div style={{ marginTop: '0.5rem', background: '#F8F9FA', padding: '0.5rem', borderRadius: '8px' }}>
+                    <p><strong>Sala:</strong> {reserva.sala_nome}</p>
+                    <p><strong>Data original:</strong> {formatarData(reserva.data)} – {reserva.hora_inicio} às {reserva.hora_fim}</p>
+                    {reserva.titulo && <p><strong>Título:</strong> {reserva.titulo}</p>}
+                    {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
+                  </div>
+                )}
+              </div>
+              <div className="reserva-actions-minhas">
                 {!notif.lida && (
                   <button className="btn-padrao btn-success" onClick={() => marcarNotificacaoComoLida(notif.id)}>Marcar como lida</button>
                 )}
-                {notif.lida && (
-                  <button className="btn-padrao btn-secondary" onClick={() => removerNotificacaoLida(notif.id)}>Remover</button>
-                )}
+                <button className="btn-padrao btn-secondary" onClick={() => removerNotificacaoLida(notif.id)}>Remover</button>
               </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
     // --- MEUS DADOS ---
     if (activeView === 'meus-dados') {

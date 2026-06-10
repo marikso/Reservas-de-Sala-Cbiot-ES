@@ -4151,3 +4151,6 @@ body {
   font-size: 0.75rem;
   color: #6B5F7A;
 }
+.reserva-card-minha.nao-lida {
+  background: #FCF8FF;
+}
