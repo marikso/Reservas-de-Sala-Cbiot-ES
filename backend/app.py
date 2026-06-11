@@ -12,11 +12,11 @@ import traceback
 
 app = Flask(__name__)
 app.config.from_object(Config)
-CORS(app, origins=['http://localhost:5173', 'http://localhost:5174'], supports_credentials=True)
+CORS(app, origins=['http://localhost:5173', 'http://localhost:5174', 'http://localhost:8080'], supports_credentials=True)
 Session(app)
 db.init_app(app)
 
-ALLOWED_ORIGINS = {'http://localhost:5173', 'http://localhost:5174'}
+ALLOWED_ORIGINS = {'http://localhost:5173', 'http://localhost:5174', 'http://localhost:8080'}
 
 @app.after_request
 def add_cors_headers(response):
@@ -60,13 +60,18 @@ def handle_exception(e):
         resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return resp
 
+VALID_ROLES = {'admin', 'gerente', 'lider_de_grupo', 'usuario_cbiot'}
+
+def normalize_cargo(cargo):
+    return cargo if cargo in VALID_ROLES else 'usuario_cbiot'
+
 # ---------- DECORATORS ----------
 def role_required(allowed_roles):
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
             user = session.get('user')
-            if not user or user.get('cargo') not in allowed_roles:
+            if not user or normalize_cargo(user.get('cargo')) not in allowed_roles:
                 return jsonify({'erro': 'Acesso não autorizado'}), 401
             return f(*args, **kwargs)
         return decorated
@@ -161,7 +166,7 @@ def get_reservas():
 def create_reserva():
     dados = request.get_json()
     user = session.get('user')
-    is_externo = user and user.get('cargo') == 'usuario_externo'
+    is_externo = user and normalize_cargo(user.get('cargo')) == 'usuario_cbiot'
     obrigatorios = ['sala_id', 'titulo', 'data', 'hora_inicio', 'hora_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
         return jsonify({'erro': 'Campos obrigatórios faltando'}), 400
@@ -228,7 +233,7 @@ def create_reserva():
 def create_reservas_recorrentes():
     dados = request.get_json()
     user = session.get('user')
-    is_externo = user and user.get('cargo') == 'usuario_externo'
+    is_externo = user and normalize_cargo(user.get('cargo')) == 'usuario_cbiot'
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
                     'data_inicio', 'data_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
@@ -337,7 +342,7 @@ def delete_user_grupo(grupo_id):
 def update_reserva(reserva_id):
     reserva = Reserva.query.get_or_404(reserva_id)
     user = session.get('user')
-    if not user or (user.get('cargo') not in ['admin', 'gerente'] and reserva.email != user.get('email')):
+    if not user or (normalize_cargo(user.get('cargo')) not in ['admin', 'gerente'] and reserva.email != user.get('email')):
         return jsonify({'erro': 'Acesso não autorizado'}), 401
     if reserva.status != 'aprovada':
         return jsonify({'erro': 'Só é possível editar reservas já aprovadas'}), 400
@@ -430,14 +435,14 @@ def update_reserva(reserva_id):
     db.session.commit()
 
     # Notificação detalhada com antes/depois
-    if user.get('cargo') in ['admin', 'gerente'] and reserva.email != user.get('email'):
+    if normalize_cargo(user.get('cargo')) in ['admin', 'gerente'] and reserva.email != user.get('email'):
         # Garantir que o destinatário exista
         destinatario = User.query.filter_by(email=reserva.email).first()
         if not destinatario:
             destinatario = User(
                 email=reserva.email,
                 nome=reserva.responsavel or 'Usuário',
-                cargo='usuario_externo',
+                cargo='usuario_cbiot',
                 status='aprovado'
             )
             destinatario.set_password('senha_temporaria')
@@ -482,17 +487,17 @@ def get_reserva(reserva_id):
 def delete_reserva(reserva_id):
     reserva = Reserva.query.get_or_404(reserva_id)
     user = session.get('user')
-    if not user or (user.get('cargo') not in ['admin', 'gerente'] and reserva.email != user.get('email')):
+    if not user or (normalize_cargo(user.get('cargo')) not in ['admin', 'gerente'] and reserva.email != user.get('email')):
         return jsonify({'erro': 'Acesso não autorizado'}), 401
 
-    if user.get('cargo') in ['admin', 'gerente'] and reserva.email != user.get('email'):
+    if normalize_cargo(user.get('cargo')) in ['admin', 'gerente'] and reserva.email != user.get('email'):
         # Garantir que o destinatário exista
         destinatario = User.query.filter_by(email=reserva.email).first()
         if not destinatario:
             destinatario = User(
                 email=reserva.email,
                 nome=reserva.responsavel or 'Usuário',
-                cargo='usuario_comum',
+                cargo='lider_de_grupo',
                 status='aprovado'
             )
             destinatario.set_password('senha_temporaria')
@@ -531,7 +536,7 @@ def delete_reservas_by_grupo(grupo_id):
         destinatario = User.query.filter_by(email=email).first()
         if not destinatario:
             nome = lista[0].responsavel if lista[0].responsavel else email.split('@')[0]
-            novo = User(email=email, nome=nome, cargo='usuario_externo', status='aprovado')
+            novo = User(email=email, nome=nome, cargo='usuario_cbiot', status='aprovado')
             novo.set_password('senha_temporaria')
             db.session.add(novo)
             db.session.commit()   # commit imediato para ter o ID
@@ -806,7 +811,7 @@ def auth_register():
     existing = User.query.filter_by(email=email).first()
     if existing:
         return jsonify({'erro': 'Email já cadastrado'}), 400
-    user = User(email=email, nome=nome, cargo='usuario_externo', status='pendente')
+    user = User(email=email, nome=nome, cargo='usuario_cbiot', status='pendente')
     user.set_password(senha)
     db.session.add(user)
     db.session.commit()
@@ -845,11 +850,11 @@ def atualizar_usuario(user_id):
 def aprovar_usuario(user_id):
     user = User.query.get_or_404(user_id)
     cargo = request.json.get('cargo')
-    if session.get('user').get('cargo') == 'gerente':
-        cargo = 'usuario_comum'
+    if normalize_cargo(session.get('user').get('cargo')) == 'gerente':
+        cargo = 'lider_de_grupo'
     else:
         if not cargo:
-            cargo = 'aluno'
+            cargo = 'lider_de_grupo'
     user.cargo = cargo
     user.status = 'aprovado'
     db.session.commit()
@@ -894,7 +899,7 @@ def aprovar_solicitacao(solicitacao_id):
         destinatario = User(
             email=reserva.email,
             nome=reserva.responsavel or 'Usuário',
-            cargo='usuario_externo',
+            cargo='usuario_cbiot',
             status='aprovado'
         )
         destinatario.set_password('senha_temporaria')
@@ -926,7 +931,7 @@ def rejeitar_solicitacao(solicitacao_id):
         destinatario = User(
             email=reserva.email,
             nome=reserva.responsavel or 'Usuário',
-            cargo='usuario_externo',
+            cargo='usuario_cbiot',
             status='aprovado'
         )
         destinatario.set_password('senha_temporaria')

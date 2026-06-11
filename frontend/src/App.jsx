@@ -292,6 +292,8 @@ function App() {
     whoami()
       .then((u) => {
         if (u && u.email) {
+          const VALID_ROLES = ['admin', 'gerente', 'lider_de_grupo', 'usuario_cbiot'];
+          if (!VALID_ROLES.includes(u.cargo)) u.cargo = 'usuario_cbiot';
           setCurrentUser(u);
           setForm((prev) => ({
             ...prev,
@@ -314,7 +316,7 @@ function App() {
         loadRejeitadas();
         loadManutencoes();
       }
-      if (currentUser.cargo === 'usuario_externo') {
+      if (currentUser.cargo === 'usuario_cbiot') {
         loadMinhasSolicitacoes();
       }
       if (currentUser.cargo === 'admin') {
@@ -885,7 +887,7 @@ function App() {
       const agora = new Date();
       const hojeLocal = agora.toLocaleDateString('en-CA');
       const horaAtual = agora.getHours() * 60 + agora.getMinutes();
-      const isExterno = currentUser.cargo === 'usuario_externo';
+      const isExterno = currentUser.cargo === 'usuario_cbiot';
 
       const reservasAtivas = reservas.filter(r => {
         if (r.status !== 'aprovada') return false;
@@ -1499,9 +1501,9 @@ function App() {
 
     // --- GERENCIAR USUÁRIOS (admin) ---
     if (activeView === 'gerenciar-usuarios' && currentUser?.cargo === 'admin') {
-      const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', usuario_comum: 'Usuário CBiot', usuario_externo: 'Usuário Externo' };
-      const cargoBg = { admin: '#844BD4', gerente: '#3498DB', usuario_comum: '#ECE6F7', usuario_externo: '#ECE6F7' };
-      const cargoFg = { admin: '#fff', gerente: '#fff', usuario_comum: '#6B5F7A', usuario_externo: '#6B5F7A' };
+      const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', lider_de_grupo: 'Líder de Grupo', usuario_cbiot: 'Usuário CBiot' };
+      const cargoBg = { admin: '#844BD4', gerente: '#3498DB', lider_de_grupo: '#ECE6F7', usuario_cbiot: '#ECE6F7' };
+      const cargoFg = { admin: '#fff', gerente: '#fff', lider_de_grupo: '#6B5F7A', usuario_cbiot: '#6B5F7A' };
       return (
         <div className="conteudo-mapa-padrao">
           <div className="cabecalho-mapa-padrao">
@@ -1513,7 +1515,7 @@ function App() {
             <span className="gs-stats-detail">
               · {users.filter(u => u.cargo === 'admin').length} administradores
               · {users.filter(u => u.cargo === 'gerente').length} gerentes
-              · {users.filter(u => u.cargo === 'usuario_comum').length} usuários CBiot
+              · {users.filter(u => u.cargo === 'lider_de_grupo').length} usuários CBiot
             </span>
           </div>
           <div className="gu-table-header">
@@ -1593,8 +1595,8 @@ function App() {
                     <select className="modal-input" value={novoPapelSelecionado} onChange={e => setNovoPapelSelecionado(e.target.value)}>
                       <option value="admin">Administrador</option>
                       <option value="gerente">Gerente</option>
-                      <option value="usuario_comum">Usuário CBiot</option>
-                      <option value="usuario_externo">Usuário Externo</option>
+                      <option value="lider_de_grupo">Líder de Grupo</option>
+                      <option value="usuario_cbiot">Usuário CBiot</option>
                     </select>
                   </div>
                 </div>
@@ -1794,29 +1796,6 @@ function App() {
     }
 
     // --- MEUS DADOS ---
-    if (activeView === 'meus-dados') {
-      const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', usuario_comum: 'Usuário CBiot', usuario_externo: 'Usuário Externo' };
-      const cargoBg = { admin: '#844BD4', gerente: '#3498DB', usuario_comum: '#ECE6F7', usuario_externo: '#ECE6F7' };
-      const cargoFg = { admin: '#fff', gerente: '#fff', usuario_comum: '#6B5F7A', usuario_externo: '#6B5F7A' };
-      return (
-        <div className="conteudo-mapa-padrao">
-          <div className="cabecalho-mapa-padrao">
-            <h1>Meus Dados</h1>
-            <p className="subtitulo">Informações da sua conta no sistema.</p>
-          </div>
-          <div className="meus-dados-card">
-            <div className="meus-dados-avatar">{currentUser.nome.substring(0, 2).toUpperCase()}</div>
-            <div className="meus-dados-info">
-              <div className="meus-dados-nome">{currentUser.nome}</div>
-              <div className="meus-dados-email">{currentUser.email}</div>
-              <span className="gu-cargo-badge" style={{ background: cargoBg[currentUser.cargo] || '#ECE6F7', color: cargoFg[currentUser.cargo] || '#6B5F7A', marginTop: '8px', display: 'inline-block' }}>
-                {(cargoLabel[currentUser.cargo] || currentUser.cargo).toUpperCase()}
-              </span>
-            </div>
-          </div>
-        </div>
-      );
-    }
 
     return <div>Selecione uma opção no menu.</div>;
   };
@@ -1892,7 +1871,7 @@ function App() {
         onClose={handleModalClose}
         salas={salas}
         currentUser={currentUser}
-        userRole={currentUser.cargo === 'usuario_externo' ? 'externo' : 'interno'}
+        userRole={currentUser.cargo === 'usuario_cbiot' ? 'externo' : 'interno'}
         initialData={reservaData}
       />
       <aside className="sidebar">
@@ -1928,7 +1907,7 @@ function App() {
 
         <div className="sidebar-section">
           <div className="sidebar-section-title">CONTA</div>
-          <button className={`sidebar-item ${activeView === 'meus-dados' ? 'active' : ''}`} onClick={() => setActiveView('meus-dados')}>Meus Dados</button>
+
           <button className={`sidebar-item ${activeView === 'notificacoes' ? 'active' : ''}`} onClick={() => setActiveView('notificacoes')}>
             Notificações
             {notificacoesNaoLidas > 0 && <span className="badge-notificacao">{notificacoesNaoLidas}</span>}
