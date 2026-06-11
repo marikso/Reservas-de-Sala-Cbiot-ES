@@ -105,12 +105,14 @@ class User(db.Model):
             return False
         return check_password_hash(self.password_hash, password)
 
+    VALID_ROLES = {'admin', 'gerente', 'lider_de_grupo', 'usuario_cbiot'}
+
     def to_dict(self, include_status=True):
         data = {
             'id': self.id,
             'email': self.email,
             'nome': self.nome,
-            'cargo': self.cargo,
+            'cargo': self.cargo if self.cargo in self.VALID_ROLES else 'usuario_cbiot',
         }
         if include_status:
             data['status'] = self.status

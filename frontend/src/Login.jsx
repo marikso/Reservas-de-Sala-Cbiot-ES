@@ -74,7 +74,7 @@ export default function Login() {
               <button type="submit">Cadastrar</button>
               <button type="button" onClick={() => { setMode('login'); setError(null); }}>Voltar ao login</button>
             </div>
-            <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>Seu cargo será definido como <strong>aluno</strong>.</p>
+            <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>O seu acesso será analisado e aprovado por um administrador.</p>
           </form>
         )}
       </div>

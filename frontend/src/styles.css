@@ -3427,33 +3427,6 @@ body {
 }
 .gs-btn-exportar:hover { background: #F4EDFF; }
 
-/* ===== MEUS DADOS ===== */
-.meus-dados-card {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  background: #fff;
-  border: 1px solid #E8E0F4;
-  border-radius: 12px;
-  padding: 32px 40px;
-  max-width: 520px;
-  box-shadow: 0 2px 8px rgba(132,75,212,0.06);
-}
-.meus-dados-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 12px;
-  background: #844BD4;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-.meus-dados-nome { font-size: 20px; font-weight: 700; color: #1A0F2B; margin-bottom: 5px; }
-.meus-dados-email { font-size: 14px; color: #6B5F7A; margin-bottom: 5px; }
 
 /* ===== RELATORIO METRICAS ===== */
 .relatorio-metricas {

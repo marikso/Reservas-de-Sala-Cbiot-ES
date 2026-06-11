@@ -18,3 +18,6 @@ class Config:
     
     # Tipo de armazenamento da sessão (filesystem - arquivos locais; também poderia ser 'redis')
     SESSION_TYPE = 'filesystem'
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_DOMAIN = False
