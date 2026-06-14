@@ -275,8 +275,8 @@ function App() {
     whoami()
       .then((u) => {
         if (u && u.email) {
-          const VALID_ROLES = ['admin', 'gerente', 'lider_de_grupo'];
-          if (!VALID_ROLES.includes(u.cargo)) u.cargo = 'lider_de_grupo';
+          const VALID_ROLES = ['admin', 'gerente', 'lider_de_grupo', 'usuario_cbiot'];
+          if (!VALID_ROLES.includes(u.cargo)) u.cargo = 'usuario_cbiot';
           setCurrentUser(u);
           setForm((prev) => ({
             ...prev,
@@ -299,7 +299,7 @@ function App() {
         loadRejeitadas();
         loadManutencoes();
       }
-      if (currentUser.cargo === 'lider_de_grupo') {
+      if (currentUser.cargo === 'lider_de_grupo' || currentUser.cargo === 'usuario_cbiot') {
         loadMinhasSolicitacoes();
       }
       if (currentUser.cargo === 'admin') {
@@ -856,7 +856,7 @@ function App() {
       const agora = new Date();
       const hojeLocal = agora.toLocaleDateString('en-CA');
       const horaAtual = agora.getHours() * 60 + agora.getMinutes();
-      const isExterno = false;
+      const isExterno = currentUser?.cargo === 'usuario_cbiot';
 
       const reservasAtivas = reservas.filter(r => {
         if (r.status !== 'aprovada') return false;
@@ -1837,7 +1837,7 @@ function App() {
         onSuccess={(msg) => { showToast(msg, 'success'); loadReservas(); }}
         salas={salas}
         currentUser={currentUser}
-        userRole="interno"
+        userRole={currentUser?.cargo === 'usuario_cbiot' ? 'externo' : 'interno'}
         initialData={reservaData}
       />
       <aside className="sidebar">

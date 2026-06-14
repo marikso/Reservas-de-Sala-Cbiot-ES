@@ -62,7 +62,7 @@ def handle_exception(e):
         resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return resp
 
-VALID_ROLES = {'admin', 'gerente', 'lider_de_grupo'}
+VALID_ROLES = {'admin', 'gerente', 'lider_de_grupo', 'usuario_cbiot'}
 
 # Mapeamento de permissões do Portal para roles internas.
 # SALAS_LIDER é a permissão faltante no portal — nomenclatura similar à variável lider_de_grupo.
@@ -70,6 +70,7 @@ PORTAL_PERMISSION_MAP = [
     ('SALAS_ADMIN', 'admin'),
     ('SALAS_GERENTE', 'gerente'),
     ('SALAS_LIDER', 'lider_de_grupo'),
+    ('SALAS_USER', 'usuario_cbiot'),
 ]
 
 def map_permissions_to_role(permissions):
@@ -77,7 +78,7 @@ def map_permissions_to_role(permissions):
         if perm in permissions:
             return role
     if 'ACCESS_RESERVA_SALAS' in permissions:
-        return 'lider_de_grupo'
+        return 'usuario_cbiot'
     return None
 
 def get_current_user():
@@ -133,7 +134,7 @@ def get_current_user():
     return g.current_user
 
 def normalize_cargo(cargo):
-    return cargo if cargo in VALID_ROLES else 'lider_de_grupo'
+    return cargo if cargo in VALID_ROLES else 'usuario_cbiot'
 
 # ---------- DECORATORS ----------
 def role_required(allowed_roles):
@@ -299,6 +300,9 @@ def create_reserva():
         if hora_ini < fim_manut and hora_fim > inicio_manut:
             return jsonify({'erro': f'Sala em manutenção no período: {m.motivo}'}), 400
 
+    cargo = normalize_cargo(user.get('cargo')) if user else 'usuario_cbiot'
+    status = 'aprovada' if cargo in ('admin', 'gerente', 'lider_de_grupo') else 'pendente'
+
     nova = Reserva(
         sala_id=dados['sala_id'],
         titulo=dados['titulo'],
@@ -309,7 +313,7 @@ def create_reserva():
         email=dados.get('email', ''),
         descricao=dados.get('descricao', ''),
         grupo_id=None,
-        status='aprovada'
+        status=status
     )
     db.session.add(nova)
     db.session.commit()
@@ -345,10 +349,12 @@ def create_reservas_recorrentes():
     if (data_fim - data_inicio).days > LIMITE_DIAS:
         return jsonify({'erro': f'O período máximo para reservas recorrentes é de {LIMITE_DIAS} dias'}), 400
 
+    cargo = normalize_cargo(user.get('cargo')) if user else 'usuario_cbiot'
+    status = 'aprovada' if cargo in ('admin', 'gerente', 'lider_de_grupo') else 'pendente'
+
     grupo_id = str(uuid.uuid4())
     reservas_criadas = []
     conflitos = []
-    status = 'aprovada'
 
     current_date = data_inicio
     while current_date <= data_fim:
@@ -639,7 +645,7 @@ def delete_reservas_by_grupo(grupo_id):
             usuario_email=email,
             mensagem=mensagem,
             tipo='cancelamento',
-            reserva_id=lista[0].id if lista else None
+            reserva_id=None
         )
         db.session.add(notif)
         print(f"[DEBUG] Notificação adicionada para {email}")
@@ -977,7 +983,7 @@ def rejeitar_solicitacao(solicitacao_id):
         destinatario = User(
             email=reserva.email,
             nome=reserva.responsavel or 'Usuário',
-            cargo='lider_de_grupo',
+            cargo='usuario_cbiot',
             status='aprovado'
         )
         destinatario.set_password('senha_temporaria')
@@ -987,7 +993,7 @@ def rejeitar_solicitacao(solicitacao_id):
         usuario_email=reserva.email,
         mensagem=f'Sua solicitação "{reserva.titulo}" foi REJEITADA.',
         tipo='rejeicao',
-        reserva_id=reserva.id
+        reserva_id=None
     )
     db.session.add(notif)
     db.session.commit()
@@ -1083,7 +1089,7 @@ def criar_manutencao():
                 usuario_email=r.email,
                 mensagem=f'A sala "{r.sala.nome}" entrou em manutenção. Sua reserva do dia {r.data.strftime("%d-%m-%Y")} ({r.hora_inicio.strftime("%H:%M")} às {r.hora_fim.strftime("%H:%M")}) foi CANCELADA.',
                 tipo='cancelamento_manutencao',
-                reserva_id=r.id
+                reserva_id=None
             )
             db.session.add(notif)
         reservas_info.append({

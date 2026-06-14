@@ -343,8 +343,8 @@ const ReservaModal = ({ isOpen, onClose, onSuccess, salas, currentUser, userRole
     <div className="reserva-overlay" onClick={onClose}>
       <div className="reserva-container" onClick={(e) => e.stopPropagation()}>
         <div className="reserva-header">
-          <h2>Solicitar reserva</h2>
-          <p>A solicitação será analisada pelo gerente do CBiot.</p>
+          <h2>{isExterno ? 'Solicitar reserva' : 'Reservar sala'}</h2>
+          <p>{isExterno ? 'A solicitação será analisada pelo gerente do CBiot.' : 'A reserva será confirmada imediatamente.'}</p>
         </div>
 
         {message && (
@@ -459,7 +459,7 @@ const ReservaModal = ({ isOpen, onClose, onSuccess, salas, currentUser, userRole
               <label className="reserva-checkbox-horizontal">
                 <input type="checkbox" checked={recorrente} onChange={(e) => handleRecorrenteChange(e.target.checked)} />
                 <span className="reserva-custom-box"></span>
-                <span className="reserva-label-text">Solicitação recorrente</span>
+                <span className="reserva-label-text">{isExterno ? 'Solicitação recorrente' : 'Reserva recorrente'}</span>
               </label>
               {recorrente && (
                 <div className="reserva-recorrente-expanded" style={{ marginTop: '20px' }}>
@@ -499,7 +499,9 @@ const ReservaModal = ({ isOpen, onClose, onSuccess, salas, currentUser, userRole
             <div className="reserva-footer-actions">
               <button type="button" className="btn-padrao btn-secondary" onClick={onClose}>Cancelar</button>
               <button type="submit" className="btn-padrao btn-primary" disabled={loading}>
-                {loading ? 'Enviando...' : recorrente ? `Enviar ${numeroOcorrencias} solicitações` : 'Enviar solicitação'}
+                {loading ? 'Enviando...' : isExterno
+                  ? (recorrente ? `Enviar ${numeroOcorrencias} solicitações` : 'Enviar solicitação')
+                  : (recorrente ? `Confirmar ${numeroOcorrencias} reservas` : 'Confirmar reserva')}
               </button>
             </div>
           </form>
