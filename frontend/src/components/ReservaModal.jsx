@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createReserva, createReservaRecorrente, getDisponibilidade } from '../api';
+import { createReserva, createReservaRecorrente, getDisponibilidade, deleteReservasByGrupo } from '../api';
 
 const InfoIcon = ({ color = "#10b981", size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -23,7 +23,7 @@ const formatDate = (isoDate) => {
   return `${day}/${month}/${year}`;
 };
 
-const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialData }) => {
+const ReservaModal = ({ isOpen, onClose, onSuccess, salas, currentUser, userRole, initialData }) => {
   const isExterno = userRole === 'externo';
   const [form, setForm] = useState({
     sala_id: '',
@@ -279,32 +279,21 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
       setLoading(false);
     } else {
       const msg = response.mensagem || 'Reserva criada com sucesso!';
-      setMessage(msg);
-      setMessageType(isExterno ? 'warning' : 'success');
       setLoading(false);
-      setTimeout(() => {
-        onClose();
-        window.location.reload();
-      }, 1500);
+      onClose();
+      if (onSuccess) onSuccess(msg);
     }
   };
 
   const handleProceedWithConflicts = () => {
-    setMessage(`${conflictData.reservasCriadas.length} reservas criadas. Conflitos ignorados.`);
-    setMessageType(isExterno ? 'warning' : 'success');
     setShowConflictWarning(false);
-    setTimeout(() => {
-      onClose();
-      window.location.reload();
-    }, 1500);
+    onClose();
+    if (onSuccess) onSuccess(`${conflictData.reservasCriadas.length} reservas criadas. Conflitos ignorados.`);
   };
 
   const handleCancelWithConflicts = async () => {
     if (conflictData.grupo_id) {
-      await fetch(`http://localhost:5000/api/reservas/grupo/${conflictData.grupo_id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      await deleteReservasByGrupo(conflictData.grupo_id);
     }
     setShowConflictWarning(false);
     setMessage('Operação cancelada. Nenhuma reserva foi criada.');
