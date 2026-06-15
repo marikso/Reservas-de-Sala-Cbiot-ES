@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request, jsonify, make_response, g
 from flask_cors import CORS
 from flask_session import Session
@@ -257,6 +258,8 @@ def get_reservas():
 def create_reserva():
     dados = request.get_json()
     user = get_current_user()
+    if not user:
+        return jsonify({'erro': 'Não autenticado'}), 401
     obrigatorios = ['sala_id', 'titulo', 'data', 'hora_inicio', 'hora_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
         return jsonify({'erro': 'Campos obrigatórios faltando'}), 400
@@ -323,6 +326,8 @@ def create_reserva():
 def create_reservas_recorrentes():
     dados = request.get_json()
     user = get_current_user()
+    if not user:
+        return jsonify({'erro': 'Não autenticado'}), 401
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
                     'data_inicio', 'data_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
@@ -616,22 +621,15 @@ def delete_reservas_by_grupo(grupo_id):
     for r in reservas:
         por_usuario.setdefault(r.email, []).append(r)
 
-    # Criar notificações antes de deletar as reservas
     for email, lista in por_usuario.items():
-        print(f"[DEBUG] Processando notificação para {email} ({len(lista)} reservas)")  # log no terminal
-
-        # Garantir que o destinatário exista
         destinatario = User.query.filter_by(email=email).first()
         if not destinatario:
             nome = lista[0].responsavel if lista[0].responsavel else email.split('@')[0]
             novo = User(email=email, nome=nome, cargo='lider_de_grupo', status='aprovado')
             novo.set_password('senha_temporaria')
             db.session.add(novo)
-            db.session.commit()   # commit imediato para ter o ID
-            destinatario = novo
-            print(f"[DEBUG] Usuário {email} criado com sucesso.")
+            db.session.commit()
 
-        # Montar mensagem
         if len(lista) == 1:
             r = lista[0]
             mensagem = f'Sua reserva recorrente "{r.titulo}" para {r.data.strftime("%d-%m-%Y")} foi CANCELADA pelo administrador.'
@@ -648,18 +646,14 @@ def delete_reservas_by_grupo(grupo_id):
             reserva_id=None
         )
         db.session.add(notif)
-        print(f"[DEBUG] Notificação adicionada para {email}")
 
-    # Agora deletar as reservas (após todas as notificações)
     for r in reservas:
         db.session.delete(r)
 
     try:
         db.session.commit()
-        print(f"[DEBUG] {len(reservas)} reservas canceladas e notificações salvas.")
     except Exception as e:
         db.session.rollback()
-        print(f"[ERRO] Falha no commit: {e}")
         return jsonify({'erro': f'Erro ao cancelar grupo: {str(e)}'}), 500
 
     return jsonify({'mensagem': f'{len(reservas)} reservas canceladas do grupo'}), 200
@@ -1084,6 +1078,16 @@ def criar_manutencao():
     for r in reservas_afetadas:
         r.status = 'cancelada'
         destinatario = User.query.filter_by(email=r.email).first()
+        if not destinatario:
+            destinatario = User(
+                email=r.email,
+                nome=r.responsavel or 'Usuário',
+                cargo='lider_de_grupo',
+                status='aprovado'
+            )
+            destinatario.set_password('senha_temporaria')
+            db.session.add(destinatario)
+            db.session.flush()
         if destinatario:
             notif = Notificacao(
                 usuario_email=r.email,
@@ -1170,4 +1174,5 @@ for rule in app.url_map.iter_rules():
     print(rule)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    app.run(debug=debug, port=5000)

@@ -585,9 +585,6 @@ function App() {
       else {
         showToast('Bloqueio criado com sucesso', 'success');
         if (data.reservas_afetadas && data.reservas_afetadas.length) {
-          data.reservas_afetadas.forEach(reserva => {
-
-          });
           if (data.reservas_afetadas.some(r => r.email === currentUser?.email)) {
             loadReservas();
           }
@@ -725,7 +722,18 @@ function App() {
       const fim = parseInt(r.hora_fim.split(':')[0]) + parseInt(r.hora_fim.split(':')[1]) / 60;
       return acc + (fim - inicio);
     }, 0);
-    const mediaDiaria = reservasAprovadas.length / 30;
+    const diasNoPeriodo = (() => {
+      if (periodoRelatorio === '30d') return 30;
+      if (periodoRelatorio === '90d') return 90;
+      if (periodoRelatorio === 'ano') return Math.ceil((new Date() - new Date(new Date().getFullYear(), 0, 1)) / 86400000) || 1;
+      if (periodoRelatorio === 'custom' && periodoCustomAplicado && dataInicioCustom && dataFimCustom) {
+        return Math.max(1, Math.ceil((new Date(dataFimCustom) - new Date(dataInicioCustom)) / 86400000) + 1);
+      }
+      return Math.max(1, reservasPeriodo.length > 0
+        ? Math.ceil((new Date() - new Date(Math.min(...reservasPeriodo.map(r => new Date(r.data))))) / 86400000) + 1
+        : 1);
+    })();
+    const mediaDiaria = reservasAprovadas.length / diasNoPeriodo;
     const usuariosDistintos = new Set(reservasPeriodo.map(r => r.email)).size;
     setMetricas({ totalReservas, totalHoras: totalHoras.toFixed(1), mediaDiaria: mediaDiaria.toFixed(1), usuariosDistintos });
 
@@ -1254,7 +1262,6 @@ function App() {
                   <div style={{ textAlign: 'right' }}>
                     <button className="btn-padrao btn-primary" onClick={() => {
                       if (selectedStart && selectedEnd) {
-                        console.log('Início:', selectedStart.hora_inicio, 'Fim:', selectedEnd.hora_inicio);
                         setReservaData({
                           sala_id: form.sala_id,
                           data: form.data,
