@@ -16,6 +16,12 @@ class Config:
     # Senha do administrador (padrão 'admin123', deve ser alterada em produção)
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
     
+    # URL do Portal de autenticação centralizada
+    PORTAL_AUTH_URL = os.getenv('PORTAL_AUTH_URL', 'http://localhost:3000')
+
+    # Usuário mock para dev local sem portal (deixar vazio em produção)
+    DEV_MOCK_USER = os.getenv('DEV_MOCK_USER', '')
+
     # Tipo de armazenamento da sessão (filesystem - arquivos locais; também poderia ser 'redis')
     SESSION_TYPE = 'filesystem'
     SESSION_COOKIE_SAMESITE = 'Lax'

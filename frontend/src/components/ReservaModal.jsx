@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createReserva, createReservaRecorrente, getDisponibilidade } from '../api';
+import { createReserva, createReservaRecorrente, getDisponibilidade, deleteReservasByGrupo } from '../api';
 
 const InfoIcon = ({ color = "#10b981", size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -23,7 +23,7 @@ const formatDate = (isoDate) => {
   return `${day}/${month}/${year}`;
 };
 
-const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialData }) => {
+const ReservaModal = ({ isOpen, onClose, onSuccess, salas, currentUser, userRole, initialData }) => {
   const isExterno = userRole === 'externo';
   const [form, setForm] = useState({
     sala_id: '',
@@ -279,32 +279,21 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
       setLoading(false);
     } else {
       const msg = response.mensagem || 'Reserva criada com sucesso!';
-      setMessage(msg);
-      setMessageType(isExterno ? 'warning' : 'success');
       setLoading(false);
-      setTimeout(() => {
-        onClose();
-        window.location.reload();
-      }, 1500);
+      onClose();
+      if (onSuccess) onSuccess(msg);
     }
   };
 
   const handleProceedWithConflicts = () => {
-    setMessage(`${conflictData.reservasCriadas.length} reservas criadas. Conflitos ignorados.`);
-    setMessageType(isExterno ? 'warning' : 'success');
     setShowConflictWarning(false);
-    setTimeout(() => {
-      onClose();
-      window.location.reload();
-    }, 1500);
+    onClose();
+    if (onSuccess) onSuccess(`${conflictData.reservasCriadas.length} reservas criadas. Conflitos ignorados.`);
   };
 
   const handleCancelWithConflicts = async () => {
     if (conflictData.grupo_id) {
-      await fetch(`http://localhost:5000/api/reservas/grupo/${conflictData.grupo_id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      await deleteReservasByGrupo(conflictData.grupo_id);
     }
     setShowConflictWarning(false);
     setMessage('Operação cancelada. Nenhuma reserva foi criada.');
@@ -354,8 +343,8 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
     <div className="reserva-overlay" onClick={onClose}>
       <div className="reserva-container" onClick={(e) => e.stopPropagation()}>
         <div className="reserva-header">
-          <h2>Solicitar reserva</h2>
-          <p>A solicitação será analisada pelo gerente do CBiot.</p>
+          <h2>{isExterno ? 'Solicitar reserva' : 'Reservar sala'}</h2>
+          <p>{isExterno ? 'A solicitação será analisada pelo gerente do CBiot.' : 'A reserva será confirmada imediatamente.'}</p>
         </div>
 
         {message && (
@@ -470,7 +459,7 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
               <label className="reserva-checkbox-horizontal">
                 <input type="checkbox" checked={recorrente} onChange={(e) => handleRecorrenteChange(e.target.checked)} />
                 <span className="reserva-custom-box"></span>
-                <span className="reserva-label-text">Solicitação recorrente</span>
+                <span className="reserva-label-text">{isExterno ? 'Solicitação recorrente' : 'Reserva recorrente'}</span>
               </label>
               {recorrente && (
                 <div className="reserva-recorrente-expanded" style={{ marginTop: '20px' }}>
@@ -510,7 +499,9 @@ const ReservaModal = ({ isOpen, onClose, salas, currentUser, userRole, initialDa
             <div className="reserva-footer-actions">
               <button type="button" className="btn-padrao btn-secondary" onClick={onClose}>Cancelar</button>
               <button type="submit" className="btn-padrao btn-primary" disabled={loading}>
-                {loading ? 'Enviando...' : recorrente ? `Enviar ${numeroOcorrencias} solicitações` : 'Enviar solicitação'}
+                {loading ? 'Enviando...' : isExterno
+                  ? (recorrente ? `Enviar ${numeroOcorrencias} solicitações` : 'Enviar solicitação')
+                  : (recorrente ? `Confirmar ${numeroOcorrencias} reservas` : 'Confirmar reserva')}
               </button>
             </div>
           </form>

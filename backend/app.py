@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, session, make_response
+import os
+from flask import Flask, request, jsonify, make_response, g
 from flask_cors import CORS
 from flask_session import Session
 from config import Config
@@ -9,6 +10,8 @@ from sqlalchemy import and_
 from functools import wraps
 import uuid
 import traceback
+import requests as http_requests
+import json
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -62,6 +65,75 @@ def handle_exception(e):
 
 VALID_ROLES = {'admin', 'gerente', 'lider_de_grupo', 'usuario_cbiot'}
 
+# Mapeamento de permissões do Portal para roles internas.
+# SALAS_LIDER é a permissão faltante no portal — nomenclatura similar à variável lider_de_grupo.
+PORTAL_PERMISSION_MAP = [
+    ('SALAS_ADMIN', 'admin'),
+    ('SALAS_GERENTE', 'gerente'),
+    ('SALAS_LIDER', 'lider_de_grupo'),
+    ('SALAS_USER', 'usuario_cbiot'),
+]
+
+def map_permissions_to_role(permissions):
+    for perm, role in PORTAL_PERMISSION_MAP:
+        if perm in permissions:
+            return role
+    if 'ACCESS_RESERVA_SALAS' in permissions:
+        return 'usuario_cbiot'
+    return None
+
+def get_current_user():
+    if hasattr(g, 'current_user'):
+        return g.current_user
+
+    # Bypass para desenvolvimento local sem portal
+    mock_user_str = app.config.get('DEV_MOCK_USER')
+    if mock_user_str:
+        try:
+            data = json.loads(mock_user_str)
+            permissions = data.get('permissions', [])
+            g.current_user = {
+                'id': data.get('id'),
+                'nome': data.get('nome'),
+                'email': data.get('email'),
+                'cargo': map_permissions_to_role(permissions),
+                'permissions': permissions,
+            }
+            return g.current_user
+        except Exception:
+            pass
+
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        g.current_user = None
+        return None
+    try:
+        portal_url = app.config.get('PORTAL_AUTH_URL', 'http://localhost:3000')
+        resp = http_requests.get(
+            f'{portal_url}/api/auth/me',
+            headers={'Authorization': auth_header},
+            timeout=5
+        )
+        if resp.status_code != 200:
+            g.current_user = None
+            return None
+        data = resp.json()
+        permissions = data.get('permissions', [])
+        if 'ACCESS_RESERVA_SALAS' not in permissions:
+            g.current_user = None
+            return None
+        cargo = map_permissions_to_role(permissions)
+        g.current_user = {
+            'id': data.get('id'),
+            'nome': data.get('name'),
+            'email': data.get('email'),
+            'cargo': cargo,
+            'permissions': permissions,
+        }
+    except Exception:
+        g.current_user = None
+    return g.current_user
+
 def normalize_cargo(cargo):
     return cargo if cargo in VALID_ROLES else 'usuario_cbiot'
 
@@ -70,9 +142,9 @@ def role_required(allowed_roles):
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
-            user = session.get('user')
+            user = get_current_user()
             if not user or normalize_cargo(user.get('cargo')) not in allowed_roles:
-                return jsonify({'erro': 'Acesso não autorizado'}), 401
+                return jsonify({'erro': 'Acesso não autorizado'}), 403
             return f(*args, **kwargs)
         return decorated
     return decorator
@@ -147,6 +219,26 @@ def get_salas():
         })
     return jsonify(resultado)
 
+@app.route('/api/salas', methods=['POST'])
+@role_required(['admin'])
+def create_sala():
+    dados = request.get_json()
+    if not dados or not dados.get('nome', '').strip():
+        return jsonify({'erro': 'Nome da sala é obrigatório'}), 400
+    existente = Sala.query.filter_by(nome=dados['nome'].strip()).first()
+    if existente:
+        return jsonify({'erro': 'Já existe uma sala com este nome'}), 400
+    sala = Sala(
+        nome=dados['nome'].strip(),
+        bloco=dados.get('bloco', ''),
+        andar=dados.get('andar', ''),
+        capacidade=dados.get('capacidade') or None,
+        equipamentos=dados.get('equipamentos', ''),
+    )
+    db.session.add(sala)
+    db.session.commit()
+    return jsonify(sala.to_dict()), 201
+
 @app.route('/api/reservas', methods=['GET'])
 def get_reservas():
     sala_id = request.args.get('sala_id', type=int)
@@ -165,8 +257,9 @@ def get_reservas():
 @app.route('/api/reservas', methods=['POST'])
 def create_reserva():
     dados = request.get_json()
-    user = session.get('user')
-    is_externo = user and normalize_cargo(user.get('cargo')) == 'usuario_cbiot'
+    user = get_current_user()
+    if not user:
+        return jsonify({'erro': 'Não autenticado'}), 401
     obrigatorios = ['sala_id', 'titulo', 'data', 'hora_inicio', 'hora_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
         return jsonify({'erro': 'Campos obrigatórios faltando'}), 400
@@ -210,7 +303,9 @@ def create_reserva():
         if hora_ini < fim_manut and hora_fim > inicio_manut:
             return jsonify({'erro': f'Sala em manutenção no período: {m.motivo}'}), 400
 
-    status = 'pendente' if is_externo else 'aprovada'
+    cargo = normalize_cargo(user.get('cargo')) if user else 'usuario_cbiot'
+    status = 'aprovada' if cargo in ('admin', 'gerente', 'lider_de_grupo') else 'pendente'
+
     nova = Reserva(
         sala_id=dados['sala_id'],
         titulo=dados['titulo'],
@@ -225,15 +320,14 @@ def create_reserva():
     )
     db.session.add(nova)
     db.session.commit()
-    if is_externo:
-        return jsonify({'mensagem': 'Solicitação enviada. Aguarde aprovação.'}), 201
     return jsonify(formatReserva(nova)), 201
 
 @app.route('/api/reservas/recorrente', methods=['POST'])
 def create_reservas_recorrentes():
     dados = request.get_json()
-    user = session.get('user')
-    is_externo = user and normalize_cargo(user.get('cargo')) == 'usuario_cbiot'
+    user = get_current_user()
+    if not user:
+        return jsonify({'erro': 'Não autenticado'}), 401
     obrigatorios = ['sala_id', 'titulo', 'hora_inicio', 'hora_fim', 'dias_semana',
                     'data_inicio', 'data_fim', 'responsavel']
     if not all(c in dados for c in obrigatorios):
@@ -260,10 +354,12 @@ def create_reservas_recorrentes():
     if (data_fim - data_inicio).days > LIMITE_DIAS:
         return jsonify({'erro': f'O período máximo para reservas recorrentes é de {LIMITE_DIAS} dias'}), 400
 
+    cargo = normalize_cargo(user.get('cargo')) if user else 'usuario_cbiot'
+    status = 'aprovada' if cargo in ('admin', 'gerente', 'lider_de_grupo') else 'pendente'
+
     grupo_id = str(uuid.uuid4())
     reservas_criadas = []
     conflitos = []
-    status = 'pendente' if is_externo else 'aprovada'
 
     current_date = data_inicio
     while current_date <= data_fim:
@@ -322,7 +418,7 @@ def get_reservas_by_grupo(grupo_id):
 
 @app.route('/api/reservas/grupo/<grupo_id>/user', methods=['DELETE'])
 def delete_user_grupo(grupo_id):
-    user = session.get('user')
+    user = get_current_user()
     if not user:
         return jsonify({'erro': 'Não autenticado'}), 401
     reservas = Reserva.query.filter_by(grupo_id=grupo_id).all()
@@ -341,9 +437,9 @@ def delete_user_grupo(grupo_id):
 @app.route('/api/reservas/<int:reserva_id>', methods=['PUT'])
 def update_reserva(reserva_id):
     reserva = Reserva.query.get_or_404(reserva_id)
-    user = session.get('user')
+    user = get_current_user()
     if not user or (normalize_cargo(user.get('cargo')) not in ['admin', 'gerente'] and reserva.email != user.get('email')):
-        return jsonify({'erro': 'Acesso não autorizado'}), 401
+        return jsonify({'erro': 'Acesso não autorizado'}), 403
     if reserva.status != 'aprovada':
         return jsonify({'erro': 'Só é possível editar reservas já aprovadas'}), 400
 
@@ -442,7 +538,7 @@ def update_reserva(reserva_id):
             destinatario = User(
                 email=reserva.email,
                 nome=reserva.responsavel or 'Usuário',
-                cargo='usuario_cbiot',
+                cargo='lider_de_grupo',
                 status='aprovado'
             )
             destinatario.set_password('senha_temporaria')
@@ -473,9 +569,6 @@ def update_reserva(reserva_id):
         db.session.commit()
 
     return jsonify(formatReserva(reserva)), 200
-    
-
-    return jsonify(formatReserva(reserva)), 200
 
 @app.route('/api/reservas/<int:reserva_id>', methods=['GET'])
 def get_reserva(reserva_id):
@@ -486,12 +579,12 @@ def get_reserva(reserva_id):
 @app.route('/api/reservas/<int:reserva_id>', methods=['DELETE'])
 def delete_reserva(reserva_id):
     reserva = Reserva.query.get_or_404(reserva_id)
-    user = session.get('user')
+    user = get_current_user()
     if not user or (normalize_cargo(user.get('cargo')) not in ['admin', 'gerente'] and reserva.email != user.get('email')):
-        return jsonify({'erro': 'Acesso não autorizado'}), 401
+        return jsonify({'erro': 'Acesso não autorizado'}), 403
 
-    if normalize_cargo(user.get('cargo')) in ['admin', 'gerente'] and reserva.email != user.get('email'):
-        # Garantir que o destinatário exista
+    cargo_atual = normalize_cargo(user.get('cargo'))
+    if cargo_atual in ['admin', 'gerente'] and reserva.email != user.get('email'):
         destinatario = User.query.filter_by(email=reserva.email).first()
         if not destinatario:
             destinatario = User(
@@ -508,7 +601,7 @@ def delete_reserva(reserva_id):
             usuario_email=reserva.email,
             mensagem=f'Sua reserva "{reserva.titulo}" para {reserva.data.strftime("%d-%m-%Y")} foi CANCELADA por um administrador.',
             tipo='cancelamento',
-            reserva_id=None   # Evita FK constraint, pois a reserva será deletada
+            reserva_id=None
         )
         db.session.add(notif)
 
@@ -528,22 +621,15 @@ def delete_reservas_by_grupo(grupo_id):
     for r in reservas:
         por_usuario.setdefault(r.email, []).append(r)
 
-    # Criar notificações antes de deletar as reservas
     for email, lista in por_usuario.items():
-        print(f"[DEBUG] Processando notificação para {email} ({len(lista)} reservas)")  # log no terminal
-
-        # Garantir que o destinatário exista
         destinatario = User.query.filter_by(email=email).first()
         if not destinatario:
             nome = lista[0].responsavel if lista[0].responsavel else email.split('@')[0]
-            novo = User(email=email, nome=nome, cargo='usuario_cbiot', status='aprovado')
+            novo = User(email=email, nome=nome, cargo='lider_de_grupo', status='aprovado')
             novo.set_password('senha_temporaria')
             db.session.add(novo)
-            db.session.commit()   # commit imediato para ter o ID
-            destinatario = novo
-            print(f"[DEBUG] Usuário {email} criado com sucesso.")
+            db.session.commit()
 
-        # Montar mensagem
         if len(lista) == 1:
             r = lista[0]
             mensagem = f'Sua reserva recorrente "{r.titulo}" para {r.data.strftime("%d-%m-%Y")} foi CANCELADA pelo administrador.'
@@ -557,21 +643,17 @@ def delete_reservas_by_grupo(grupo_id):
             usuario_email=email,
             mensagem=mensagem,
             tipo='cancelamento',
-            reserva_id=lista[0].id if lista else None
+            reserva_id=None
         )
         db.session.add(notif)
-        print(f"[DEBUG] Notificação adicionada para {email}")
 
-    # Agora deletar as reservas (após todas as notificações)
     for r in reservas:
         db.session.delete(r)
 
     try:
         db.session.commit()
-        print(f"[DEBUG] {len(reservas)} reservas canceladas e notificações salvas.")
     except Exception as e:
         db.session.rollback()
-        print(f"[ERRO] Falha no commit: {e}")
         return jsonify({'erro': f'Erro ao cancelar grupo: {str(e)}'}), 500
 
     return jsonify({'mensagem': f'{len(reservas)} reservas canceladas do grupo'}), 200
@@ -784,47 +866,11 @@ def check_reserva_conflito():
         return jsonify({'conflito': True, 'titulo': conflito.titulo, 'responsavel': conflito.responsavel})
     return jsonify({'conflito': False})
 
-# ---------- AUTENTICAÇÃO ----------
-@app.route('/api/auth/login', methods=['POST'])
-def auth_login():
-    dados = request.get_json() or {}
-    email = dados.get('email')
-    senha = dados.get('senha')
-    if not email or not senha:
-        return jsonify({'erro': 'email e senha são necessários'}), 400
-    user = User.query.filter_by(email=email).first()
-    if not user or not user.check_password(senha):
-        return jsonify({'erro': 'Credenciais inválidas'}), 401
-    if user.status != 'aprovado':
-        return jsonify({'erro': 'Conta aguardando aprovação do administrador.'}), 403
-    session['user'] = user.to_dict(include_status=False)
-    return jsonify(session['user'])
-
-@app.route('/api/auth/register', methods=['POST'])
-def auth_register():
-    dados = request.get_json() or {}
-    nome = dados.get('nome')
-    email = dados.get('email')
-    senha = dados.get('senha')
-    if not nome or not email or not senha:
-        return jsonify({'erro': 'nome, email e senha são obrigatórios'}), 400
-    existing = User.query.filter_by(email=email).first()
-    if existing:
-        return jsonify({'erro': 'Email já cadastrado'}), 400
-    user = User(email=email, nome=nome, cargo='usuario_cbiot', status='pendente')
-    user.set_password(senha)
-    db.session.add(user)
-    db.session.commit()
-    return jsonify({'mensagem': 'Cadastro realizado. Aguardando aprovação do administrador.'}), 201
-
-@app.route('/api/auth/logout', methods=['POST'])
-def auth_logout():
-    session.pop('user', None)
-    return jsonify({'sucesso': True})
-
+# ---------- AUTENTICAÇÃO (via Portal) ----------
 @app.route('/api/auth/whoami', methods=['GET'])
 def auth_whoami():
-    return jsonify(session.get('user') or {})
+    user = get_current_user()
+    return jsonify(user or {})
 
 # ---------- ROTAS DE GERENCIAMENTO DE USUÁRIOS ----------
 @app.route('/api/users', methods=['GET'])
@@ -850,7 +896,7 @@ def atualizar_usuario(user_id):
 def aprovar_usuario(user_id):
     user = User.query.get_or_404(user_id)
     cargo = request.json.get('cargo')
-    if normalize_cargo(session.get('user').get('cargo')) == 'gerente':
+    if normalize_cargo(get_current_user().get('cargo')) == 'gerente':
         cargo = 'lider_de_grupo'
     else:
         if not cargo:
@@ -869,7 +915,7 @@ def listar_solicitacoes():
 
 @app.route('/api/minhas-solicitacoes', methods=['GET'])
 def minhas_solicitacoes():
-    user = session.get('user')
+    user = get_current_user()
     if not user:
         return jsonify({'erro': 'Não autenticado'}), 401
     email = user.get('email')
@@ -889,7 +935,7 @@ def aprovar_solicitacao(solicitacao_id):
     if reserva.status != 'pendente':
         return jsonify({'erro': 'Solicitação não está pendente'}), 400
     reserva.status = 'aprovada'
-    user = session.get('user')
+    user = get_current_user()
     reserva.aprovador = user.get('nome') or user.get('email')
     reserva.data_aprovacao = datetime.utcnow()
 
@@ -899,7 +945,7 @@ def aprovar_solicitacao(solicitacao_id):
         destinatario = User(
             email=reserva.email,
             nome=reserva.responsavel or 'Usuário',
-            cargo='usuario_cbiot',
+            cargo='lider_de_grupo',
             status='aprovado'
         )
         destinatario.set_password('senha_temporaria')
@@ -923,7 +969,7 @@ def rejeitar_solicitacao(solicitacao_id):
     if reserva.status != 'pendente':
         return jsonify({'erro': 'Solicitação não está pendente'}), 400
     reserva.status = 'rejeitada'
-    user = session.get('user')
+    user = get_current_user()
     reserva.aprovador = user.get('nome') or user.get('email')
     reserva.data_aprovacao = datetime.utcnow()
     destinatario = User.query.filter_by(email=reserva.email).first()
@@ -941,7 +987,7 @@ def rejeitar_solicitacao(solicitacao_id):
         usuario_email=reserva.email,
         mensagem=f'Sua solicitação "{reserva.titulo}" foi REJEITADA.',
         tipo='rejeicao',
-        reserva_id=reserva.id
+        reserva_id=None
     )
     db.session.add(notif)
     db.session.commit()
@@ -1032,12 +1078,22 @@ def criar_manutencao():
     for r in reservas_afetadas:
         r.status = 'cancelada'
         destinatario = User.query.filter_by(email=r.email).first()
+        if not destinatario:
+            destinatario = User(
+                email=r.email,
+                nome=r.responsavel or 'Usuário',
+                cargo='lider_de_grupo',
+                status='aprovado'
+            )
+            destinatario.set_password('senha_temporaria')
+            db.session.add(destinatario)
+            db.session.flush()
         if destinatario:
             notif = Notificacao(
                 usuario_email=r.email,
                 mensagem=f'A sala "{r.sala.nome}" entrou em manutenção. Sua reserva do dia {r.data.strftime("%d-%m-%Y")} ({r.hora_inicio.strftime("%H:%M")} às {r.hora_fim.strftime("%H:%M")}) foi CANCELADA.',
                 tipo='cancelamento_manutencao',
-                reserva_id=r.id
+                reserva_id=None
             )
             db.session.add(notif)
         reservas_info.append({
@@ -1066,7 +1122,7 @@ def deletar_manutencao(manutencao_id):
 # ---------- ROTAS DE NOTIFICAÇÕES ----------
 @app.route('/api/notificacoes', methods=['GET'])
 def get_notificacoes():
-    user = session.get('user')
+    user = get_current_user()
     if not user:
         return jsonify({'erro': 'Não autenticado'}), 401
     notificacoes = Notificacao.query.filter_by(usuario_email=user['email']).order_by(Notificacao.data_criacao.desc()).all()
@@ -1074,7 +1130,7 @@ def get_notificacoes():
 
 @app.route('/api/notificacoes/<int:notif_id>/marcar-lida', methods=['PUT'])
 def marcar_notificacao_lida(notif_id):
-    user = session.get('user')
+    user = get_current_user()
     if not user:
         return jsonify({'erro': 'Não autenticado'}), 401
     notif = Notificacao.query.get_or_404(notif_id)
@@ -1086,7 +1142,7 @@ def marcar_notificacao_lida(notif_id):
 
 @app.route('/api/notificacoes/marcar-todas-lidas', methods=['PUT'])
 def marcar_todas_notificacoes_lidas():
-    user = session.get('user')
+    user = get_current_user()
     if not user:
         return jsonify({'erro': 'Não autenticado'}), 401
     Notificacao.query.filter_by(usuario_email=user['email'], lida=False).update({'lida': True})
@@ -1095,7 +1151,7 @@ def marcar_todas_notificacoes_lidas():
 
 @app.route('/api/notificacoes/<int:notif_id>', methods=['DELETE'])
 def deletar_notificacao(notif_id):
-    user = session.get('user')
+    user = get_current_user()
     if not user:
         return jsonify({'erro': 'Não autenticado'}), 401
     notif = Notificacao.query.get(notif_id)  # usar .get() em vez de get_or_404
@@ -1108,19 +1164,6 @@ def deletar_notificacao(notif_id):
     db.session.commit()
     return jsonify({'mensagem': 'Notificação removida'}), 200
 
-# ---------- ROTAS ADMIN LEGACY ----------
-@app.route('/api/admin/login', methods=['POST'])
-def admin_login():
-    dados = request.get_json()
-    if dados.get('senha') == app.config['ADMIN_PASSWORD']:
-        session['admin'] = True
-        return jsonify({'sucesso': True})
-    return jsonify({'erro': 'Senha inválida'}), 401
-
-@app.route('/api/admin/logout', methods=['POST'])
-def admin_logout():
-    session.pop('admin', None)
-    return jsonify({'sucesso': True})
 
 # ---------- INICIALIZAÇÃO ----------
 with app.app_context():
@@ -1131,4 +1174,5 @@ for rule in app.url_map.iter_rules():
     print(rule)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    app.run(debug=debug, port=5000)

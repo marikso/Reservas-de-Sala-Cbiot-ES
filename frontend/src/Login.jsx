@@ -1,12 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authLogin, authRegister } from './api';
+import { authLogin, setToken, PORTAL_AUTH_URL, whoami } from './api';
 
 export default function Login() {
-  const [mode, setMode] = useState('login'); // 'login' or 'register'
-  const [form, setForm] = useState({ email: '', nome: '', senha: '' });
+  const [form, setForm] = useState({ email: '', senha: '' });
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (import.meta.env.VITE_DEV_MODE === 'true') {
+      whoami().then(u => {
+        if (u && u.email) navigate('/ReservaDeSalas', { replace: true });
+      });
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -16,67 +24,48 @@ export default function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError(null);
-    const res = await authLogin({ email: form.email, senha: form.senha });
-    if (res && res.erro) {
-      setError(res.erro);
-      return;
+    setLoading(true);
+    try {
+      const data = await authLogin({ email: form.email, senha: form.senha });
+      if (data.erro || data.message && !data.token) {
+        setError(data.erro || data.message || 'Credenciais inválidas');
+        return;
+      }
+      const permissions = data.user?.permissions || [];
+      if (!permissions.includes('ACCESS_RESERVA_SALAS')) {
+        setError('Você não tem permissão para acessar o sistema de Reserva de Salas.');
+        return;
+      }
+      setToken(data.token);
+      navigate('/ReservaDeSalas', { replace: true });
+    } catch {
+      setError('Erro ao conectar com o servidor de autenticação.');
+    } finally {
+      setLoading(false);
     }
-    navigate('/ReservaDeSalas', { replace: true });
-  };
-
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setError(null);
-    const res = await authRegister({ nome: form.nome, email: form.email, senha: form.senha });
-    if (res && res.erro) {
-      setError(res.erro);
-      return;
-    }
-    navigate('/ReservaDeSalas', { replace: true });
   };
 
   return (
     <div className="login-page">
       <div className="login-box">
-        <h2>{mode === 'login' ? 'Entrar no Sistema' : 'Cadastro de Usuário'}</h2>
+        <h2>Entrar no Sistema</h2>
+        <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '1rem' }}>
+          Use as credenciais do Portal UFRGS
+        </p>
         {error && <div className="error">{error}</div>}
-
-        {mode === 'login' ? (
-          <form onSubmit={handleLogin} className="login-form">
-            <label>
-              E-mail
-              <input name="email" type="email" value={form.email} onChange={handleChange} required />
-            </label>
-            <label>
-              Senha
-              <input name="senha" type="password" value={form.senha} onChange={handleChange} required />
-            </label>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <button type="submit">Entrar</button>
-              <button type="button" onClick={() => { setMode('register'); setError(null); }}>Criar conta</button>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={handleRegister} className="login-form">
-            <label>
-              Nome
-              <input name="nome" value={form.nome} onChange={handleChange} required />
-            </label>
-            <label>
-              E-mail
-              <input name="email" type="email" value={form.email} onChange={handleChange} required />
-            </label>
-            <label>
-              Senha
-              <input name="senha" type="password" value={form.senha} onChange={handleChange} required />
-            </label>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <button type="submit">Cadastrar</button>
-              <button type="button" onClick={() => { setMode('login'); setError(null); }}>Voltar ao login</button>
-            </div>
-            <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>O seu acesso será analisado e aprovado por um administrador.</p>
-          </form>
-        )}
+        <form onSubmit={handleLogin} className="login-form">
+          <label>
+            E-mail
+            <input name="email" type="email" value={form.email} onChange={handleChange} required />
+          </label>
+          <label>
+            Senha
+            <input name="senha" type="password" value={form.senha} onChange={handleChange} required />
+          </label>
+          <button type="submit" disabled={loading}>
+            {loading ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
       </div>
     </div>
   );

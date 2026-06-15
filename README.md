@@ -4,6 +4,53 @@ Aplicação web para gerenciamento de reservas de salas, com backend em Flask e 
 
 ---
 
+# 👥 Cargos e Permissões
+
+A autenticação é feita via portal centralizado. A permissão recebida do portal é mapeada para um cargo interno:
+
+| Permissão no Portal | Cargo interno      |
+|---------------------|--------------------|
+| `SALAS_ADMIN`       | `admin`            |
+| `SALAS_GERENTE`     | `gerente`          |
+| `SALAS_LIDER`       | `lider_de_grupo`   |
+| `SALAS_USER`        | `usuario_cbiot`    |
+| `ACCESS_RESERVA_SALAS` (fallback) | `usuario_cbiot` |
+
+## Administrador (`admin`)
+
+- Acessa o painel administrativo completo
+- Aprova, rejeita, edita e cancela qualquer reserva ou solicitação
+- Gerencia salas (criar, editar, excluir, colocar em manutenção)
+- Gerencia usuários (visualizar e alterar cargos)
+- Visualiza relatórios e histórico de todas as reservas
+- Reservas criadas por ele são aprovadas automaticamente
+
+## Gerente (`gerente`)
+
+- Acessa o painel administrativo (exceto gerenciamento de salas e usuários)
+- Aprova, rejeita, edita e cancela qualquer reserva ou solicitação
+- Visualiza relatórios e histórico de todas as reservas
+- Reservas criadas por ele são aprovadas automaticamente
+
+## Líder de Grupo (`lider_de_grupo`)
+
+Perfil: **técnicos, servidores e professores** do CBiot.
+
+- Cria reservas diretamente — aprovadas de forma automática, sem necessidade de aprovação
+- Visualiza e cancela suas próprias reservas
+- Não acessa o painel administrativo
+
+## Usuário CBiot (`usuario_cbiot`)
+
+Perfil: **alunos e bolsistas** do CBiot.
+
+- Envia **solicitações** de reserva, que ficam com status **pendente** até aprovação de um admin ou gerente
+- Visualiza suas solicitações pendentes, ativas e histórico
+- Não acessa o painel administrativo
+- Não cria reservas diretamente
+
+---
+
 # 📌 Pré-requisitos
 
 Antes de começar, certifique-se de ter instalado:

@@ -19,6 +19,19 @@ import {
   whoami,
   authLogout,
   getMinhasSolicitacoes,
+  getSolicitacoes,
+  getSolicitacoesRejeitadas,
+  aprovarSolicitacao,
+  rejeitarSolicitacao,
+  getManutencoes,
+  createManutencao,
+  deleteManutencao,
+  getSalasDisponiveis,
+  getReservaById,
+  getNotificacoes,
+  marcarNotificacaoLida,
+  marcarTodasNotificacoesLidas,
+  removerNotificacao,
 } from './api';
 
 import ReservaModal from './components/ReservaModal';
@@ -159,11 +172,8 @@ function App() {
 
   const carregarNotificacoes = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/notificacoes', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setNotificacoes(data);
-      }
+      const data = await getNotificacoes();
+      if (Array.isArray(data)) setNotificacoes(data);
     } catch (err) {
       console.error('Erro ao carregar notificações', err);
     }
@@ -177,13 +187,8 @@ function App() {
 
   const marcarNotificacaoComoLida = async (id) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/notificacoes/${id}/marcar-lida`, {
-        method: 'PUT',
-        credentials: 'include'
-      });
-      if (res.ok) {
-        setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
-      }
+      await marcarNotificacaoLida(id);
+      setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
     } catch (err) {
       console.error('Erro ao marcar notificação como lida', err);
     }
@@ -191,13 +196,8 @@ function App() {
 
   const marcarTodasComoLidas = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/notificacoes/marcar-todas-lidas', {
-        method: 'PUT',
-        credentials: 'include'
-      });
-      if (res.ok) {
-        setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
-      }
+      await marcarTodasNotificacoesLidas();
+      setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
     } catch (err) {
       console.error('Erro ao marcar todas como lidas', err);
     }
@@ -209,16 +209,8 @@ function App() {
     if (removendoNotificacao[id]) return;
     setRemovendoNotificacao(prev => ({ ...prev, [id]: true }));
     try {
-      const res = await fetch(`http://localhost:5000/api/notificacoes/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      if (res.ok) {
-        setNotificacoes(prev => prev.filter(n => n.id !== id));
-      } else {
-        const errorData = await res.json();
-        console.error('Erro ao remover notificação:', errorData.erro);
-      }
+      await removerNotificacao(id);
+      setNotificacoes(prev => prev.filter(n => n.id !== id));
     } catch (err) {
       console.error('Erro na requisição:', err);
     } finally {
@@ -255,29 +247,20 @@ function App() {
   };
   const loadSolicitacoes = async () => {
     if (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') {
-      const res = await fetch('http://localhost:5000/api/solicitacoes', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setSolicitacoes(data);
-      }
+      const data = await getSolicitacoes();
+      if (Array.isArray(data)) setSolicitacoes(data);
     }
   };
   const loadRejeitadas = async () => {
     if (currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') {
-      const res = await fetch('http://localhost:5000/api/solicitacoes/rejeitadas', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setRejeitadas(data);
-      }
+      const data = await getSolicitacoesRejeitadas();
+      if (Array.isArray(data)) setRejeitadas(data);
     }
   };
   const loadManutencoes = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/manutencoes', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setManutencoes(data);
-      }
+      const data = await getManutencoes();
+      if (Array.isArray(data)) setManutencoes(data);
     } catch (err) {
       console.error('Erro ao carregar manutenções', err);
     }
@@ -316,7 +299,7 @@ function App() {
         loadRejeitadas();
         loadManutencoes();
       }
-      if (currentUser.cargo === 'usuario_cbiot') {
+      if (currentUser.cargo === 'lider_de_grupo' || currentUser.cargo === 'usuario_cbiot') {
         loadMinhasSolicitacoes();
       }
       if (currentUser.cargo === 'admin') {
@@ -417,9 +400,8 @@ function App() {
   };
 
   const handleLogout = async () => {
-    await authLogout();
+    authLogout();
     setCurrentUser(null);
-    showToast('Desconectado', 'info');
     navigate('/');
   };
 
@@ -520,15 +502,11 @@ function App() {
       showToast('Selecione data, início e fim', 'error');
       return;
     }
-    const res = await fetch(
-      `http://localhost:5000/api/salas/disponiveis?data=${dataConsulta}&hora_inicio=${horaConsulta}&hora_fim=${horaFimConsulta}`,
-      { credentials: 'include' }
-    );
-    const data = await res.json();
-    if (res.ok) {
-      setDisponibilidadeDataHora(data);
-    } else {
+    const data = await getSalasDisponiveis(dataConsulta, horaConsulta, horaFimConsulta);
+    if (data.erro) {
       showToast(data.erro || 'Erro na consulta', 'error');
+    } else {
+      setDisponibilidadeDataHora(data);
     }
   };
 
@@ -602,20 +580,11 @@ function App() {
       return;
     }
     try {
-      const res = await fetch('http://localhost:5000/api/manutencoes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(novaManutencao),
-      });
-      const data = await res.json();
-      if (!res.ok) showToast(data.erro || 'Erro ao criar bloqueio', 'error');
+      const data = await createManutencao(novaManutencao);
+      if (data.erro) showToast(data.erro || 'Erro ao criar bloqueio', 'error');
       else {
         showToast('Bloqueio criado com sucesso', 'success');
         if (data.reservas_afetadas && data.reservas_afetadas.length) {
-          data.reservas_afetadas.forEach(reserva => {
-
-          });
           if (data.reservas_afetadas.some(r => r.email === currentUser?.email)) {
             loadReservas();
           }
@@ -640,14 +609,13 @@ function App() {
   const handleRemoverManutencao = async (id) => {
     if (window.confirm('Remover este bloqueio de manutenção?')) {
       try {
-        const res = await fetch(`http://localhost:5000/api/manutencoes/${id}`, { method: 'DELETE', credentials: 'include' });
-        if (res.ok) {
+        const data = await deleteManutencao(id);
+        if (data.erro) {
+          showToast(data.erro || 'Erro ao remover', 'error');
+        } else {
           showToast('Bloqueio removido', 'success');
           await loadManutencoes();
           await loadSalas();
-        } else {
-          const err = await res.json();
-          showToast(err.erro || 'Erro ao remover', 'error');
         }
       } catch (err) {
         showToast('Erro de conexão', 'error');
@@ -658,7 +626,7 @@ function App() {
     const ativos = manutencoes.filter(m => m.sala_id === salaId);
     for (const m of ativos) {
       try {
-        await fetch(`http://localhost:5000/api/manutencoes/${m.id}`, { method: 'DELETE', credentials: 'include' });
+        await deleteManutencao(m.id);
       } catch { }
     }
     await loadManutencoes();
@@ -686,31 +654,29 @@ function App() {
 
   // ========== SOLICITAÇÕES (aprovação/rejeição com notificação) ==========
   const handleAprovarSolicitacao = async (id, emailUsuario, titulo) => {
-    const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/aprovar`, { method: 'POST', credentials: 'include' });
-    if (res.ok) {
+    const res = await aprovarSolicitacao(id);
+    if (!res.erro) {
       showToast('Reserva aprovada!', 'success');
       await loadSolicitacoes();
       await loadAllReservas();
       if (currentUser?.email === emailUsuario) await loadReservas();
-      await carregarNotificacoes();   // <-- adicionar
+      await carregarNotificacoes();
     } else {
-      const err = await res.json();
-      showToast(err.erro || 'Erro ao aprovar', 'error');
+      showToast(res.erro || 'Erro ao aprovar', 'error');
     }
   };
 
   const handleRejeitarSolicitacao = async (id, emailUsuario, titulo) => {
     if (window.confirm('Rejeitar esta solicitação?')) {
-      const res = await fetch(`http://localhost:5000/api/solicitacoes/${id}/rejeitar`, { method: 'POST', credentials: 'include' });
-      if (res.ok) {
+      const res = await rejeitarSolicitacao(id);
+      if (!res.erro) {
         showToast('Solicitação rejeitada', 'success');
         await loadSolicitacoes();
         await loadRejeitadas();
         if (currentUser?.email === emailUsuario) await loadReservas();
-        await carregarNotificacoes();   // <-- adicionar
+        await carregarNotificacoes();
       } else {
-        const err = await res.json();
-        showToast(err.erro || 'Erro ao rejeitar', 'error');
+        showToast(res.erro || 'Erro ao rejeitar', 'error');
       }
     }
   };
@@ -756,7 +722,18 @@ function App() {
       const fim = parseInt(r.hora_fim.split(':')[0]) + parseInt(r.hora_fim.split(':')[1]) / 60;
       return acc + (fim - inicio);
     }, 0);
-    const mediaDiaria = reservasAprovadas.length / 30;
+    const diasNoPeriodo = (() => {
+      if (periodoRelatorio === '30d') return 30;
+      if (periodoRelatorio === '90d') return 90;
+      if (periodoRelatorio === 'ano') return Math.ceil((new Date() - new Date(new Date().getFullYear(), 0, 1)) / 86400000) || 1;
+      if (periodoRelatorio === 'custom' && periodoCustomAplicado && dataInicioCustom && dataFimCustom) {
+        return Math.max(1, Math.ceil((new Date(dataFimCustom) - new Date(dataInicioCustom)) / 86400000) + 1);
+      }
+      return Math.max(1, reservasPeriodo.length > 0
+        ? Math.ceil((new Date() - new Date(Math.min(...reservasPeriodo.map(r => new Date(r.data))))) / 86400000) + 1
+        : 1);
+    })();
+    const mediaDiaria = reservasAprovadas.length / diasNoPeriodo;
     const usuariosDistintos = new Set(reservasPeriodo.map(r => r.email)).size;
     setMetricas({ totalReservas, totalHoras: totalHoras.toFixed(1), mediaDiaria: mediaDiaria.toFixed(1), usuariosDistintos });
 
@@ -887,7 +864,7 @@ function App() {
       const agora = new Date();
       const hojeLocal = agora.toLocaleDateString('en-CA');
       const horaAtual = agora.getHours() * 60 + agora.getMinutes();
-      const isExterno = currentUser.cargo === 'usuario_cbiot';
+      const isExterno = currentUser?.cargo === 'usuario_cbiot';
 
       const reservasAtivas = reservas.filter(r => {
         if (r.status !== 'aprovada') return false;
@@ -1112,11 +1089,8 @@ function App() {
     const buscarReserva = async (id) => {
       if (reservasDetalhe[id]) return;
       try {
-        const res = await fetch(`http://localhost:5000/api/reservas/${id}`, { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
-          setReservasDetalhe(prev => ({ ...prev, [id]: data }));
-        }
+        const data = await getReservaById(id);
+        if (data && !data.erro) setReservasDetalhe(prev => ({ ...prev, [id]: data }));
       } catch (err) {
         console.error('Erro ao buscar reserva', err);
       }
@@ -1288,7 +1262,6 @@ function App() {
                   <div style={{ textAlign: 'right' }}>
                     <button className="btn-padrao btn-primary" onClick={() => {
                       if (selectedStart && selectedEnd) {
-                        console.log('Início:', selectedStart.hora_inicio, 'Fim:', selectedEnd.hora_inicio);
                         setReservaData({
                           sala_id: form.sala_id,
                           data: form.data,
@@ -1501,9 +1474,9 @@ function App() {
 
     // --- GERENCIAR USUÁRIOS (admin) ---
     if (activeView === 'gerenciar-usuarios' && currentUser?.cargo === 'admin') {
-      const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', lider_de_grupo: 'Líder de Grupo', usuario_cbiot: 'Usuário CBiot' };
-      const cargoBg = { admin: '#844BD4', gerente: '#3498DB', lider_de_grupo: '#ECE6F7', usuario_cbiot: '#ECE6F7' };
-      const cargoFg = { admin: '#fff', gerente: '#fff', lider_de_grupo: '#6B5F7A', usuario_cbiot: '#6B5F7A' };
+      const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', lider_de_grupo: 'Usuário' };
+      const cargoBg = { admin: '#844BD4', gerente: '#3498DB', lider_de_grupo: '#ECE6F7' };
+      const cargoFg = { admin: '#fff', gerente: '#fff', lider_de_grupo: '#6B5F7A' };
       return (
         <div className="conteudo-mapa-padrao">
           <div className="cabecalho-mapa-padrao">
@@ -1515,7 +1488,7 @@ function App() {
             <span className="gs-stats-detail">
               · {users.filter(u => u.cargo === 'admin').length} administradores
               · {users.filter(u => u.cargo === 'gerente').length} gerentes
-              · {users.filter(u => u.cargo === 'lider_de_grupo').length} usuários CBiot
+              · {users.filter(u => u.cargo === 'lider_de_grupo').length} usuários
             </span>
           </div>
           <div className="gu-table-header">
@@ -1595,8 +1568,7 @@ function App() {
                     <select className="modal-input" value={novoPapelSelecionado} onChange={e => setNovoPapelSelecionado(e.target.value)}>
                       <option value="admin">Administrador</option>
                       <option value="gerente">Gerente</option>
-                      <option value="lider_de_grupo">Líder de Grupo</option>
-                      <option value="usuario_cbiot">Usuário CBiot</option>
+                      <option value="lider_de_grupo">Usuário</option>
                     </select>
                   </div>
                 </div>
@@ -1869,9 +1841,10 @@ function App() {
       <ReservaModal
         isOpen={modalReservaAberto}
         onClose={handleModalClose}
+        onSuccess={(msg) => { showToast(msg, 'success'); loadReservas(); }}
         salas={salas}
         currentUser={currentUser}
-        userRole={currentUser.cargo === 'usuario_cbiot' ? 'externo' : 'interno'}
+        userRole={currentUser?.cargo === 'usuario_cbiot' ? 'externo' : 'interno'}
         initialData={reservaData}
       />
       <aside className="sidebar">
