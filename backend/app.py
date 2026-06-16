@@ -10,7 +10,7 @@ from sqlalchemy import and_
 from functools import wraps
 import uuid
 import traceback
-import requests as http_requests
+import jwt
 from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
@@ -67,22 +67,19 @@ def handle_exception(e):
 
 VALID_ROLES = {'admin', 'gerente', 'lider_de_grupo', 'usuario_cbiot'}
 
-# Mapeamento de permissões do Portal para roles internas.
-# SALAS_LIDER é a permissão faltante no portal — nomenclatura similar à variável lider_de_grupo.
-PORTAL_PERMISSION_MAP = [
-    ('SALAS_ADMIN', 'admin'),
-    ('SALAS_GERENTE', 'gerente'),
-    ('SALAS_LIDER', 'lider_de_grupo'),
-    ('SALAS_USER', 'usuario_cbiot'),
-]
+JWT_SECRET = app.config.get('SECRET_KEY', 'dev-secret-key')
+JWT_ALGORITHM = 'HS256'
+JWT_EXPIRATION_HOURS = 24
 
-def map_permissions_to_role(permissions):
-    for perm, role in PORTAL_PERMISSION_MAP:
-        if perm in permissions:
-            return role
-    if 'ACCESS_RESERVA_SALAS' in permissions:
-        return 'usuario_cbiot'
-    return None
+def generate_token(user):
+    payload = {
+        'id': user.id,
+        'email': user.email,
+        'nome': user.nome,
+        'cargo': user.cargo if user.cargo in VALID_ROLES else 'usuario_cbiot',
+        'exp': datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 def get_current_user():
     if hasattr(g, 'current_user'):
@@ -93,29 +90,15 @@ def get_current_user():
         g.current_user = None
         return None
     try:
-        portal_url = app.config.get('PORTAL_AUTH_URL', 'http://localhost:3000')
-        resp = http_requests.get(
-            f'{portal_url}/api/auth/me',
-            headers={'Authorization': auth_header},
-            timeout=5
-        )
-        if resp.status_code != 200:
-            g.current_user = None
-            return None
-        data = resp.json()
-        permissions = data.get('permissions', [])
-        if 'ACCESS_RESERVA_SALAS' not in permissions:
-            g.current_user = None
-            return None
-        cargo = map_permissions_to_role(permissions)
+        token = auth_header.replace('Bearer ', '')
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         g.current_user = {
-            'id': data.get('id'),
-            'nome': data.get('name'),
-            'email': data.get('email'),
-            'cargo': cargo,
-            'permissions': permissions,
+            'id': payload.get('id'),
+            'nome': payload.get('nome'),
+            'email': payload.get('email'),
+            'cargo': payload.get('cargo'),
         }
-    except Exception:
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         g.current_user = None
     return g.current_user
 
@@ -927,7 +910,43 @@ def check_reserva_conflito():
         return jsonify({'conflito': True, 'titulo': conflito.titulo, 'responsavel': conflito.responsavel})
     return jsonify({'conflito': False})
 
-# ---------- AUTENTICAÇÃO (via Portal) ----------
+# ---------- AUTENTICAÇÃO (JWT local) ----------
+@app.route('/api/auth/register', methods=['POST'])
+def auth_register():
+    dados = request.get_json()
+    if not dados or not dados.get('email') or not dados.get('senha') or not dados.get('nome'):
+        return jsonify({'erro': 'Nome, email e senha são obrigatórios'}), 400
+    email = dados['email'].strip().lower()
+    existente = User.query.filter_by(email=email).first()
+    if existente:
+        return jsonify({'erro': 'Este email já está cadastrado'}), 400
+    cargo = dados.get('cargo', 'usuario_cbiot')
+    if cargo not in VALID_ROLES:
+        cargo = 'usuario_cbiot'
+    user = User(
+        email=email,
+        nome=dados['nome'].strip(),
+        cargo=cargo,
+        status='aprovado',
+    )
+    user.set_password(dados['senha'])
+    db.session.add(user)
+    db.session.commit()
+    token = generate_token(user)
+    return jsonify({'token': token, 'user': user.to_dict()}), 201
+
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    dados = request.get_json()
+    if not dados or not dados.get('email') or not dados.get('senha'):
+        return jsonify({'erro': 'Email e senha são obrigatórios'}), 400
+    email = dados['email'].strip().lower()
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(dados['senha']):
+        return jsonify({'erro': 'Email ou senha incorretos'}), 401
+    token = generate_token(user)
+    return jsonify({'token': token, 'user': user.to_dict()})
+
 @app.route('/api/auth/whoami', methods=['GET'])
 def auth_whoami():
     user = get_current_user()
