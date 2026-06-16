@@ -359,6 +359,8 @@ function App() {
   const horasInicioDisponiveis = useMemo(() => {
     if (!dataSelecionada && !recorrente) return [];
     if (recorrente) return todosInicios;
+    // Filtra inícios onde nem o bloco mínimo de 30 min estaria disponível,
+    // evitando que o usuário selecione um horário sem nenhum fim possível.
     return todosInicios.filter((inicio) => {
       const fim = add30min(inicio);
       return !conflita(timeToMinutes(inicio), timeToMinutes(fim));
@@ -763,6 +765,7 @@ function App() {
       r.titulo
     ]);
     const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    // "\uFEFF" \u00E9 o BOM (Byte Order Mark) UTF-8; sem ele o Excel abre o CSV com encoding errado.
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);

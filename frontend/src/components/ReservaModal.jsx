@@ -9,6 +9,7 @@ const InfoIcon = ({ color = "#10b981", size = 20 }) => (
   </svg>
 );
 
+// A API pode retornar horários como "HH:MM:SS" (Python time.__str__); normaliza para "HH:MM".
 const normalizeTime = (timeStr) => {
   if (!timeStr) return '';
   if (/^\d{2}:\d{2}$/.test(timeStr)) return timeStr;
@@ -117,6 +118,7 @@ const ReservaModal = ({ isOpen, onClose, onSuccess, salas, currentUser, userRole
     const possiveis = [];
     const blocoInicio = disponibilidade.horarios[inicioIndex];
     if (!blocoInicio.ocupado) possiveis.push(blocoInicio.hora_fim);
+    // Para na primeira ocupação: o usuário não pode reservar por cima de um bloco já reservado.
     for (let i = inicioIndex + 1; i < disponibilidade.horarios.length; i++) {
       const bloco = disponibilidade.horarios[i];
       if (bloco.ocupado) break;
@@ -130,15 +132,17 @@ const ReservaModal = ({ isOpen, onClose, onSuccess, salas, currentUser, userRole
 
   // ================= NOVA LÓGICA: PRÉ-SELEÇÃO DE DIAS BASEADA NA DATA =================
   // Mapeamento: getDay() retorna 0=domingo ... 6=sábado. Nosso array de dias usa 0=segunda,1=terça,...,4=sexta
+  // Converte o weekday do JS (0=dom, 1=seg…6=sab) para o índice interno do componente
+  // (0=seg, 1=ter…4=sex), subtraindo 1. getUTCDay é usado para evitar artefatos de fuso
+  // quando a string de data é interpretada como UTC.
   const mapDateToDiasSelecionados = (dateStr) => {
     if (!dateStr) return [];
     const date = new Date(dateStr);
-    const weekday = date.getUTCDay(); // 0=domingo, 1=segunda, ..., 6=sábado
-    // Segunda = 1, Terça = 2, Quarta = 3, Quinta = 4, Sexta = 5
+    const weekday = date.getUTCDay();
     if (weekday >= 1 && weekday <= 5) {
-      return [weekday - 1]; // nosso índice 0=segunda, 1=terça, 2=quarta, 3=quinta, 4=sexta
+      return [weekday - 1];
     }
-    return []; // fim de semana não seleciona nenhum
+    return [];
   };
 
   // Quando o usuário marca "Recorrente", pré-seleciona os dias com base na data atual

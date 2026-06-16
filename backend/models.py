@@ -1,7 +1,6 @@
 from database import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
 
 class Sala(db.Model):
     __tablename__ = 'salas'
@@ -38,6 +37,8 @@ class Reserva(db.Model):
     responsavel = db.Column(db.String(100), nullable=False)   # solicitante
     email = db.Column(db.String(100))
     descricao = db.Column(db.Text)
+    # default=datetime.utcnow (sem parênteses): SQLAlchemy chama a função no momento do INSERT,
+    # não na definição da classe — garante timestamp correto para cada registro criado.
     criada_em = db.Column(db.DateTime, default=datetime.utcnow)
     grupo_id = db.Column(db.String(36), nullable=True, index=True)
     status = db.Column(db.String(20), nullable=False, default='aprovada')  # pendente, aprovada, rejeitada
@@ -120,6 +121,7 @@ class User(db.Model):
     
 class Notificacao(db.Model):
     __tablename__ = 'notificacoes'
+    # extend_existing=True evita erro se o modelo for importado mais de uma vez no mesmo contexto.
     __table_args__ = {'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     usuario_email = db.Column(db.String(120), db.ForeignKey('users.email'), nullable=False)

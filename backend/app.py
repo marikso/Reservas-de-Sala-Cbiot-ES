@@ -21,6 +21,10 @@ db.init_app(app)
 
 ALLOWED_ORIGINS = {'http://localhost:5173', 'http://localhost:5174', 'http://localhost:8080'}
 
+# CORS é configurado em dois lugares:
+# 1. after_request: cobre respostas normais (incluindo erros HTTP tratados pelo Flask).
+# 2. before_request para OPTIONS: o preflight do navegador chega antes de qualquer rota
+#    ser processada; sem este handler o Flask retorna 405 sem headers CORS, travando a requisição.
 @app.after_request
 def add_cors_headers(response):
     origin = request.headers.get('Origin')
@@ -85,6 +89,7 @@ def map_permissions_to_role(permissions):
     return None
 
 def get_current_user():
+    # Armazena no contexto da requisição (g) para evitar múltiplas chamadas ao portal por request.
     if hasattr(g, 'current_user'):
         return g.current_user
 
@@ -212,6 +217,8 @@ def rejeitar_pendentes_conflitantes(sala_id, data_res, hora_ini, hora_fim, aprov
         pendente.aprovador = aprovador_nome
         pendente.data_aprovacao = datetime.utcnow()
 
+        # Notificacao exige FK para users.email. Usuários autenticados via portal
+        # podem não ter registro local, então criamos um "ghost" apenas para satisfazer a constraint.
         destinatario = User.query.filter_by(email=pendente.email).first()
         if not destinatario:
             destinatario = User(
@@ -325,6 +332,8 @@ def create_reserva():
         Manutencao.data_fim >= data_res
     ).all()
     for m in manutencoes:
+        # Manutenção multi-dia: no primeiro dia começa em hora_inicio; nos demais, em 08:00.
+        # No último dia termina em hora_fim; nos anteriores, em 19:00.
         if data_res == m.data_inicio:
             inicio_manut = m.hora_inicio
         else:
@@ -351,6 +360,7 @@ def create_reserva():
         status=status
     )
     db.session.add(nova)
+    # flush antes de rejeitar_pendentes: garante que nova.id existe para ser excluído da query de conflitos.
     db.session.flush()
     if status == 'aprovada':
         rejeitar_pendentes_conflitantes(dados['sala_id'], data_res, hora_ini, hora_fim, user.get('nome') or user.get('email'), excluir_id=nova.id)
