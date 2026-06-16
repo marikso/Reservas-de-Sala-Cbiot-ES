@@ -4129,3 +4129,18 @@ body {
 .reserva-card-minha.nao-lida {
   background: #FCF8FF;
 }
+
+.gu-cargos-info {
+  background: #f0eaf8;
+  padding: 16px 20px;
+  border-radius: 16px;
+  margin-bottom: 16px;
+  color: #4a1d6d;
+}
+.gu-cargos-info p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.gu-cargos-info strong {
+  font-weight: 700;
+}

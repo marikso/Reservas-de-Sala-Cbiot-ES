@@ -11,6 +11,7 @@ from functools import wraps
 import uuid
 import traceback
 import requests as http_requests
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -44,6 +45,8 @@ def handle_options_preflight():
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    if isinstance(e, HTTPException):
+        return e
     tb = traceback.format_exc()
     traceback.print_exc()
     try:
@@ -595,7 +598,7 @@ def update_reserva(reserva_id):
             alteracoes.append(f"descrição: '{old_descricao}' → '{reserva.descricao}'")
 
         if alteracoes:
-            mensagem = f"Sua reserva foi EDITADA. Alterações: {'; '.join(alteracoes)}."
+            mensagem = f"Sua reserva foi EDITADA.\nAlterações: {'; '.join(alteracoes)}."
         else:
             mensagem = f"Sua reserva foi EDITADA (nenhuma alteração detectada)."
         if motivo:
