@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import cbiotLogo from './assets/CBiot_logo.jpg';
 import {
   getSalas,
   createSala,
@@ -1896,7 +1897,7 @@ function App() {
       />
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <img src="/CBiot_logo.jpg" alt="CBiot" className="logo-sidebar" />
+          <img src={cbiotLogo} alt="CBiot" className="logo-sidebar" />
           <div>
             <strong>CBiot</strong>
             <span>Reserva de salas</span>

@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
-ARG VITE_BASE_PATH=/Reserva-de-Sala/
+ARG VITE_BASE_PATH=/reserva-sala/
 ENV VITE_BASE_PATH=$VITE_BASE_PATH
 RUN npm run build
 

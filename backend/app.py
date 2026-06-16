@@ -15,11 +15,11 @@ from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.config.from_object(Config)
-CORS(app, origins=['http://localhost:5173', 'http://localhost:5174', 'http://localhost:8080'], supports_credentials=True)
+CORS(app, origins=['http://localhost:4321'], supports_credentials=True)
 Session(app)
 db.init_app(app)
 
-ALLOWED_ORIGINS = {'http://localhost:5173', 'http://localhost:5174', 'http://localhost:8080'}
+ALLOWED_ORIGINS = {'http://localhost:4321'}
 
 @app.after_request
 def add_cors_headers(response):
@@ -1236,4 +1236,4 @@ for rule in app.url_map.iter_rules():
 
 if __name__ == '__main__':
     debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
-    app.run(debug=debug, port=5000)
+    app.run(debug=debug, port=8061)
