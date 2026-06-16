@@ -472,7 +472,6 @@ def delete_user_grupo(grupo_id):
     return jsonify({'mensagem': f'{len(reservas)} reservas canceladas'})
 
 # ========== ROTA DE EDIÇÃO (PUT) ==========
-# ========== ROTA DE EDIÇÃO (PUT) ==========
 @app.route('/api/reservas/<int:reserva_id>', methods=['PUT'])
 def update_reserva(reserva_id):
     reserva = Reserva.query.get_or_404(reserva_id)

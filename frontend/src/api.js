@@ -1,7 +1,10 @@
 const BASE = (import.meta.env.VITE_BASE_PATH || '/').replace(/\/$/, '');
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || BASE;
 
-export const PORTAL_AUTH_URL = import.meta.env.VITE_PORTAL_AUTH_URL || 'http://localhost:3000';
+// URL de login do Portal centralizado — usuários sem sessão válida são
+// redirecionados para lá. O Portal autentica e devolve o usuário ao
+// ReservaSala com ?token=<token> na URL (ver PortalGate em main.jsx).
+export const PORTAL_LOGIN_URL = import.meta.env.VITE_PORTAL_LOGIN_URL || 'http://localhost:3000/login';
 
 // ---------- GERENCIAMENTO DE TOKEN ----------
 export function getToken() {
@@ -14,14 +17,15 @@ export function removeToken() {
   localStorage.removeItem('auth_token');
 }
 
-const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
+export function redirectToPortalLogin() {
+  removeToken();
+  window.location.href = PORTAL_LOGIN_URL;
+}
 
 async function request(path, options = {}) {
   const token = getToken();
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  // Em dev mode sem token, envia header especial para acionar o mock do backend
-  else if (DEV_MODE) headers['Authorization'] = 'Bearer dev-mock';
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
@@ -79,18 +83,8 @@ export function marcarTodasNotificacoesLidas() { return request('/api/notificaco
 export function removerNotificacao(id) { return request(`/api/notificacoes/${id}`, { method: 'DELETE' }); }
 
 // ---------- AUTENTICAÇÃO ----------
+// O login em si é feito inteiramente pelo Portal centralizado; o ReservaSala
+// só consome o token resultante (ver PortalGate em main.jsx) e valida a
+// identidade do usuário chamando /api/auth/whoami no próprio backend, que
+// por sua vez consulta o Portal.
 export function whoami() { return request('/api/auth/whoami'); }
-
-export async function authLogin(body) {
-  const response = await fetch(`${PORTAL_AUTH_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return response.json();
-}
-
-export function authLogout() {
-  removeToken();
-  return Promise.resolve({ sucesso: true });
-}

@@ -13,9 +13,6 @@ class Config:
     # Desabilita rastreamento de modificações para economizar recursos
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Senha do administrador (padrão 'admin123', deve ser alterada em produção)
-    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
-    
     # URL do Portal de autenticação centralizada
     PORTAL_AUTH_URL = os.getenv('PORTAL_AUTH_URL', 'http://localhost:3000')
 

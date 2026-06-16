@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   getSalas,
   createSala,
@@ -17,7 +16,7 @@ import {
   updateUser,
   approveUser,
   whoami,
-  authLogout,
+  redirectToPortalLogin,
   getMinhasSolicitacoes,
   getSolicitacoes,
   getSolicitacoesRejeitadas,
@@ -89,7 +88,6 @@ function App() {
   const [toast, setToast] = useState(null);
   const [reservasDoDia, setReservasDoDia] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const navigate = useNavigate();
   const [recorrente, setRecorrente] = useState(false);
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dataFim, setDataFim] = useState('');
@@ -286,10 +284,10 @@ function App() {
             email: u.email,
           }));
         } else {
-          navigate('/');
+          redirectToPortalLogin();
         }
       })
-      .catch(() => navigate('/'));
+      .catch(() => redirectToPortalLogin());
   }, []);
 
   useEffect(() => {
@@ -401,10 +399,9 @@ function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleLogout = async () => {
-    authLogout();
+  const handleLogout = () => {
     setCurrentUser(null);
-    navigate('/');
+    redirectToPortalLogin();
   };
 
   // ========== CANCELAMENTO DE RESERVAS (com notificação) ==========
