@@ -8,7 +8,6 @@ import pytest
 # variável de ambiente no momento em que o módulo é carregado.
 _DB_FD, _DB_PATH = tempfile.mkstemp(suffix='.db')
 os.environ['DATABASE_URL'] = f'sqlite:///{_DB_PATH}'
-os.environ['DEV_MOCK_USER'] = ''
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 

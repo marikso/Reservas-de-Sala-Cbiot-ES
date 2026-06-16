@@ -11,7 +11,6 @@ from functools import wraps
 import uuid
 import traceback
 import requests as http_requests
-import json
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -85,23 +84,6 @@ def map_permissions_to_role(permissions):
 def get_current_user():
     if hasattr(g, 'current_user'):
         return g.current_user
-
-    # Bypass para desenvolvimento local sem portal
-    mock_user_str = app.config.get('DEV_MOCK_USER')
-    if mock_user_str:
-        try:
-            data = json.loads(mock_user_str)
-            permissions = data.get('permissions', [])
-            g.current_user = {
-                'id': data.get('id'),
-                'nome': data.get('nome'),
-                'email': data.get('email'),
-                'cargo': map_permissions_to_role(permissions),
-                'permissions': permissions,
-            }
-            return g.current_user
-        except Exception:
-            pass
 
     auth_header = request.headers.get('Authorization')
     if not auth_header:
