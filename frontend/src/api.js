@@ -40,10 +40,10 @@ export function deleteSala(id) { return request(`/api/salas/${id}`, { method: 'D
 export function getReservas() { return request('/api/reservas'); }
 export function createReserva(body) { return request('/api/reservas', { method: 'POST', body: JSON.stringify(body) }); }
 export function updateReserva(reservaId, data) { return request(`/api/reservas/${reservaId}`, { method: 'PUT', body: JSON.stringify(data) }); }
-export function deleteReserva(id) { return request(`/api/reservas/${id}`, { method: 'DELETE' }); }
+export function deleteReserva(id, motivo) { return request(`/api/reservas/${id}`, { method: 'DELETE', body: JSON.stringify({ motivo: motivo || '' }) }); }
 export function createReservaRecorrente(payload) { return request('/api/reservas/recorrente', { method: 'POST', body: JSON.stringify(payload) }); }
 export function getReservasByGrupo(grupoId) { return request(`/api/reservas/grupo/${grupoId}`); }
-export function deleteReservasByGrupo(grupoId) { return request(`/api/reservas/grupo/${grupoId}`, { method: 'DELETE' }); }
+export function deleteReservasByGrupo(grupoId, motivo) { return request(`/api/reservas/grupo/${grupoId}`, { method: 'DELETE', body: JSON.stringify({ motivo: motivo || '' }) }); }
 export function deleteUserGrupo(grupoId) { return request(`/api/reservas/grupo/${grupoId}/user`, { method: 'DELETE' }); }
 export function getDisponibilidade(salaId, data) { return request(`/api/disponibilidade?sala_id=${salaId}&data=${encodeURIComponent(data)}`); }
 export function getMinhasSolicitacoes() { return request('/api/minhas-solicitacoes'); }

@@ -112,6 +112,7 @@ function App() {
     data: '',
     hora_inicio: '',
     hora_fim: '',
+    motivo: '',
   });
 
 
@@ -148,6 +149,7 @@ function App() {
   const [filtroStatus, setFiltroStatus] = useState('todas');
   const [filtroSala, setFiltroSala] = useState('todas');
   const [filtroPeriodo, setFiltroPeriodo] = useState('proximas');
+  const [filtroData, setFiltroData] = useState('');
 
   const [manutencoes, setManutencoes] = useState([]);
   const [novaManutencao, setNovaManutencao] = useState({
@@ -408,7 +410,11 @@ function App() {
   // ========== CANCELAMENTO DE RESERVAS (com notificação) ==========
   const handleCancelarReserva = async (id, titulo, emailUsuario) => {
     if (window.confirm(`Cancelar a reserva "${titulo}"?`)) {
-      const res = await deleteReserva(id);
+      let motivo = '';
+      if (emailUsuario && emailUsuario !== currentUser?.email) {
+        motivo = window.prompt('Motivo do cancelamento (será enviado ao usuário, opcional):') || '';
+      }
+      const res = await deleteReserva(id, motivo);
       if (res.erro) showToast(res.erro, 'error');
       else {
         showToast('Reserva cancelada', 'success');
@@ -425,7 +431,8 @@ function App() {
       if (isOwner) {
         res = await deleteUserGrupo(grupoId);
       } else {
-        res = await deleteReservasByGrupo(grupoId);
+        const motivo = window.prompt('Motivo do cancelamento (será enviado ao usuário, opcional):') || '';
+        res = await deleteReservasByGrupo(grupoId, motivo);
       }
       if (res.erro) showToast(res.erro, 'error');
       else {
@@ -446,6 +453,7 @@ function App() {
       data: reserva.data,
       hora_inicio: reserva.hora_inicio,
       hora_fim: reserva.hora_fim,
+      motivo: '',
     });
   };
 
@@ -457,6 +465,7 @@ function App() {
       data: editForm.data,
       hora_inicio: editForm.hora_inicio,
       hora_fim: editForm.hora_fim,
+      motivo: editForm.motivo,
     };
     const res = await updateReserva(editandoReserva.id, payload);
     if (res.erro) showToast(res.erro, 'error');
@@ -807,6 +816,10 @@ function App() {
             <div>
               <h1>Início</h1>
               <p className="subtitulo"><span style={{ fontWeight: 700, color: '#2c3e50' }}>Mapa das Salas</span><br />Clique em uma sala para solicitar reserva.</p>
+              <div className="cd-info-banner">
+                <span className="cd-info-icon">i</span>
+                <span>Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</span>
+              </div>
             </div>
             <button
               className="btn-padrao btn-primary"
@@ -909,7 +922,8 @@ function App() {
             <div className="reserva-card-info">
               <p><strong>{dataFormatada}</strong> · {diaSemana} · {reserva.hora_inicio} às {reserva.hora_fim}</p>
               {sala && <p className="sala-localizacao-card">Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}</p>}
-              <p className="reserva-titulo">{reserva.titulo}</p>
+              <p className="reserva-titulo"><strong>Título:</strong> {reserva.titulo || '-'}</p>
+              <p className="reserva-descricao"><strong>Descrição:</strong> {reserva.descricao || '-'}</p>
               {reserva.status === 'pendente' && !isHistorico && <p className="reserva-pendente-msg">Solicitada em {formatarDataBrasilia(reserva.data_criacao || reserva.data)} · aguardando análise do gerente</p>}
               {reserva.status === 'aprovada' && reserva.aprovador && <p className="reserva-aprovada-msg">Aprovada em {formatarDataBrasilia(reserva.data_aprovacao)} por {reserva.aprovador} · Chave com Silvia</p>}
             </div>
@@ -935,6 +949,10 @@ function App() {
           <div className="cabecalho-mapa-padrao">
             <h1>Minhas reservas</h1>
             <p className="subtitulo">Acompanhe o status das suas solicitações de reserva.</p>
+            <div className="cd-info-banner">
+              <span className="cd-info-icon">i</span>
+              <span>Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</span>
+            </div>
           </div>
           <div className="cd-tabs" style={{ marginBottom: '1.5rem' }}>
             <button className={`cd-tab ${tabReservas === 'ativas' ? 'cd-tab-ativo' : ''}`} onClick={() => setTabReservas('ativas')}>Ativas ({reservasAtivas.length})</button>
@@ -956,7 +974,6 @@ function App() {
       const statusOptions = [
         { value: 'todas', label: 'Todas' },
         { value: 'aprovada', label: 'Confirmadas' },
-        { value: 'pendente', label: 'Pendentes' },
         { value: 'rejeitada', label: 'Rejeitadas' },
         { value: 'cancelada', label: 'Canceladas' },
       ];
@@ -971,6 +988,7 @@ function App() {
       const horaAtual = agora.getHours() * 60 + agora.getMinutes();
 
       const reservasFiltradas = allReservas.filter(r => {
+        if (r.status === 'pendente') return false;
         if (filtroTexto.trim() !== '') {
           const termo = filtroTexto.toLowerCase();
           const matchUsuario = r.responsavel?.toLowerCase().includes(termo) || r.email?.toLowerCase().includes(termo);
@@ -979,6 +997,7 @@ function App() {
         }
         if (filtroStatus !== 'todas' && r.status !== filtroStatus) return false;
         if (filtroSala !== 'todas' && r.sala_id !== parseInt(filtroSala)) return false;
+        if (filtroData !== '') return r.data === filtroData;
         if (filtroPeriodo === 'proximas') {
           if (r.data > hojeLocal) return true;
           if (r.data === hojeLocal) {
@@ -1031,9 +1050,13 @@ function App() {
             <select className="filtros-select" value={filtroSala} onChange={e => setFiltroSala(e.target.value)}>
               {salasOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
-            <select className="filtros-select" value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)}>
+            <select className="filtros-select" value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)} disabled={filtroData !== ''}>
               {periodoOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
+            <input className="filtros-select" type="date" value={filtroData} onChange={e => setFiltroData(e.target.value)} />
+            {filtroData !== '' && (
+              <button className="btn-padrao btn-secondary" onClick={() => setFiltroData('')}>Limpar data</button>
+            )}
             <button className="btn-padrao btn-secondary" onClick={exportarCSV}>Exportar CSV</button>
           </div>
           <div className="gu-table-header">
@@ -1161,6 +1184,10 @@ function App() {
           <div className="cabecalho-mapa-padrao">
             <h1>Consultar disponibilidade</h1>
             <p className="subtitulo">Clique em um horário disponível para solicitar reserva · blocos de 30 min.</p>
+            <div className="cd-info-banner">
+              <span className="cd-info-icon">i</span>
+              <span>Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</span>
+            </div>
           </div>
           <div className="cd-tabs">
             <button className={`cd-tab ${modoDisponibilidade === 'sala' ? 'cd-tab-ativo' : ''}`} onClick={() => setModoDisponibilidade('sala')}>Por sala</button>
@@ -1200,17 +1227,18 @@ function App() {
                       </div>
                     )}
                   </div>
-                  <div className="cd-info-banner">
-                    <span className="cd-info-icon">i</span>
-                    <span>Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</span>
-                  </div>
                   <p className="cd-grade-titulo">Horários · 08:00 às 19:00 · blocos de 30 min</p>
                   <div className="cd-grade-horarios">
                     {disponibilidade.horarios.map((item) => {
                       let statusClass = '', statusText = '', isSelected = false;
                       if (item.ocupado) {
-                        statusClass = item.titulo?.startsWith('Manutenção') ? 'cd-slot-manut' : 'cd-slot-reservado';
-                        statusText = item.titulo?.startsWith('Manutenção') ? 'MANUTENÇÃO' : 'RESERVADO';
+                        if (item.titulo?.startsWith('Manutenção')) {
+                          statusClass = 'cd-slot-manut'; statusText = 'MANUTENÇÃO';
+                        } else if (item.titulo === 'Solicitado (pendente)') {
+                          statusClass = 'cd-slot-pendente'; statusText = 'PENDENTE';
+                        } else {
+                          statusClass = 'cd-slot-reservado'; statusText = 'RESERVADO';
+                        }
                       } else {
                         statusClass = 'cd-slot-disponivel'; statusText = 'DISPONÍVEL';
                         if (selectedStart && selectedEnd && item.hora_inicio >= selectedStart.hora_inicio && item.hora_inicio <= selectedEnd.hora_inicio) isSelected = true;
@@ -1257,6 +1285,7 @@ function App() {
                     <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-disponivel"></span>Disponível</div>
                     <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-selecionado"></span>Selecionado</div>
                     <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-reservado"></span>Reservado</div>
+                    <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-pendente"></span>Pendente</div>
                     <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-manut"></span>Indisponível</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -1474,21 +1503,28 @@ function App() {
 
     // --- GERENCIAR USUÁRIOS (admin) ---
     if (activeView === 'gerenciar-usuarios' && currentUser?.cargo === 'admin') {
-      const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', lider_de_grupo: 'Usuário' };
-      const cargoBg = { admin: '#844BD4', gerente: '#3498DB', lider_de_grupo: '#ECE6F7' };
-      const cargoFg = { admin: '#fff', gerente: '#fff', lider_de_grupo: '#6B5F7A' };
+      const cargoLabel = { admin: 'Administrador', gerente: 'Gerente', lider_de_grupo: 'Líder de Grupo', usuario_cbiot: 'Usuário' };
+      const cargoBg = { admin: '#844BD4', gerente: '#3498DB', lider_de_grupo: '#ECE6F7', usuario_cbiot: '#F1C40F' };
+      const cargoFg = { admin: '#fff', gerente: '#fff', lider_de_grupo: '#6B5F7A', usuario_cbiot: '#6B5F7A' };
       return (
         <div className="conteudo-mapa-padrao">
           <div className="cabecalho-mapa-padrao">
             <h1>Gerenciar usuários</h1>
             <p className="subtitulo">Gerencie os acessos e papéis dos usuários do sistema.</p>
           </div>
+          <div className="gu-cargos-info">
+            <p><strong>Administrador:</strong> tem controle total sobre o sistema.</p>
+            <p><strong>Gerente:</strong> apenas gerencia as reservas.</p>
+            <p><strong>Líder de Grupo:</strong> professores, técnicos e servidores que podem fazer reservas sem precisar de aprovação prévia de um gerente.</p>
+            <p><strong>Usuário:</strong> alunos e demais pessoas que precisam passar pela aprovação de um gerente antes de a reserva ser confirmada.</p>
+          </div>
           <div className="gs-stats-bar">
             <span className="gs-stats-total">{users.length} usuários cadastrados</span>
             <span className="gs-stats-detail">
               · {users.filter(u => u.cargo === 'admin').length} administradores
               · {users.filter(u => u.cargo === 'gerente').length} gerentes
-              · {users.filter(u => u.cargo === 'lider_de_grupo').length} usuários
+              · {users.filter(u => u.cargo === 'lider_de_grupo').length} líderes de grupo
+              · {users.filter(u => u.cargo === 'usuario_cbiot').length} usuários
             </span>
           </div>
           <div className="gu-table-header">
@@ -1568,7 +1604,8 @@ function App() {
                     <select className="modal-input" value={novoPapelSelecionado} onChange={e => setNovoPapelSelecionado(e.target.value)}>
                       <option value="admin">Administrador</option>
                       <option value="gerente">Gerente</option>
-                      <option value="lider_de_grupo">Usuário</option>
+                      <option value="lider_de_grupo">Líder de Grupo</option>
+                      <option value="usuario_cbiot">Usuário</option>
                     </select>
                   </div>
                 </div>
@@ -1596,9 +1633,9 @@ function App() {
                 : 'Visualizando o histórico de reservas processadas.'}
             </p>
           </div>
-          <div className="admin-req-abas" style={{ marginBottom: '1rem' }}>
-            <button className={`req-aba-btn ${tabSolicitacoes === 'pendentes' ? 'active' : ''}`} onClick={() => setTabSolicitacoes('pendentes')}>Pendentes</button>
-            <button className={`req-aba-btn ${tabSolicitacoes === 'rejeitadas' ? 'active' : ''}`} onClick={() => setTabSolicitacoes('rejeitadas')}>Histórico</button>
+          <div className="cd-tabs" style={{ marginBottom: '1.5rem' }}>
+            <button className={`cd-tab ${tabSolicitacoes === 'pendentes' ? 'cd-tab-ativo' : ''}`} onClick={() => setTabSolicitacoes('pendentes')}>Pendentes</button>
+            <button className={`cd-tab ${tabSolicitacoes === 'rejeitadas' ? 'cd-tab-ativo' : ''}`} onClick={() => setTabSolicitacoes('rejeitadas')}>Histórico</button>
           </div>
           <div className="admin-req-lista">
             {tabSolicitacoes === 'pendentes' && (
@@ -1729,12 +1766,13 @@ function App() {
               }
               const reserva = reservasDetalhe[notif.reservaId];
               const dataFormatada = new Date(notif.data).toLocaleString();
+              const [mensagemPrincipal, motivo] = notif.mensagem.split(/ Motivo: /);
 
               return (
                 <div key={notif.id} className={`reserva-card-minha ${!notif.lida ? 'nao-lida' : ''}`} style={{ borderLeft: notif.lida ? '' : '4px solid #844BD4' }}>
                   <div className="reserva-card-header">
                     <h3>
-                      {reserva?.sala_nome || 'Reserva'}
+                      {reserva?.titulo || 'Reserva'}
                       {reserva && <span className="sala-localizacao-card" style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}> · {reserva.sala_nome}</span>}
                     </h3>
                     <span className="reserva-status" style={{ background: badge.bg, color: '#fff', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem' }}>
@@ -1743,13 +1781,14 @@ function App() {
                   </div>
                   <div className="reserva-card-info">
                     <p><strong>{dataFormatada}</strong></p>
-                    <p className="reserva-titulo">{notif.mensagem}</p>
+                    <p className="reserva-titulo" style={{ whiteSpace: 'pre-line' }}>{mensagemPrincipal}</p>
+                    {motivo && <p className="reserva-motivo">Motivo: {motivo}</p>}
                     {reserva && (
                       <div style={{ marginTop: '0.5rem', background: '#F8F9FA', padding: '0.5rem', borderRadius: '8px' }}>
                         <p><strong>Sala:</strong> {reserva.sala_nome}</p>
                         <p><strong>Data original:</strong> {formatarData(reserva.data)} – {reserva.hora_inicio} às {reserva.hora_fim}</p>
-                        {reserva.titulo && <p><strong>Título:</strong> {reserva.titulo}</p>}
-                        {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
+                        <p><strong>Título:</strong> {reserva.titulo || '-'}</p>
+                        <p><strong>Descrição:</strong> {reserva.descricao || '-'}</p>
                       </div>
                     )}
                   </div>
@@ -1826,6 +1865,17 @@ function App() {
                 rows="2"
               />
             </label>
+            {editandoReserva.email !== currentUser?.email && (
+              <label>
+                Motivo da edição (será enviado ao usuário):
+                <textarea
+                  value={editForm.motivo}
+                  onChange={(e) => setEditForm({ ...editForm, motivo: e.target.value })}
+                  rows="2"
+                  placeholder="Ex.: sala precisou ser realocada para manutenção"
+                />
+              </label>
+            )}
             <div className="modal-buttons">
               <button className="btn-padrao btn-secondary" onClick={() => setEditandoReserva(null)}>
                 Cancelar
@@ -1892,7 +1942,6 @@ function App() {
           <div className="sidebar-avatar">{currentUser?.nome?.charAt(0) || 'U'}</div>
           <div>
             <div style={{ fontWeight: 600 }}>{currentUser?.nome}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{currentUser?.cargo}</div>
           </div>
         </div>
       </aside>

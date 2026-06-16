@@ -278,7 +278,8 @@ const ReservaModal = ({ isOpen, onClose, onSuccess, salas, currentUser, userRole
       setShowConflictWarning(true);
       setLoading(false);
     } else {
-      const msg = response.mensagem || 'Reserva criada com sucesso!';
+      const msg = response.mensagem
+        || (response.status === 'pendente' ? 'Solicitação enviada e aguardando aprovação!' : 'Reserva criada com sucesso!');
       setLoading(false);
       onClose();
       if (onSuccess) onSuccess(msg);
