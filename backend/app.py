@@ -15,11 +15,12 @@ from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.config.from_object(Config)
-CORS(app, origins=['http://localhost:4321'], supports_credentials=True)
+CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')
+CORS(app, origins=CORS_ORIGINS, supports_credentials=True)
 Session(app)
 db.init_app(app)
 
-ALLOWED_ORIGINS = {'http://localhost:4321'}
+ALLOWED_ORIGINS = set(CORS_ORIGINS)
 
 @app.after_request
 def add_cors_headers(response):
