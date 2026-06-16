@@ -112,6 +112,7 @@ function App() {
     data: '',
     hora_inicio: '',
     hora_fim: '',
+    motivo: '',
   });
 
 
@@ -408,7 +409,11 @@ function App() {
   // ========== CANCELAMENTO DE RESERVAS (com notificação) ==========
   const handleCancelarReserva = async (id, titulo, emailUsuario) => {
     if (window.confirm(`Cancelar a reserva "${titulo}"?`)) {
-      const res = await deleteReserva(id);
+      let motivo = '';
+      if (emailUsuario && emailUsuario !== currentUser?.email) {
+        motivo = window.prompt('Motivo do cancelamento (será enviado ao usuário, opcional):') || '';
+      }
+      const res = await deleteReserva(id, motivo);
       if (res.erro) showToast(res.erro, 'error');
       else {
         showToast('Reserva cancelada', 'success');
@@ -425,7 +430,8 @@ function App() {
       if (isOwner) {
         res = await deleteUserGrupo(grupoId);
       } else {
-        res = await deleteReservasByGrupo(grupoId);
+        const motivo = window.prompt('Motivo do cancelamento (será enviado ao usuário, opcional):') || '';
+        res = await deleteReservasByGrupo(grupoId, motivo);
       }
       if (res.erro) showToast(res.erro, 'error');
       else {
@@ -446,6 +452,7 @@ function App() {
       data: reserva.data,
       hora_inicio: reserva.hora_inicio,
       hora_fim: reserva.hora_fim,
+      motivo: '',
     });
   };
 
@@ -457,6 +464,7 @@ function App() {
       data: editForm.data,
       hora_inicio: editForm.hora_inicio,
       hora_fim: editForm.hora_fim,
+      motivo: editForm.motivo,
     };
     const res = await updateReserva(editandoReserva.id, payload);
     if (res.erro) showToast(res.erro, 'error');
@@ -807,6 +815,10 @@ function App() {
             <div>
               <h1>Início</h1>
               <p className="subtitulo"><span style={{ fontWeight: 700, color: '#2c3e50' }}>Mapa das Salas</span><br />Clique em uma sala para solicitar reserva.</p>
+              <div className="cd-info-banner">
+                <span className="cd-info-icon">i</span>
+                <span>Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</span>
+              </div>
             </div>
             <button
               className="btn-padrao btn-primary"
@@ -909,7 +921,8 @@ function App() {
             <div className="reserva-card-info">
               <p><strong>{dataFormatada}</strong> · {diaSemana} · {reserva.hora_inicio} às {reserva.hora_fim}</p>
               {sala && <p className="sala-localizacao-card">Bloco {sala.bloco || '?'} · {sala.andar || 'Andar não informado'}</p>}
-              <p className="reserva-titulo">{reserva.titulo}</p>
+              <p className="reserva-titulo"><strong>Título:</strong> {reserva.titulo || '-'}</p>
+              <p className="reserva-descricao"><strong>Descrição:</strong> {reserva.descricao || '-'}</p>
               {reserva.status === 'pendente' && !isHistorico && <p className="reserva-pendente-msg">Solicitada em {formatarDataBrasilia(reserva.data_criacao || reserva.data)} · aguardando análise do gerente</p>}
               {reserva.status === 'aprovada' && reserva.aprovador && <p className="reserva-aprovada-msg">Aprovada em {formatarDataBrasilia(reserva.data_aprovacao)} por {reserva.aprovador} · Chave com Silvia</p>}
             </div>
@@ -935,6 +948,10 @@ function App() {
           <div className="cabecalho-mapa-padrao">
             <h1>Minhas reservas</h1>
             <p className="subtitulo">Acompanhe o status das suas solicitações de reserva.</p>
+            <div className="cd-info-banner">
+              <span className="cd-info-icon">i</span>
+              <span>Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</span>
+            </div>
           </div>
           <div className="cd-tabs" style={{ marginBottom: '1.5rem' }}>
             <button className={`cd-tab ${tabReservas === 'ativas' ? 'cd-tab-ativo' : ''}`} onClick={() => setTabReservas('ativas')}>Ativas ({reservasAtivas.length})</button>
@@ -1161,6 +1178,10 @@ function App() {
           <div className="cabecalho-mapa-padrao">
             <h1>Consultar disponibilidade</h1>
             <p className="subtitulo">Clique em um horário disponível para solicitar reserva · blocos de 30 min.</p>
+            <div className="cd-info-banner">
+              <span className="cd-info-icon">i</span>
+              <span>Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</span>
+            </div>
           </div>
           <div className="cd-tabs">
             <button className={`cd-tab ${modoDisponibilidade === 'sala' ? 'cd-tab-ativo' : ''}`} onClick={() => setModoDisponibilidade('sala')}>Por sala</button>
@@ -1200,17 +1221,18 @@ function App() {
                       </div>
                     )}
                   </div>
-                  <div className="cd-info-banner">
-                    <span className="cd-info-icon">i</span>
-                    <span>Lembre-se: a chave da sala é retirada e devolvida na portaria. Controles remotos devem permanecer na sala.</span>
-                  </div>
                   <p className="cd-grade-titulo">Horários · 08:00 às 19:00 · blocos de 30 min</p>
                   <div className="cd-grade-horarios">
                     {disponibilidade.horarios.map((item) => {
                       let statusClass = '', statusText = '', isSelected = false;
                       if (item.ocupado) {
-                        statusClass = item.titulo?.startsWith('Manutenção') ? 'cd-slot-manut' : 'cd-slot-reservado';
-                        statusText = item.titulo?.startsWith('Manutenção') ? 'MANUTENÇÃO' : 'RESERVADO';
+                        if (item.titulo?.startsWith('Manutenção')) {
+                          statusClass = 'cd-slot-manut'; statusText = 'MANUTENÇÃO';
+                        } else if (item.titulo === 'Solicitado (pendente)') {
+                          statusClass = 'cd-slot-pendente'; statusText = 'PENDENTE';
+                        } else {
+                          statusClass = 'cd-slot-reservado'; statusText = 'RESERVADO';
+                        }
                       } else {
                         statusClass = 'cd-slot-disponivel'; statusText = 'DISPONÍVEL';
                         if (selectedStart && selectedEnd && item.hora_inicio >= selectedStart.hora_inicio && item.hora_inicio <= selectedEnd.hora_inicio) isSelected = true;
@@ -1257,6 +1279,7 @@ function App() {
                     <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-disponivel"></span>Disponível</div>
                     <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-selecionado"></span>Selecionado</div>
                     <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-reservado"></span>Reservado</div>
+                    <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-pendente"></span>Pendente</div>
                     <div className="cd-legenda-item"><span className="cd-legenda-cor cd-leg-manut"></span>Indisponível</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -1748,8 +1771,8 @@ function App() {
                       <div style={{ marginTop: '0.5rem', background: '#F8F9FA', padding: '0.5rem', borderRadius: '8px' }}>
                         <p><strong>Sala:</strong> {reserva.sala_nome}</p>
                         <p><strong>Data original:</strong> {formatarData(reserva.data)} – {reserva.hora_inicio} às {reserva.hora_fim}</p>
-                        {reserva.titulo && <p><strong>Título:</strong> {reserva.titulo}</p>}
-                        {reserva.descricao && <p><strong>Descrição:</strong> {reserva.descricao}</p>}
+                        <p><strong>Título:</strong> {reserva.titulo || '-'}</p>
+                        <p><strong>Descrição:</strong> {reserva.descricao || '-'}</p>
                       </div>
                     )}
                   </div>
@@ -1826,6 +1849,17 @@ function App() {
                 rows="2"
               />
             </label>
+            {editandoReserva.email !== currentUser?.email && (
+              <label>
+                Motivo da edição (será enviado ao usuário):
+                <textarea
+                  value={editForm.motivo}
+                  onChange={(e) => setEditForm({ ...editForm, motivo: e.target.value })}
+                  rows="2"
+                  placeholder="Ex.: sala precisou ser realocada para manutenção"
+                />
+              </label>
+            )}
             <div className="modal-buttons">
               <button className="btn-padrao btn-secondary" onClick={() => setEditandoReserva(null)}>
                 Cancelar

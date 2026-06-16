@@ -3844,7 +3844,7 @@ body {
 .cd-data-dia { display: block; font-size: 22px; font-weight: 700; color: #844BD4; }
 .cd-data-semana { display: block; font-size: 11px; color: #6B5F7A; letter-spacing: 0.05em; margin-top: 2px; }
 
-.cd-info-banner { display: flex; align-items: flex-start; gap: 12px; background: #F9F5FF; border-left: 3px solid #844BD4; border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; font-size: 14px; color: #3A1E7A; line-height: 1.5; }
+.cd-info-banner { display: flex; align-items: flex-start; gap: 12px; background: #F9F5FF; border-left: 3px solid #844BD4; border-radius: 6px; padding: 14px 18px; margin-top: 14px; margin-bottom: 18px; font-size: 14px; color: #3A1E7A; line-height: 1.5; }
 .cd-info-icon { background: #844BD4; color: white; border-radius: 50%; width: 20px; height: 20px; min-width: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; font-style: italic; margin-top: 1px; }
 
 .cd-grade-titulo { font-size: 16px; font-weight: 700; color: #1A0F2B; margin-bottom: 14px; }
@@ -3856,6 +3856,7 @@ body {
 .cd-slot-disponivel:hover { outline-color: #844BD4; }
 .cd-slot-selecionado { background: #844BD4; color: white; outline: none; }
 .cd-slot-reservado { background: #FF8181; color: #7A0000; cursor: default; }
+.cd-slot-pendente { background: #fff3e0; outline: 2px solid #F39C12; color: #b85c00; cursor: default; }
 .cd-slot-manut { background: #FDECEA; outline: 2px solid #E74C3C; color: #C0392B; cursor: default; }
 
 .cd-legenda { display: flex; gap: 22px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
@@ -3864,6 +3865,7 @@ body {
 .cd-leg-disponivel { background: white; outline: 2px solid #E6D9F4; }
 .cd-leg-selecionado { background: #844BD4; }
 .cd-leg-reservado { background: #FF8181; }
+.cd-leg-pendente { background: #fff3e0; outline: 2px solid #F39C12; }
 .cd-leg-manut { background: #FDECEA; outline: 2px solid #E74C3C; }
 
 /* ===== LAYOUT PADRÃO IGUAL AO MAPA DE SALAS ===== */

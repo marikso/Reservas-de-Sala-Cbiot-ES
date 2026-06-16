@@ -60,7 +60,7 @@ class Reserva(db.Model):
             'grupo_id': self.grupo_id,
             'status': self.status,
             'aprovador': self.aprovador,
-            'data_aprovacao': self.data_aprovacao.isoformat() if self.data_aprovacao else None,
+            'data_aprovacao': self.data_aprovacao.isoformat() + 'Z' if self.data_aprovacao else None,
         }
 
 class Manutencao(db.Model):
@@ -139,5 +139,5 @@ class Notificacao(db.Model):
             'tipo': self.tipo,
             'reservaId': self.reserva_id,
             'lida': self.lida,
-            'data': self.data_criacao.isoformat()
+            'data': self.data_criacao.isoformat() + 'Z'
         }

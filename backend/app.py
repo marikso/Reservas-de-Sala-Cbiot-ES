@@ -119,6 +119,15 @@ def get_current_user():
 def normalize_cargo(cargo):
     return cargo if cargo in VALID_ROLES else 'usuario_cbiot'
 
+PRIORITY_ROLES = {'admin', 'gerente', 'lider_de_grupo'}
+
+def status_que_bloqueiam(cargo_visualizador):
+    # Admin/gerente/lider têm prioridade de reserva: uma solicitação pendente
+    # de outra pessoa não os impede de reservar o mesmo horário.
+    if cargo_visualizador and normalize_cargo(cargo_visualizador) in PRIORITY_ROLES:
+        return ['aprovada']
+    return ['aprovada', 'pendente']
+
 # ---------- DECORATORS ----------
 def role_required(allowed_roles):
     def decorator(f):
@@ -180,8 +189,45 @@ def formatReserva(row):
         'grupo_id': row.grupo_id,
         'status': row.status,
         'aprovador': row.aprovador,
-        'data_aprovacao': row.data_aprovacao.isoformat() if row.data_aprovacao else None,
+        'data_aprovacao': row.data_aprovacao.isoformat() + 'Z' if row.data_aprovacao else None,
     }
+
+def rejeitar_pendentes_conflitantes(sala_id, data_res, hora_ini, hora_fim, aprovador_nome, excluir_id=None):
+    # Quando alguém com prioridade (admin/gerente/lider) reserva um horário que
+    # tinha uma solicitação pendente de outra pessoa, essa solicitação perde a vaga.
+    query = Reserva.query.filter(
+        Reserva.sala_id == sala_id,
+        Reserva.data == data_res,
+        Reserva.hora_inicio < hora_fim,
+        Reserva.hora_fim > hora_ini,
+        Reserva.status == 'pendente'
+    )
+    if excluir_id is not None:
+        query = query.filter(Reserva.id != excluir_id)
+    for pendente in query.all():
+        pendente.status = 'rejeitada'
+        pendente.aprovador = aprovador_nome
+        pendente.data_aprovacao = datetime.utcnow()
+
+        destinatario = User.query.filter_by(email=pendente.email).first()
+        if not destinatario:
+            destinatario = User(
+                email=pendente.email,
+                nome=pendente.responsavel or 'Usuário',
+                cargo='usuario_cbiot',
+                status='aprovado'
+            )
+            destinatario.set_password('senha_temporaria')
+            db.session.add(destinatario)
+            db.session.flush()
+
+        notif = Notificacao(
+            usuario_email=pendente.email,
+            mensagem=f'Sua solicitação "{pendente.titulo}" foi REJEITADA. Motivo: houve conflito de horário.',
+            tipo='rejeicao',
+            reserva_id=pendente.id
+        )
+        db.session.add(notif)
 
 # ---------- ROTAS PÚBLICAS ----------
 @app.route('/api/salas', methods=['GET'])
@@ -256,13 +302,15 @@ def create_reserva():
     if erro:
         return jsonify({'erro': erro}), 400
 
+    cargo = normalize_cargo(user.get('cargo')) if user else 'usuario_cbiot'
+
     conflito = Reserva.query.filter(
         and_(
             Reserva.sala_id == dados['sala_id'],
             Reserva.data == data_res,
             Reserva.hora_inicio < hora_fim,
             Reserva.hora_fim > hora_ini,
-            Reserva.status.in_(['aprovada', 'pendente'])
+            Reserva.status.in_(status_que_bloqueiam(cargo))
         )
     ).first()
     if conflito:
@@ -285,7 +333,6 @@ def create_reserva():
         if hora_ini < fim_manut and hora_fim > inicio_manut:
             return jsonify({'erro': f'Sala em manutenção no período: {m.motivo}'}), 400
 
-    cargo = normalize_cargo(user.get('cargo')) if user else 'usuario_cbiot'
     status = 'aprovada' if cargo in ('admin', 'gerente', 'lider_de_grupo') else 'pendente'
 
     nova = Reserva(
@@ -301,6 +348,9 @@ def create_reserva():
         status=status
     )
     db.session.add(nova)
+    db.session.flush()
+    if status == 'aprovada':
+        rejeitar_pendentes_conflitantes(dados['sala_id'], data_res, hora_ini, hora_fim, user.get('nome') or user.get('email'), excluir_id=nova.id)
     db.session.commit()
     return jsonify(formatReserva(nova)), 201
 
@@ -354,7 +404,7 @@ def create_reservas_recorrentes():
                     Reserva.data == current_date,
                     Reserva.hora_inicio < hora_fim,
                     Reserva.hora_fim > hora_ini,
-                    Reserva.status.in_(['aprovada', 'pendente'])
+                    Reserva.status.in_(status_que_bloqueiam(cargo))
                 )
             ).first()
             manut = Manutencao.query.filter(
@@ -380,12 +430,16 @@ def create_reservas_recorrentes():
                     status=status
                 )
                 db.session.add(nova)
+                db.session.flush()
+                if status == 'aprovada':
+                    rejeitar_pendentes_conflitantes(dados['sala_id'], current_date, hora_ini, hora_fim, user.get('nome') or user.get('email'), excluir_id=nova.id)
                 reservas_criadas.append(current_date.isoformat())
         current_date += timedelta(days=1)
 
     db.session.commit()
+    sufixo = ' e aguardando aprovação' if status == 'pendente' else ''
     return jsonify({
-        'mensagem': f'{len(reservas_criadas)} reservas criadas',
+        'mensagem': f'{len(reservas_criadas)} reservas criadas{sufixo}',
         'grupo_id': grupo_id,
         'reservas_criadas': reservas_criadas,
         'conflitos': conflitos
@@ -431,6 +485,7 @@ def update_reserva(reserva_id):
     data_str = dados.get('data')
     hora_inicio_str = dados.get('hora_inicio')
     hora_fim_str = dados.get('hora_fim')
+    motivo = (dados.get('motivo') or '').strip()
 
     # Guardar valores antigos para comparação (antes de qualquer alteração)
     old_titulo = reserva.titulo
@@ -481,7 +536,7 @@ def update_reserva(reserva_id):
                 Reserva.hora_inicio < nova_hora_fim,
                 Reserva.hora_fim > nova_hora_ini,
                 Reserva.id != reserva_id,
-                Reserva.status.in_(['aprovada', 'pendente'])
+                Reserva.status.in_(status_que_bloqueiam(user.get('cargo')))
             )
         ).first()
         if conflito:
@@ -509,6 +564,9 @@ def update_reserva(reserva_id):
         reserva.data = nova_data
         reserva.hora_inicio = nova_hora_ini
         reserva.hora_fim = nova_hora_fim
+
+        if normalize_cargo(user.get('cargo')) in PRIORITY_ROLES:
+            rejeitar_pendentes_conflitantes(reserva.sala_id, nova_data, nova_hora_ini, nova_hora_fim, user.get('nome') or user.get('email'), excluir_id=reserva.id)
 
     db.session.commit()
 
@@ -540,6 +598,8 @@ def update_reserva(reserva_id):
             mensagem = f"Sua reserva foi EDITADA. Alterações: {'; '.join(alteracoes)}."
         else:
             mensagem = f"Sua reserva foi EDITADA (nenhuma alteração detectada)."
+        if motivo:
+            mensagem += f" Motivo: {motivo}"
 
         notif = Notificacao(
             usuario_email=reserva.email,
@@ -567,6 +627,9 @@ def delete_reserva(reserva_id):
 
     cargo_atual = normalize_cargo(user.get('cargo'))
     if cargo_atual in ['admin', 'gerente'] and reserva.email != user.get('email'):
+        dados = request.get_json(silent=True) or {}
+        motivo = (dados.get('motivo') or '').strip()
+
         destinatario = User.query.filter_by(email=reserva.email).first()
         if not destinatario:
             destinatario = User(
@@ -579,9 +642,13 @@ def delete_reserva(reserva_id):
             db.session.add(destinatario)
             db.session.flush()
 
+        mensagem = f'Sua reserva "{reserva.titulo}" para {reserva.data.strftime("%d-%m-%Y")} foi CANCELADA por um administrador.'
+        if motivo:
+            mensagem += f' Motivo: {motivo}'
+
         notif = Notificacao(
             usuario_email=reserva.email,
-            mensagem=f'Sua reserva "{reserva.titulo}" para {reserva.data.strftime("%d-%m-%Y")} foi CANCELADA por um administrador.',
+            mensagem=mensagem,
             tipo='cancelamento',
             reserva_id=None
         )
@@ -598,6 +665,9 @@ def delete_reservas_by_grupo(grupo_id):
     reservas = Reserva.query.filter_by(grupo_id=grupo_id).all()
     if not reservas:
         return jsonify({'erro': 'Grupo não encontrado'}), 404
+
+    dados = request.get_json(silent=True) or {}
+    motivo = (dados.get('motivo') or '').strip()
 
     por_usuario = {}
     for r in reservas:
@@ -620,6 +690,8 @@ def delete_reservas_by_grupo(grupo_id):
             if len(lista) > 5:
                 datas += f' e mais {len(lista)-5}'
             mensagem = f'{len(lista)} reservas da série "{lista[0].titulo}" foram CANCELADAS pelo administrador (datas: {datas}).'
+        if motivo:
+            mensagem += f' Motivo: {motivo}'
 
         notif = Notificacao(
             usuario_email=email,
@@ -653,10 +725,11 @@ def disponibilidade():
         return jsonify({'erro': 'Formato de data inválido'}), 400
 
     sala = Sala.query.get_or_404(sala_id)
+    viewer = get_current_user()
     reservas = Reserva.query.filter(
         Reserva.sala_id == sala_id,
         Reserva.data == data_res,
-        Reserva.status.in_(['aprovada', 'pendente'])
+        Reserva.status.in_(status_que_bloqueiam(viewer.get('cargo') if viewer else None))
     ).all()
     manutencoes = Manutencao.query.filter(
         Manutencao.sala_id == sala_id,
@@ -735,6 +808,7 @@ def salas_disponiveis_por_data_hora():
     if hora_ini < time(8,0) or hora_fim > time(19,0):
         return jsonify({'erro': 'Horário fora do expediente (08:00-19:00)'}), 400
 
+    viewer = get_current_user()
     salas = Sala.query.all()
     disponiveis = []
     for sala in salas:
@@ -743,7 +817,7 @@ def salas_disponiveis_por_data_hora():
             Reserva.data == data_res,
             Reserva.hora_inicio < hora_fim,
             Reserva.hora_fim > hora_ini,
-            Reserva.status.in_(['aprovada', 'pendente'])
+            Reserva.status.in_(status_que_bloqueiam(viewer.get('cargo') if viewer else None))
         ).first()
         if reserva:
             continue
@@ -790,6 +864,8 @@ def check_conflicts():
     if any(d > 4 for d in dias_semana):
         return jsonify({'erro': 'Recorrência não permitida em sábado/domingo'}), 400
 
+    viewer = get_current_user()
+    status_bloqueio = status_que_bloqueiam(viewer.get('cargo') if viewer else None)
     conflitos = []
     current_date = data_inicio
     while current_date <= data_fim:
@@ -800,7 +876,7 @@ def check_conflicts():
                     Reserva.data == current_date,
                     Reserva.hora_inicio < hora_fim,
                     Reserva.hora_fim > hora_ini,
-                    Reserva.status.in_(['aprovada', 'pendente'])
+                    Reserva.status.in_(status_bloqueio)
                 )
             ).first()
             manut = Manutencao.query.filter(
@@ -835,13 +911,14 @@ def check_reserva_conflito():
     except (ValueError, KeyError):
         return jsonify({'erro': 'Dados inválidos'}), 400
 
+    viewer = get_current_user()
     conflito = Reserva.query.filter(
         and_(
             Reserva.sala_id == sala_id,
             Reserva.data == data_res,
             Reserva.hora_inicio < hora_fim,
             Reserva.hora_fim > hora_ini,
-            Reserva.status.in_(['aprovada', 'pendente'])
+            Reserva.status.in_(status_que_bloqueiam(viewer.get('cargo') if viewer else None))
         )
     ).first()
     if conflito:
@@ -942,7 +1019,7 @@ def aprovar_solicitacao(solicitacao_id):
     )
     db.session.add(notif)
     db.session.commit()
-    return jsonify({'mensagem': 'Reserva aprovada', 'aprovador': reserva.aprovador, 'data_aprovacao': reserva.data_aprovacao.isoformat()})
+    return jsonify({'mensagem': 'Reserva aprovada', 'aprovador': reserva.aprovador, 'data_aprovacao': reserva.data_aprovacao.isoformat() + 'Z'})
 
 @app.route('/api/solicitacoes/<int:solicitacao_id>/rejeitar', methods=['POST'])
 @role_required(['admin', 'gerente'])
@@ -969,11 +1046,11 @@ def rejeitar_solicitacao(solicitacao_id):
         usuario_email=reserva.email,
         mensagem=f'Sua solicitação "{reserva.titulo}" foi REJEITADA.',
         tipo='rejeicao',
-        reserva_id=None
+        reserva_id=reserva.id
     )
     db.session.add(notif)
     db.session.commit()
-    return jsonify({'mensagem': 'Solicitação rejeitada', 'aprovador': reserva.aprovador, 'data_aprovacao': reserva.data_aprovacao.isoformat()})
+    return jsonify({'mensagem': 'Solicitação rejeitada', 'aprovador': reserva.aprovador, 'data_aprovacao': reserva.data_aprovacao.isoformat() + 'Z'})
 
 @app.route('/api/salas/<int:sala_id>', methods=['PUT'])
 @role_required(['admin', 'gerente'])
