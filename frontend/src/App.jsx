@@ -224,7 +224,7 @@ function App() {
   // ========== CARREGAMENTO INICIAL ==========
   const loadSalas = async () => {
     const data = await getSalas();
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = new Date().toLocaleDateString('en-CA');
     const manutAtivas = manutencoes.filter(m => m.data_inicio <= hoje && m.data_fim >= hoje);
     const salasComManut = new Set(manutAtivas.map(m => m.sala_id));
     const salasAtualizadas = data.map(s => ({ ...s, em_manutencao: salasComManut.has(s.id) }));
@@ -314,7 +314,7 @@ function App() {
 
   useEffect(() => {
     if (salas.length && manutencoes.length) {
-      const hoje = new Date().toISOString().slice(0, 10);
+      const hoje = new Date().toLocaleDateString('en-CA');
       const manutAtivas = manutencoes.filter(m => m.data_inicio <= hoje && m.data_fim >= hoje);
       const salasComManut = new Set(manutAtivas.map(m => m.sala_id));
       setSalas(prev => prev.map(s => ({ ...s, em_manutencao: salasComManut.has(s.id) })));
