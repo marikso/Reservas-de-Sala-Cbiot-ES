@@ -97,6 +97,8 @@ SECRET_KEY=uma-chave-secreta
 PORTAL_AUTH_URL=http://localhost:3000
 ```
 
+> A porta do backend foi escolhida fora dos valores "clássicos" (5000, 8000...) para evitar conflito com outros projetos rodando na mesma máquina/host de deploy.
+
 Crie o banco (as tabelas são criadas automaticamente na primeira execução, via `db.create_all()`):
 
 ```sql
@@ -109,7 +111,7 @@ Rode o servidor:
 python app.py
 ```
 
-📍 Backend: http://localhost:5000
+📍 Backend: http://localhost:8061
 
 ### Testes do backend
 
@@ -130,7 +132,7 @@ npm install
 Variáveis de ambiente opcionais (`frontend/.env`):
 
 ```env
-VITE_API_BASE_URL=http://localhost:5000
+VITE_API_BASE_URL=http://localhost:8061
 VITE_PORTAL_LOGIN_URL=http://localhost:3000/login
 VITE_BASE_PATH=/
 ```
@@ -141,7 +143,7 @@ Rode a aplicação:
 npm run dev
 ```
 
-📍 Frontend: http://localhost:5173 (a porta sobe automaticamente se já estiver em uso)
+📍 Frontend: http://localhost:4321 (a porta sobe automaticamente se já estiver em uso)
 
 ### Testes do frontend
 
