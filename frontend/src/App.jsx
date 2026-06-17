@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import cbiotLogo from './assets/CBiot_logo.jpg';
 import {
   getSalas,
   createSala,
@@ -16,7 +18,7 @@ import {
   updateUser,
   approveUser,
   whoami,
-  redirectToPortalLogin,
+  removeToken,
   getMinhasSolicitacoes,
   getSolicitacoes,
   getSolicitacoesRejeitadas,
@@ -67,6 +69,7 @@ const generateAllEndTimes = () => {
 };
 
 function App() {
+  const navigate = useNavigate();
   // ========== ESTADOS ==========
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
@@ -284,10 +287,11 @@ function App() {
             email: u.email,
           }));
         } else {
-          redirectToPortalLogin();
+          removeToken();
+          navigate('/', { replace: true });
         }
       })
-      .catch(() => redirectToPortalLogin());
+      .catch(() => { removeToken(); navigate('/', { replace: true }); });
   }, []);
 
   useEffect(() => {
@@ -401,7 +405,8 @@ function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    redirectToPortalLogin();
+    removeToken();
+    navigate('/', { replace: true });
   };
 
   // ========== CANCELAMENTO DE RESERVAS (com notificação) ==========
@@ -1896,7 +1901,7 @@ function App() {
       />
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <img src="/CBiot_logo.jpg" alt="CBiot" className="logo-sidebar" />
+          <img src={cbiotLogo} alt="CBiot" className="logo-sidebar" />
           <div>
             <strong>CBiot</strong>
             <span>Reserva de salas</span>
@@ -1932,7 +1937,7 @@ function App() {
             Notificações
             {notificacoesNaoLidas > 0 && <span className="badge-notificacao">{notificacoesNaoLidas}</span>}
           </button>
-          <button className="sidebar-item" onClick={handleLogout}>Voltar ao Portal</button>
+          <button className="sidebar-item" onClick={handleLogout}>Sair</button>
         </div>
 
         <div className="sidebar-footer">

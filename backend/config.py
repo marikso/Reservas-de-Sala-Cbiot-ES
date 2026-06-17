@@ -13,8 +13,6 @@ class Config:
     # Desabilita rastreamento de modificações para economizar recursos
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # URL do Portal de autenticação centralizada
-    PORTAL_AUTH_URL = os.getenv('PORTAL_AUTH_URL', 'http://localhost:3000')
 
     # Tipo de armazenamento da sessão (filesystem - arquivos locais; também poderia ser 'redis')
     SESSION_TYPE = 'filesystem'
