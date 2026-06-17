@@ -158,7 +158,7 @@ function App() {
     data_inicio: '',
     data_fim: '',
     hora_inicio: '08:00',
-    hora_fim: '09:00',
+    hora_fim: '19:00',
     motivo: '',
   });
   const horariosManutencao = useMemo(() => generateAllStartTimes(), []);
@@ -224,7 +224,7 @@ function App() {
   // ========== CARREGAMENTO INICIAL ==========
   const loadSalas = async () => {
     const data = await getSalas();
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = new Date().toLocaleDateString('en-CA');
     const manutAtivas = manutencoes.filter(m => m.data_inicio <= hoje && m.data_fim >= hoje);
     const salasComManut = new Set(manutAtivas.map(m => m.sala_id));
     const salasAtualizadas = data.map(s => ({ ...s, em_manutencao: salasComManut.has(s.id) }));
@@ -314,7 +314,7 @@ function App() {
 
   useEffect(() => {
     if (salas.length && manutencoes.length) {
-      const hoje = new Date().toISOString().slice(0, 10);
+      const hoje = new Date().toLocaleDateString('en-CA');
       const manutAtivas = manutencoes.filter(m => m.data_inicio <= hoje && m.data_fim >= hoje);
       const salasComManut = new Set(manutAtivas.map(m => m.sala_id));
       setSalas(prev => prev.map(s => ({ ...s, em_manutencao: salasComManut.has(s.id) })));
@@ -608,7 +608,7 @@ function App() {
           data_inicio: '',
           data_fim: '',
           hora_inicio: '08:00',
-          hora_fim: '09:00',
+          hora_fim: '19:00',
           motivo: '',
         });
         await carregarNotificacoes();   // <-- adicionar
@@ -1405,7 +1405,7 @@ function App() {
                       </span>
                     </div>
                     <div className="gs-sala-info">
-                      {sala.andar ? sala.andar.toUpperCase() : 'ANDAR NÃO INFORMADO'} · CAPACIDADE: {sala.capacidade || '?'} PESSOAS
+                      PRÉDIO {sala.bloco || '?'} · {sala.andar ? sala.andar.toUpperCase() : 'ANDAR NÃO INFORMADO'} · CAPACIDADE: {sala.capacidade || '?'} PESSOAS
                     </div>
                     {sala.equipamentos && (
                       <div className="gs-equipamentos">
@@ -1487,7 +1487,7 @@ function App() {
                   </label>
                   <label className="modal-label" style={{ flex: 1 }}>Hora fim
                     <select className="modal-input" name="hora_fim" value={novaManutencao.hora_fim} onChange={handleChangeManutencao}>
-                      {horariosManutencao.map(h => <option key={h}>{h}</option>)}
+                      {todosFins.map(h => <option key={h}>{h}</option>)}
                     </select>
                   </label>
                 </div>
@@ -1775,7 +1775,6 @@ function App() {
                   <div className="reserva-card-header">
                     <h3>
                       {reserva?.titulo || 'Reserva'}
-                      {reserva && <span className="sala-localizacao-card" style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}> · {reserva.sala_nome}</span>}
                     </h3>
                     <span className="reserva-status" style={{ background: badge.bg, color: '#fff', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem' }}>
                       {badge.text}
@@ -1918,7 +1917,10 @@ function App() {
         {(currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') && (
           <div className="sidebar-section">
             <div className="sidebar-section-title">ADMINISTRATIVO</div>
-            <button className={`sidebar-item ${activeView === 'solicitacoes-reserva' ? 'active' : ''}`} onClick={() => setActiveView('solicitacoes-reserva')}>Solicitações de Reserva</button>
+            <button className={`sidebar-item ${activeView === 'solicitacoes-reserva' ? 'active' : ''}`} onClick={() => setActiveView('solicitacoes-reserva')}>
+              Solicitações de Reserva
+              {solicitacoes.length > 0 && <span className="badge-notificacao">{solicitacoes.length}</span>}
+            </button>
             <button className={`sidebar-item ${activeView === 'admin-reservas' ? 'active' : ''}`} onClick={() => setActiveView('admin-reservas')}>Gerenciar Reservas</button>
             {currentUser?.cargo === 'admin' && (
               <>

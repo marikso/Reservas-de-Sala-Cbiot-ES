@@ -78,7 +78,7 @@ def generate_token(user):
         'email': user.email,
         'nome': user.nome,
         'cargo': user.cargo if user.cargo in VALID_ROLES else 'usuario_cbiot',
-        'exp': datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
+        'exp': datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -194,7 +194,7 @@ def rejeitar_pendentes_conflitantes(sala_id, data_res, hora_ini, hora_fim, aprov
     for pendente in query.all():
         pendente.status = 'rejeitada'
         pendente.aprovador = aprovador_nome
-        pendente.data_aprovacao = datetime.utcnow()
+        pendente.data_aprovacao = datetime.now(timezone.utc)
 
         destinatario = User.query.filter_by(email=pendente.email).first()
         if not destinatario:
@@ -1018,7 +1018,7 @@ def aprovar_solicitacao(solicitacao_id):
     reserva.status = 'aprovada'
     user = get_current_user()
     reserva.aprovador = user.get('nome') or user.get('email')
-    reserva.data_aprovacao = datetime.utcnow()
+    reserva.data_aprovacao = datetime.now(timezone.utc)
 
     # Garantir que o destinatário exista na tabela users
     destinatario = User.query.filter_by(email=reserva.email).first()
@@ -1052,7 +1052,7 @@ def rejeitar_solicitacao(solicitacao_id):
     reserva.status = 'rejeitada'
     user = get_current_user()
     reserva.aprovador = user.get('nome') or user.get('email')
-    reserva.data_aprovacao = datetime.utcnow()
+    reserva.data_aprovacao = datetime.now(timezone.utc)
     destinatario = User.query.filter_by(email=reserva.email).first()
     if not destinatario:
         destinatario = User(

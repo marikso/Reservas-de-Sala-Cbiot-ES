@@ -2198,7 +2198,7 @@ body {
 
 /* Sidebar ajustável (colapsável) */
 .sidebar {
-  width: 280px;
+  width: 310px;
   transition: width 0.3s ease;
   position: relative;
 }
