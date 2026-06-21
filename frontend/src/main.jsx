@@ -7,14 +7,14 @@ import './styles.css';
 
 // Ponto de entrada do React. O roteamento tem duas rotas:
 // "/" → PortalGate captura o ?token= vindo do Portal ou redireciona para login.
-// "/ReservaDeSalas" → App principal, acessível somente após autenticação.
+// "/reserva-salas" → App principal, acessível somente após autenticação.
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/'}>
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/ReservaDeSalas" element={<App />} />
+        <Route path="/reserva-salas" element={<App />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

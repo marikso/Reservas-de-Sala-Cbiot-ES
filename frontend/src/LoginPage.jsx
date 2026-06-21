@@ -32,7 +32,7 @@ export default function LoginPage() {
       setLoading(false);
     } else if (res.token) {
       setToken(res.token);
-      navigate('/ReservaDeSalas', { replace: true });
+      navigate('/reserva-salas', { replace: true });
     }
   };
 

@@ -16,12 +16,12 @@ export default function PortalGate() {
 
     if (token) {
       setToken(token);
-      navigate('/ReservaDeSalas', { replace: true });
+      navigate('/reserva-salas', { replace: true });
       return;
     }
 
     if (getToken()) {
-      navigate('/ReservaDeSalas', { replace: true });
+      navigate('/reserva-salas', { replace: true });
       return;
     }
 
