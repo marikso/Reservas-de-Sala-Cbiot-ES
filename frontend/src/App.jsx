@@ -71,6 +71,7 @@ const generateAllEndTimes = () => {
 function App() {
   const navigate = useNavigate();
   // ========== ESTADOS ==========
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salas, setSalas] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [allReservas, setAllReservas] = useState([]);
@@ -288,10 +289,10 @@ function App() {
           }));
         } else {
           removeToken();
-          navigate('/', { replace: true });
+          navigate('/login', { replace: true });
         }
       })
-      .catch(() => { removeToken(); navigate('/', { replace: true }); });
+      .catch(() => { removeToken(); navigate('/login', { replace: true }); });
   }, []);
 
   useEffect(() => {
@@ -363,6 +364,8 @@ function App() {
   const horasInicioDisponiveis = useMemo(() => {
     if (!dataSelecionada && !recorrente) return [];
     if (recorrente) return todosInicios;
+    // Filtra inícios onde nem o bloco mínimo de 30 min estaria disponível,
+    // evitando que o usuário selecione um horário sem nenhum fim possível.
     return todosInicios.filter((inicio) => {
       const fim = add30min(inicio);
       return !conflita(timeToMinutes(inicio), timeToMinutes(fim));
@@ -406,7 +409,7 @@ function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     removeToken();
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   // ========== CANCELAMENTO DE RESERVAS (com notificação) ==========
@@ -768,6 +771,7 @@ function App() {
       r.titulo
     ]);
     const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    // "\uFEFF" \u00E9 o BOM (Byte Order Mark) UTF-8; sem ele o Excel abre o CSV com encoding errado.
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -1530,34 +1534,34 @@ function App() {
             </span>
           </div>
           <div className="gu-table-header">
-            <span style={{ flex: 3 }}>USUÁRIO</span>
-            <span style={{ flex: 3 }}>E-MAIL</span>
-            <span style={{ flex: 2 }}>PAPEL</span>
-            <span style={{ flex: 1 }}>STATUS</span>
-            <span style={{ flex: '0 0 220px' }}>AÇÕES</span>
+            <span className="gu-col-user">USUÁRIO</span>
+            <span className="gu-col-email">E-MAIL</span>
+            <span className="gu-col-papel">PAPEL</span>
+            <span className="gu-col-status">STATUS</span>
+            <span className="gu-col-acoes">AÇÕES</span>
           </div>
           <div className="gu-rows">
             {users.map(u => (
               <div key={u.id} className="gu-row">
-                <div style={{ flex: 3, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div className="gu-col-user gu-user-info">
                   <div className="gu-avatar">{u.nome.substring(0, 2).toUpperCase()}</div>
                   <div>
-                    <div style={{ fontWeight: 700, color: '#1A0F2B', fontSize: '14px', lineHeight: 1.3 }}>{u.nome}</div>
+                    <div className="gu-user-nome">{u.nome}</div>
                     {u.id === currentUser.id && <span className="gu-voce">você</span>}
                   </div>
                 </div>
-                <span style={{ flex: 3, color: '#6B5F7A', fontSize: '13px' }}>{u.email}</span>
-                <span style={{ flex: 2 }}>
+                <span className="gu-col-email gu-email-text">{u.email}</span>
+                <span className="gu-col-papel">
                   <span className="gu-cargo-badge" style={{ background: cargoBg[u.cargo] || '#ECE6F7', color: cargoFg[u.cargo] || '#6B5F7A' }}>
                     {(cargoLabel[u.cargo] || u.cargo).toUpperCase()}
                   </span>
                 </span>
-                <span style={{ flex: 1 }}>
+                <span className="gu-col-status">
                   <span className="gu-status-badge" style={{ background: u.status === 'aprovado' ? '#2ECC71' : u.status === 'pendente' ? '#F39C12' : '#95A5A6' }}>
                     {u.status === 'aprovado' ? 'ATIVO' : u.status === 'pendente' ? 'PENDENTE' : 'INATIVO'}
                   </span>
                 </span>
-                <div style={{ flex: '0 0 220px', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div className="gu-col-acoes gu-acoes-row">
                   {u.id !== currentUser.id && (
                     <button className="btn-padrao btn-primary" onClick={() => { setAlterandoPapelUser(u); setNovoPapelSelecionado(u.cargo); }}>Alterar papel</button>
                   )}
@@ -1816,7 +1820,11 @@ function App() {
   const notificacoesNaoLidas = notificacoes.filter(n => !n.lida).length;
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${sidebarOpen ? 'sidebar-open' : ''}`}>
+      <button className="sidebar-toggle" onClick={() => setSidebarOpen(v => !v)} aria-label="Menu">
+        <span /><span /><span />
+      </button>
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
       {editandoReserva && (
         <div className="modal-overlay" onClick={() => setEditandoReserva(null)}>
@@ -1898,7 +1906,7 @@ function App() {
         userRole={currentUser?.cargo === 'usuario_cbiot' ? 'externo' : 'interno'}
         initialData={reservaData}
       />
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
           <img src={cbiotLogo} alt="CBiot" className="logo-sidebar" />
           <div>
@@ -1909,33 +1917,33 @@ function App() {
 
         <div className="sidebar-section">
           <div className="sidebar-section-title">PRINCIPAL</div>
-          <button className={`sidebar-item ${activeView === 'inicio' ? 'active' : ''}`} onClick={() => setActiveView('inicio')}>Início</button>
-          <button className={`sidebar-item ${activeView === 'consultar-disponibilidade' ? 'active' : ''}`} onClick={() => setActiveView('consultar-disponibilidade')}>Consultar disponibilidade</button>
-          <button className={`sidebar-item ${activeView === 'minhas-reservas' ? 'active' : ''}`} onClick={() => setActiveView('minhas-reservas')}>Minhas reservas</button>
+          <button className={`sidebar-item ${activeView === 'inicio' ? 'active' : ''}`} onClick={() => { setActiveView('inicio'); setSidebarOpen(false); }}>Início</button>
+          <button className={`sidebar-item ${activeView === 'consultar-disponibilidade' ? 'active' : ''}`} onClick={() => { setActiveView('consultar-disponibilidade'); setSidebarOpen(false); }}>Consultar disponibilidade</button>
+          <button className={`sidebar-item ${activeView === 'minhas-reservas' ? 'active' : ''}`} onClick={() => { setActiveView('minhas-reservas'); setSidebarOpen(false); }}>Minhas reservas</button>
         </div>
 
         {(currentUser?.cargo === 'admin' || currentUser?.cargo === 'gerente') && (
           <div className="sidebar-section">
             <div className="sidebar-section-title">ADMINISTRATIVO</div>
-            <button className={`sidebar-item ${activeView === 'solicitacoes-reserva' ? 'active' : ''}`} onClick={() => setActiveView('solicitacoes-reserva')}>
+            <button className={`sidebar-item ${activeView === 'solicitacoes-reserva' ? 'active' : ''}`} onClick={() => { setActiveView('solicitacoes-reserva'); setSidebarOpen(false); }}>
               Solicitações de Reserva
               {solicitacoes.length > 0 && <span className="badge-notificacao">{solicitacoes.length}</span>}
             </button>
-            <button className={`sidebar-item ${activeView === 'admin-reservas' ? 'active' : ''}`} onClick={() => setActiveView('admin-reservas')}>Gerenciar Reservas</button>
+            <button className={`sidebar-item ${activeView === 'admin-reservas' ? 'active' : ''}`} onClick={() => { setActiveView('admin-reservas'); setSidebarOpen(false); }}>Gerenciar Reservas</button>
             {currentUser?.cargo === 'admin' && (
               <>
-                <button className={`sidebar-item ${activeView === 'gerenciar-salas' ? 'active' : ''}`} onClick={() => setActiveView('gerenciar-salas')}>Gerenciar Salas</button>
-                <button className={`sidebar-item ${activeView === 'gerenciar-usuarios' ? 'active' : ''}`} onClick={() => setActiveView('gerenciar-usuarios')}>Gerenciar Usuários</button>
+                <button className={`sidebar-item ${activeView === 'gerenciar-salas' ? 'active' : ''}`} onClick={() => { setActiveView('gerenciar-salas'); setSidebarOpen(false); }}>Gerenciar Salas</button>
+                <button className={`sidebar-item ${activeView === 'gerenciar-usuarios' ? 'active' : ''}`} onClick={() => { setActiveView('gerenciar-usuarios'); setSidebarOpen(false); }}>Gerenciar Usuários</button>
               </>
             )}
-            <button className={`sidebar-item ${activeView === 'relatorios' ? 'active' : ''}`} onClick={() => setActiveView('relatorios')}>Relatórios</button>
+            <button className={`sidebar-item ${activeView === 'relatorios' ? 'active' : ''}`} onClick={() => { setActiveView('relatorios'); setSidebarOpen(false); }}>Relatórios</button>
           </div>
         )}
 
         <div className="sidebar-section">
           <div className="sidebar-section-title">CONTA</div>
 
-          <button className={`sidebar-item ${activeView === 'notificacoes' ? 'active' : ''}`} onClick={() => setActiveView('notificacoes')}>
+          <button className={`sidebar-item ${activeView === 'notificacoes' ? 'active' : ''}`} onClick={() => { setActiveView('notificacoes'); setSidebarOpen(false); }}>
             Notificações
             {notificacoesNaoLidas > 0 && <span className="badge-notificacao">{notificacoesNaoLidas}</span>}
           </button>
