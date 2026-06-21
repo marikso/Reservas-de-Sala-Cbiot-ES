@@ -13,6 +13,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/'}>
       <Routes>
         <Route path="/" element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/ReservaDeSalas" element={<App />} />
       </Routes>
     </BrowserRouter>
